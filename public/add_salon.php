@@ -1,6 +1,6 @@
 <?php
 session_start();
-require '../config/db.php';
+require '../includes/config.php';
 
 if (!isset($_SESSION["role"]) || $_SESSION["role"] !== "owner") {
     die("Access denied.");
