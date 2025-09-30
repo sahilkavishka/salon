@@ -1,49 +1,44 @@
+<?php
+session_start();
+require '../config/db.php';
 
+if (!isset($_SESSION["role"]) || $_SESSION["role"] !== "owner") {
+    die("Access denied.");
+}
+
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $name = $_POST["name"];
+    $address = $_POST["address"];
+    $lat = $_POST["latitude"];
+    $lng = $_POST["longitude"];
+    $type = $_POST["type"];
+    $rating = $_POST["rating"];
+
+    $stmt = $pdo->prepare("INSERT INTO salons (name, address, latitude, longitude, type, rating) VALUES (?, ?, ?, ?, ?, ?)");
+    if ($stmt->execute([$name, $address, $lat, $lng, $type, $rating])) {
+        echo "Salon added successfully.";
+    } else {
+        echo "Error adding salon.";
+    }
+}
+?>
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Add Salon</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    form { max-width: 400px; margin: auto; }
-    input, select { width: 100%; padding: 8px; margin: 6px 0; }
-    button { padding: 10px; background: #28a745; color: #fff; border: none; cursor: pointer; }
-    button:hover { background: #218838; }
-    .msg { margin: 10px 0; color: green; font-weight: bold; }
-  </style>
-</head>
+<html>
+<head><title>Add Salon</title></head>
 <body>
-
-<h2>Add a New Salon</h2>
-
-<?php if (!empty($success)) echo "<div class='msg'>$success</div>"; ?>
-
-<form method="POST" action="">
-  <label for="name">Salon Name:</label>
-  <input type="text" name="name" required>
-
-  <label for="address">Address:</label>
-  <input type="text" name="address" required>
-
-  <label for="latitude">Latitude:</label>
-  <input type="text" name="latitude" required>
-
-  <label for="longitude">Longitude:</label>
-  <input type="text" name="longitude" required>
-
-  <label for="type">Type:</label>
+<h2>Add Salon</h2>
+<form method="post">
+  <input type="text" name="name" placeholder="Salon Name" required><br>
+  <input type="text" name="address" placeholder="Address" required><br>
+  <input type="text" name="latitude" placeholder="Latitude" required><br>
+  <input type="text" name="longitude" placeholder="Longitude" required><br>
   <select name="type">
     <option value="beauty">Beauty</option>
     <option value="barber">Barber</option>
     <option value="spa">Spa</option>
-  </select>
-
-  <label for="rating">Rating (0–5):</label>
-  <input type="number" name="rating" step="0.1" min="0" max="5" required>
-
+  </select><br>
+  <input type="number" step="0.1" name="rating" placeholder="Rating (0-5)"><br>
   <button type="submit">Add Salon</button>
 </form>
-
 </body>
 </html>
