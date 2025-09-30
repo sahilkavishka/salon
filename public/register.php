@@ -1,5 +1,5 @@
 <?php
-require '../config/db.php'; // adjust path if needed
+require '../includes/config.php'; // adjust path if needed
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username = trim($_POST["username"]);
