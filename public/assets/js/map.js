@@ -1,75 +1,118 @@
-// public/assets/js/map.js
-markers.forEach(m => m.setMap(null));
-markers = [];
+let map;
+let markers = [];
 
-
-
-async function performSearch(params){
-const query = new URLSearchParams(params).toString();
-const res = await fetch('search.php?' + query);
-const data = await res.json();
-return data;
+function initMap() {
+  // Default center (Colombo)
+  map = new google.maps.Map(document.getElementById("map"), {
+    center: { lat: 6.9271, lng: 79.8612 },
+    zoom: 12,
+  });
 }
 
-
-document.getElementById('searchForm').addEventListener('submit', async function(e){
-e.preventDefault();
-const location = document.getElementById('locationInput').value.trim();
-const type = document.getElementById('typeSelect').value;
-const radius = document.getElementById('radiusInput').value;
-
-
-let params = { radius };
-if (location) params.location = location;
-if (type) params.type = type;
-
-
-const results = await performSearch(params);
-
-
-clearMarkers();
-document.getElementById('results').innerHTML = '';
-
-
-results.forEach(r => {
-const pos = { lat: parseFloat(r.latitude), lng: parseFloat(r.longitude) };
-const marker = new google.maps.Marker({ position: pos, map: map, title: r.name });
-markers.push(marker);
-
-
-const row = document.createElement('div');
-row.innerText = `${r.name} — ${r.address} (${parseFloat(r.distance).toFixed(2)} km)`;
-document.getElementById('results').appendChild(row);
-});
-
-
-if (results[0]) {
-map.setCenter({lat: parseFloat(results[0].latitude), lng: parseFloat(results[0].longitude)});
+// Remove old markers
+function clearMarkers() {
+  markers.forEach(marker => marker.setMap(null));
+  markers = [];
 }
+
+// Show results on map
+function showSalonsOnMap(salons) {
+  clearMarkers();
+  let bounds = new google.maps.LatLngBounds();
+
+  salons.forEach(salon => {
+    let position = { lat: parseFloat(salon.latitude), lng: parseFloat(salon.longitude) };
+
+    let marker = new google.maps.Marker({
+      position: position,
+      map: map,
+      title: salon.name
+    });
+
+    let infoWindow = new google.maps.InfoWindow({
+      content: `<strong>${salon.name}</strong><br>${salon.address}<br>Type: ${salon.type}<br>Rating: ${salon.rating}`
+    });
+
+    marker.addListener("click", () => {
+      infoWindow.open(map, marker);
+    });
+
+    markers.push(marker);
+    bounds.extend(position);
+  });
+
+  if (salons.length > 0) {
+    map.fitBounds(bounds);
+  }
+}
+
+// Handle form submit
+document.getElementById("searchForm").addEventListener("submit", function(e) {
+  e.preventDefault();
+  let location = document.getElementById("locationInput").value;
+  let type = document.getElementById("typeSelect").value;
+  let radius = document.getElementById("radiusInput").value;
+
+  fetch("search.php?location=" + encodeURIComponent(location) + "&type=" + type + "&radius=" + radius)
+    .then(response => response.json())
+    .then(data => {
+      let resultsDiv = document.getElementById("results");
+      resultsDiv.innerHTML = "";
+
+      if (data.error) {
+        resultsDiv.innerHTML = "<p style='color:red;'>" + data.error + "</p>";
+        return;
+      }
+
+      data.forEach(salon => {
+        resultsDiv.innerHTML += `
+          <div class="salon">
+            <strong>${salon.name}</strong><br>
+            ${salon.address}<br>
+            Type: ${salon.type}<br>
+            Rating: ${salon.rating}
+          </div>
+        `;
+      });
+
+      showSalonsOnMap(data);
+    })
+    .catch(err => console.error("Fetch error:", err));
 });
 
+// Use browser location
+document.getElementById("useLocation").addEventListener("click", function() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      let lat = pos.coords.latitude;
+      let lng = pos.coords.longitude;
 
-// Use browser geolocation
-document.getElementById('useLocation').addEventListener('click', () => {
-if (!navigator.geolocation) return alert('Geolocation not supported');
-navigator.geolocation.getCurrentPosition(async pos => {
-const lat = pos.coords.latitude;
-const lng = pos.coords.longitude;
-const radius = document.getElementById('radiusInput').value;
-const type = document.getElementById('typeSelect').value;
+      fetch(`search.php?lat=${lat}&lng=${lng}&radius=${document.getElementById("radiusInput").value}&type=${document.getElementById("typeSelect").value}`)
+        .then(response => response.json())
+        .then(data => {
+          let resultsDiv = document.getElementById("results");
+          resultsDiv.innerHTML = "";
 
+          if (data.error) {
+            resultsDiv.innerHTML = "<p style='color:red;'>" + data.error + "</p>";
+            return;
+          }
 
-const results = await performSearch({ lat, lng, radius, type });
-// reuse rendering logic: clear and add markers (duplicate or refactor in production)
-clearMarkers();
-document.getElementById('results').innerHTML = '';
-results.forEach(r => {
-const marker = new google.maps.Marker({ position: {lat: parseFloat(r.latitude), lng: parseFloat(r.longitude)}, map: map, title: r.name });
-markers.push(marker);
-const row = document.createElement('div');
-row.innerText = `${r.name} — ${r.address} (${parseFloat(r.distance).toFixed(2)} km)`;
-document.getElementById('results').appendChild(row);
-});
-if (results[0]) map.setCenter({lat: parseFloat(results[0].latitude), lng: parseFloat(results[0].longitude)});
-}, err => alert('Could not get your location: ' + err.message));
+          data.forEach(salon => {
+            resultsDiv.innerHTML += `
+              <div class="salon">
+                <strong>${salon.name}</strong><br>
+                ${salon.address}<br>
+                Type: ${salon.type}<br>
+                Rating: ${salon.rating}
+              </div>
+            `;
+          });
+
+          showSalonsOnMap(data);
+        });
+    });
+  } else {
+    alert("Geolocation is not supported by this browser.");
+  }
 });
