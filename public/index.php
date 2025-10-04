@@ -5,18 +5,10 @@ require '../includes/config.php';
 <!doctype html>
 <html>
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+
 <title>Salon Finder</title>
 <link rel="stylesheet" href="assets/css/style.css">
-<style>
-  body { font-family: Arial, sans-serif; margin: 20px; }
-  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-  nav a { margin-left: 15px; }
-  form { margin-bottom: 20px; }
-  #map { height: 450px; margin-bottom: 20px; }
-  #results .salon { padding: 10px; border: 1px solid #ddd; margin-bottom: 10px; border-radius: 5px; }
-</style>
+
 </head>
 <body>
 <header>
