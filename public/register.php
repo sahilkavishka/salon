@@ -1,11 +1,12 @@
 <?php
-require '../includes/config.php'; // adjust path if needed
+require '../includes/config.php';
 
 $error = '';
 $success = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username = trim($_POST["username"]);
+    $email = trim($_POST["email"]);
     $password = password_hash($_POST["password"], PASSWORD_BCRYPT);
     $role = $_POST["role"];
 
@@ -15,7 +16,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($stmt->fetchColumn() > 0) {
         $error = "Username already exists. Please choose another.";
     } else {
-        // Handle profile picture upload
+        // Check if email already exists
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        if ($stmt->fetchColumn() > 0) {
+            $error = "Email already registered. Please use another.";
+        }
+    }
+
+    // Handle profile picture upload
+    if (!$error) {
         $profile_pic = null;
         if (isset($_FILES['profile_pic']) && $_FILES['profile_pic']['error'] == 0) {
             $allowed = ['jpg', 'jpeg', 'png', 'gif'];
@@ -30,15 +40,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $error = "Invalid file type. Only JPG, PNG, GIF allowed.";
             }
         }
+    }
 
-        // Insert new user
-        if (!$error) {
-            $stmt = $pdo->prepare("INSERT INTO users (username, password, role, profile_pic) VALUES (?, ?, ?, ?)");
-            if ($stmt->execute([$username, $password, $role, $profile_pic])) {
-                $success = "Registered successfully. <a href='login.php'>Login here</a>";
-            } else {
-                $error = "Error: Could not register user.";
-            }
+    // Insert new user
+    if (!$error) {
+        $stmt = $pdo->prepare("INSERT INTO users (username, email, password, role, profile_pic) VALUES (?, ?, ?, ?, ?)");
+        if ($stmt->execute([$username, $email, $password, $role, $profile_pic])) {
+            $success = "Registered successfully. <a href='login.php'>Login here</a>";
+        } else {
+            $error = "Error: Could not register user.";
         }
     }
 }
@@ -50,7 +60,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Register - Salon Finder</title>
 <link rel="stylesheet" href="assets/css/register.css">
-
 </head>
 <body>
 
@@ -66,7 +75,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <?php endif; ?>
 
     <form method="post" enctype="multipart/form-data">
-        <input type="text" name="username" placeholder="Username / Email" required>
+        <input type="text" name="username" placeholder="Username" required>
+        <input type="email" name="email" placeholder="Email" required>
         <input type="password" name="password" placeholder="Password" required>
         <select name="role" required>
             <option value="">Select Role</option>
