@@ -12,10 +12,15 @@ body {
   color: #2c2c2c;
 }
 
-/* Header Styles */
+/* =============================
+   Header
+============================= */
 header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-  padding: 2rem 2rem;
+  padding: 1.5rem 2rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   position: sticky;
   top: 0;
@@ -23,34 +28,30 @@ header {
   border-bottom: 3px solid #d4af37;
 }
 
-header h1 {
+.header-left h1 {
   font-size: 2.5rem;
   background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: 1rem;
-  text-align: center;
   font-weight: 700;
   letter-spacing: 2px;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-nav {
+.header-right {
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
   gap: 1rem;
 }
 
-nav span {
+.header-right span {
   color: #ecf0f1;
   font-weight: 500;
   font-family: 'Segoe UI', sans-serif;
 }
 
-nav a {
+.header-right a {
   text-decoration: none;
   color: #ecf0f1;
   padding: 0.6rem 1.2rem;
@@ -62,7 +63,7 @@ nav a {
   font-family: 'Segoe UI', sans-serif;
 }
 
-nav a:hover {
+.header-right a:hover {
   background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
   color: #2c3e50;
   transform: translateY(-2px);
@@ -85,7 +86,9 @@ nav a:hover {
   box-shadow: 0 4px 12px rgba(212, 175, 55, 0.6);
 }
 
-/* Search Form Styles */
+/* =============================
+   Search Form
+============================= */
 #searchForm {
   max-width: 1000px;
   margin: 2.5rem auto;
@@ -101,91 +104,43 @@ nav a:hover {
   position: relative;
 }
 
-#searchForm::before {
-  content: '✨';
-  position: absolute;
-  top: -15px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 2rem;
-  background: white;
-  padding: 0 1rem;
+#locationInput, #typeSelect, #radiusInput {
+  padding: 0.9rem 1.2rem;
+  border: 2px solid #e0c097;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-family: 'Segoe UI', sans-serif;
+  transition: all 0.3s ease;
 }
 
 #locationInput {
   flex: 1;
   min-width: 250px;
-  padding: 0.9rem 1.2rem;
-  border: 2px solid #e0c097;
-  border-radius: 25px;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  background: white;
-  font-family: 'Segoe UI', sans-serif;
-}
-
-#locationInput:focus {
-  outline: none;
-  border-color: #d4af37;
-  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
-}
-
-#typeSelect {
-  padding: 0.9rem 1.2rem;
-  border: 2px solid #e0c097;
-  border-radius: 25px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  background: white;
-  font-family: 'Segoe UI', sans-serif;
-}
-
-#typeSelect:focus {
-  outline: none;
-  border-color: #d4af37;
-  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
 }
 
 #radiusInput {
   width: 90px;
-  padding: 0.9rem;
-  border: 2px solid #e0c097;
-  border-radius: 25px;
-  font-size: 1rem;
   text-align: center;
-  font-family: 'Segoe UI', sans-serif;
 }
 
-#radiusInput:focus {
-  outline: none;
-  border-color: #d4af37;
-  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
-}
-
-button {
+#searchForm button {
   padding: 0.9rem 1.8rem;
-  background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
-  color: #2c3e50;
   border: none;
   border-radius: 25px;
-  font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 10px rgba(212, 175, 55, 0.4);
   font-family: 'Segoe UI', sans-serif;
   letter-spacing: 0.5px;
+  background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+  color: #2c3e50;
+  box-shadow: 0 4px 10px rgba(212, 175, 55, 0.4);
 }
 
-button:hover {
+#searchForm button:hover {
   transform: translateY(-3px);
   box-shadow: 0 6px 15px rgba(212, 175, 55, 0.5);
   background: linear-gradient(135deg, #f4d03f 0%, #d4af37 100%);
-}
-
-button:active {
-  transform: translateY(-1px);
 }
 
 #useLocation {
@@ -197,7 +152,9 @@ button:active {
   background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
 }
 
-/* Map Styles */
+/* =============================
+   Map
+============================= */
 #map {
   max-width: 1200px;
   height: 550px;
@@ -209,7 +166,9 @@ button:active {
   border: 3px solid #d4af37;
 }
 
-/* Results Section */
+/* =============================
+   Results
+============================= */
 #results {
   max-width: 1200px;
   margin: 2.5rem auto;
@@ -228,7 +187,6 @@ button:active {
   cursor: pointer;
   border: 2px solid #e0c097;
   position: relative;
-  overflow: hidden;
 }
 
 .salon-card::before {
@@ -281,39 +239,31 @@ button:active {
   font-family: 'Segoe UI', sans-serif;
 }
 
-/* Responsive Design */
+/* =============================
+   Responsive Design
+============================= */
 @media (max-width: 768px) {
   header {
-    padding: 1.5rem 1rem;
-  }
-
-  header h1 {
-    font-size: 1.8rem;
-    letter-spacing: 1px;
-  }
-
-  nav {
     flex-direction: column;
-    align-items: stretch;
+    align-items: flex-start;
   }
 
-  nav a {
-    text-align: center;
+  .header-right {
+    margin-top: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
   #searchForm {
-    padding: 1.5rem;
     flex-direction: column;
+    padding: 1.5rem;
     margin: 1.5rem 1rem;
   }
 
   #locationInput,
   #typeSelect,
+  #radiusInput,
   button {
-    width: 100%;
-  }
-
-  #radiusInput {
     width: 100%;
   }
 
@@ -326,65 +276,4 @@ button:active {
     grid-template-columns: 1fr;
     padding: 0 1rem;
   }
-}
-
-/* Loading Animation */
-.loading {
-  text-align: center;
-  padding: 3rem;
-  color: #2c3e50;
-  font-size: 1.3rem;
-  font-weight: 600;
-}
-
-.loading::after {
-  content: '...';
-  animation: dots 1.5s steps(4, end) infinite;
-}
-
-@keyframes dots {
-  0%, 20% {
-    content: '.';
-  }
-  40% {
-    content: '..';
-  }
-  60%, 100% {
-    content: '...';
-  }
-}
-
-/* Empty State */
-.empty-state {
-  text-align: center;
-  padding: 4rem;
-  color: #2c3e50;
-  font-size: 1.3rem;
-  font-weight: 600;
-  background: white;
-  border-radius: 15px;
-  max-width: 600px;
-  margin: 2rem auto;
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
-}
-
-.empty-state::before {
-  content: '💈';
-  display: block;
-  font-size: 4rem;
-  margin-bottom: 1.5rem;
-}
-
-/* Error Message */
-.error-message {
-  max-width: 600px;
-  margin: 2rem auto;
-  padding: 1.2rem 1.8rem;
-  background: #fff3cd;
-  border: 2px solid #d4af37;
-  border-radius: 15px;
-  color: #856404;
-  text-align: center;
-  font-weight: 600;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }

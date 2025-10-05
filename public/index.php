@@ -14,8 +14,10 @@ require '../includes/config.php'; // Database connection
 
   <!-- Header -->
   <header>
-    <h1>Salon Finder</h1>
-    <nav>
+    <div class="header-left">
+      <h1>Salon Finder</h1>
+    </div>
+    <div class="header-right">
       <?php if (isset($_SESSION['user_id'])): ?>
         <?php
           // Fetch user profile picture
@@ -40,7 +42,7 @@ require '../includes/config.php'; // Database connection
         <a href="login.php">🔑 Login</a>
         <a href="register.php">📝 Register</a>
       <?php endif; ?>
-    </nav>
+    </div>
   </header>
 
   <!-- Search Section -->
