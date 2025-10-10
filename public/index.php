@@ -1,69 +1,86 @@
 <?php
+// public/index.php
+require_once __DIR__ . '/../config.php';
 session_start();
-require '../includes/config.php'; // Database connection
 ?>
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Salonora</title>
-  <link rel="stylesheet" href="assets/css/style.css">
-
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <meta charset="utf-8">
+  <title>Salonora - Find Salons</title>
+  <style> #map { height: 500px; width: 100%; } </style>
 </head>
 <body>
+  <h1>Find Salons Nearby</h1>
+  <input id="searchBox" placeholder="Search by name or address">
+  <button id="searchBtn">Search</button>
+  <div id="map"></div>
 
-  <!-- Header -->
-  <header>
-    <div class="header-left">
-      <h1>Salonora</h1>
-    </div>
-    <div class="header-right">
-      <?php if (isset($_SESSION['user_id'])): ?>
-        <?php
-          $stmt = $pdo->prepare("SELECT profile_pic FROM users WHERE id = ?");
-          $stmt->execute([$_SESSION['user_id']]);
-          $user_pic = $stmt->fetchColumn();
-        ?>
-        <?php if ($user_pic): ?>
-          <img src="../uploads/<?= htmlspecialchars($user_pic) ?>" alt="Profile Picture" class="profile-pic">
-        <?php endif; ?>
-        <span>Welcome, <?= htmlspecialchars($_SESSION['username']) ?> </span>
+  <script>
+    let map, markers = [];
+    function initMap() {
+      const defaultCenter = { lat: 6.9271, lng: 79.8612 }; // Colombo default
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: defaultCenter,
+        zoom: 13
+      });
 
-        <?php if ($_SESSION['role'] === 'owner'): ?>
-          <a href="add_salon.php">➕ Add Salon</a>
-          <a href="manage_salons.php">⚙ Manage Salons</a>
-        <?php endif; ?>
+      // try geolocation
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          map.setCenter(p);
+          loadSalonsByLatLng(p.lat, p.lng);
+        }, () => { loadSalonsDefault(); });
+      } else {
+        loadSalonsDefault();
+      }
+    }
 
-        <a href="logout.php">🚪 Logout</a>
-      <?php else: ?>
-        <a href="login.php">🔑 Login</a>
-        <a href="register.php">📝 Register</a>
-      <?php endif; ?>
-    </div>
-  </header>
+    function clearMarkers(){
+      markers.forEach(m => m.setMap(null));
+      markers = [];
+    }
 
-  <!-- Search Section -->
-  <form id="searchForm">
-    <input id="locationInput" name="location" placeholder="Enter address (or use my location)">
-    <select id="typeSelect" name="type">
-      <option value="">All</option>
-      <option value="beauty">Beauty</option>
-      <option value="barber">Barber</option>
-      <option value="spa">Spa</option>
-    </select>
-    <input type="number" id="radiusInput" name="radius" value="5" min="1"> km
-    <button type="submit">🔍 Search</button>
-    <button type="button" id="useLocation">📍 Use my location</button>
-  </form>
+    function addMarker(salon) {
+      const pos = { lat: parseFloat(salon.latitude), lng: parseFloat(salon.longitude) };
+      const m = new google.maps.Marker({ position: pos, map });
+      const info = new google.maps.InfoWindow({
+        content: `<strong>${salon.name}</strong><br>${salon.address}<br><a href="salon_view.php?id=${salon.salon_id}">View</a>`
+      });
+      m.addListener('click', () => info.open(map, m));
+      markers.push(m);
+    }
 
-  <!-- Map -->
-  <div id="map" style="width:100%; height:550px;"></div>
+    function loadSalonsByLatLng(lat, lng){
+      fetch(`search.php?lat=${lat}&lng=${lng}`)
+        .then(r=>r.json()).then(data=>{
+          clearMarkers();
+          data.forEach(s=>addMarker(s));
+        });
+    }
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="assets/js/map.js"></script>
+    function loadSalonsDefault(){
+      fetch('search.php')
+        .then(r=>r.json()).then(data=>{
+          clearMarkers();
+          data.forEach(s=>addMarker(s));
+        });
+    }
+
+    document.getElementById('searchBtn').addEventListener('click', ()=>{
+      const q = document.getElementById('searchBox').value;
+      fetch(`search.php?q=${encodeURIComponent(q)}`)
+        .then(r=>r.json()).then(data=>{
+          clearMarkers();
+          data.forEach(s=>addMarker(s));
+          if (data[0] && data[0].latitude) {
+            map.setCenter({lat: parseFloat(data[0].latitude), lng: parseFloat(data[0].longitude)});
+          }
+        });
+    });
+  </script>
+
+  <script src="https://maps.googleapis.com/maps/api/js?key=<?=GOOGLE_MAPS_API_KEY?>&callback=initMap" async defer></script>
 </body>
 </html>
