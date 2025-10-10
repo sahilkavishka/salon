@@ -7,11 +7,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = strtolower(trim($_POST['email'] ?? ''));
     $password = $_POST['password'] ?? '';
 
-    $stmt = $pdo->prepare("SELECT user_id, name, password, role FROM users WHERE email = ?");
+    $stmt = $pdo->prepare("SELECT id, name, password, role FROM users WHERE email = ?");
     $stmt->execute([$email]);
     $user = $stmt->fetch();
     if ($user && password_verify($password, $user['password'])) {
-        $_SESSION['user_id'] = $user['user_id'];
+        $_SESSION['id'] = $user['id'];
         $_SESSION['user_name'] = $user['name'];
         $_SESSION['role'] = $user['role'];
         header('Location: index.php');

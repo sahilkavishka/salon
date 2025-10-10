@@ -4,12 +4,12 @@
 require_once __DIR__ . '/../config.php'; // provides $pdo and constants
 
 // Security: only owners
-if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'owner') {
+if (!isset($_SESSION['id']) || ($_SESSION['role'] ?? '') !== 'owner') {
     header('Location: ../public/login.php');
     exit;
 }
 
-$owner_id = $_SESSION['user_id'];
+$owner_id = $_SESSION['id'];
 
 // Fetch owner's salons
 $stmt = $pdo->prepare("SELECT * FROM salons WHERE owner_id = ?");
@@ -21,7 +21,7 @@ $stmt = $pdo->prepare("
   SELECT a.*, s.service_name, u.name AS customer_name, sal.name AS salon_name
   FROM appointments a
   JOIN services s ON a.service_id = s.service_id
-  JOIN users u ON a.user_id = u.user_id
+  JOIN users u ON a.id = u.id
   JOIN salons sal ON a.salon_id = sal.salon_id
   WHERE sal.owner_id = ?
   ORDER BY a.created_at DESC

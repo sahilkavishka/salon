@@ -3,15 +3,15 @@
 session_start();
 require_once __DIR__ . '/../includes/config.php';
 
-if (!isset($_SESSION['user_id'])) {
+if (!isset($_SESSION['id'])) {
     header('Location: ../public/login.php');
     exit;
 }
 
-$user_id = $_SESSION['user_id'];
+$id = $_SESSION['id'];
 // fetch user
-$stmt = $pdo->prepare("SELECT user_id, name, email, phone, role FROM users WHERE user_id = ?");
-$stmt->execute([$user_id]);
+$stmt = $pdo->prepare("SELECT id, name, email, phone, role FROM users WHERE id = ?");
+$stmt->execute([$id]);
 $user = $stmt->fetch();
 if (!$user) die('User not found.');
 
@@ -22,8 +22,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$name) $errors[] = "Name required.";
 
     if (empty($errors)) {
-        $u = $pdo->prepare("UPDATE users SET name=?, phone=? WHERE user_id=?");
-        $u->execute([$name, $phone, $user_id]);
+        $u = $pdo->prepare("UPDATE users SET name=?, phone=? WHERE id=?");
+        $u->execute([$name, $phone, $id]);
         $_SESSION['user_name'] = $name;
         header('Location: profile.php');
         exit;

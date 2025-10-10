@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("INSERT INTO users (username, email, password, role, created_at) VALUES (?, ?, ?, ?, NOW())");
             $stmt->execute([$name, $email, $hash, $role]);
 
-            $_SESSION['user_id'] = $pdo->lastInsertId();
+            $_SESSION['id'] = $pdo->lastInsertId();
             $_SESSION['user_name'] = $name;
             $_SESSION['role'] = $role;
 

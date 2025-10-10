@@ -16,7 +16,7 @@ $stmt = $pdo->prepare("SELECT * FROM services WHERE salon_id = ?");
 $stmt->execute([$salon_id]);
 $services = $stmt->fetchAll();
 
-$stmt = $pdo->prepare("SELECT r.*, u.name as user_name FROM reviews r JOIN users u ON r.user_id = u.user_id WHERE r.salon_id = ? ORDER BY r.created_at DESC");
+$stmt = $pdo->prepare("SELECT r.*, u.name as user_name FROM reviews r JOIN users u ON r.id = u.id WHERE r.salon_id = ? ORDER BY r.created_at DESC");
 $stmt->execute([$salon_id]);
 $reviews = $stmt->fetchAll();
 
@@ -40,7 +40,7 @@ $reviews = $stmt->fetchAll();
       <?php foreach ($services as $s): ?>
         <li>
           <?=htmlspecialchars($s['service_name'])?> — <?=htmlspecialchars($s['duration'])?> — <?=htmlspecialchars($s['price'])?>
-          <?php if (isset($_SESSION['user_id'])): ?>
+          <?php if (isset($_SESSION['id'])): ?>
             <form method="post" action="../public/book_appointment.php" style="display:inline;">
               <input type="hidden" name="salon_id" value="<?=$salon['salon_id']?>">
               <input type="hidden" name="service_id" value="<?=$s['service_id']?>">
@@ -69,7 +69,7 @@ $reviews = $stmt->fetchAll();
     <?php endforeach; ?>
   <?php endif; ?>
 
-  <?php if (isset($_SESSION['user_id'])): ?>
+  <?php if (isset($_SESSION['id'])): ?>
     <h3>Post a review</h3>
     <form method="post" action="../public/post_review.php">
       <input type="hidden" name="salon_id" value="<?=$salon['salon_id']?>">

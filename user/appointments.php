@@ -1,12 +1,12 @@
 <?php
 // owner/appointments.php
 session_start();
-require_once __DIR__ . '/../db.php';
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'owner') {
+require_once __DIR__ . '/../config.php';
+if (!isset($_SESSION['id']) || $_SESSION['role'] !== 'owner') {
     header('Location: ../public/login.php');
     exit;
 }
-$owner_id = $_SESSION['user_id'];
+$owner_id = $_SESSION['id'];
 $salon_id = $_GET['salon_id'] ?? null;
 
 // list appointments for salons owned by this owner
@@ -14,7 +14,7 @@ $stmt = $pdo->prepare("
   SELECT a.*, s.name as service_name, u.name as customer_name, sal.name as salon_name
   FROM appointments a
   JOIN services s ON a.service_id = s.service_id
-  JOIN users u ON a.user_id = u.user_id
+  JOIN users u ON a.id = u.id
   JOIN salons sal ON a.salon_id = sal.salon_id
   WHERE sal.owner_id = ?
   ORDER BY a.appointment_date DESC, a.appointment_time DESC

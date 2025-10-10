@@ -4,12 +4,12 @@ session_start();
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/functions.php';
 
-if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'owner') {
+if (!isset($_SESSION['id']) || ($_SESSION['role'] ?? '') !== 'owner') {
     header('Location: /salonora/public/login.php');
     exit;
 }
 
-$owner_id = $_SESSION['user_id'];
+$owner_id = $_SESSION['id'];
 $salon_id = intval($_GET['id'] ?? 0);
 
 if (!$salon_id) {

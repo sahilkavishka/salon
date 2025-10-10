@@ -2,11 +2,11 @@
 // owner/salon_list.php
 session_start();
 require_once __DIR__ . '/../db.php';
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'owner') {
+if (!isset($_SESSION['id']) || $_SESSION['role'] !== 'owner') {
     header('Location: ../public/login.php');
     exit;
 }
-$owner_id = $_SESSION['user_id'];
+$owner_id = $_SESSION['id'];
 $stmt = $pdo->prepare("SELECT * FROM salons WHERE owner_id = ?");
 $stmt->execute([$owner_id]);
 $salons = $stmt->fetchAll();

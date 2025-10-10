@@ -2,13 +2,13 @@
 // owner/salon_add.php
 session_start();
 require_once __DIR__ . '/../db.php';
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'owner') {
+if (!isset($_SESSION['id']) || $_SESSION['role'] !== 'owner') {
     header('Location: ../public/login.php');
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $owner_id = $_SESSION['user_id'];
+    $owner_id = $_SESSION['id'];
     $name = trim($_POST['name'] ?? '');
     $address = trim($_POST['address'] ?? '');
     $latitude = $_POST['latitude'] ?? null;
