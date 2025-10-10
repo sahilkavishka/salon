@@ -1,7 +1,7 @@
 <?php
 // includes/config.php
 $DB_HOST = '127.0.0.1';
-$DB_NAME = 'salon_finder';
+$DB_NAME = 'salonora';
 $DB_USER = 'root';
 $DB_PASS = '';
 
