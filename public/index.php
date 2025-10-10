@@ -7,7 +7,7 @@ require '../includes/config.php'; // Database connection
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Salon Finder</title>
+  <title>Salonora</title>
   <link rel="stylesheet" href="assets/css/style.css">
 
   <!-- Leaflet CSS -->
@@ -18,7 +18,7 @@ require '../includes/config.php'; // Database connection
   <!-- Header -->
   <header>
     <div class="header-left">
-      <h1>Salon Finder</h1>
+      <h1>Salonora</h1>
     </div>
     <div class="header-right">
       <?php if (isset($_SESSION['user_id'])): ?>
