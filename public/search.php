@@ -1,34 +1,23 @@
 <?php
-// public/search.php
-require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json');
 
-// Accept filters: q (text), lat, lng, radius (km)
-$q = trim($_GET['q'] ?? '');
-$lat = isset($_GET['lat']) ? floatval($_GET['lat']) : null;
-$lng = isset($_GET['lng']) ? floatval($_GET['lng']) : null;
-$radius_km = isset($_GET['radius']) ? floatval($_GET['radius']) : 10; // default 10km
+$q = $_GET['q'] ?? '';
+$lat = $_GET['lat'] ?? '';
+$lng = $_GET['lng'] ?? '';
 
-if ($lat && $lng) {
-    // Haversine formula in SQL to compute distance
-    $sql = "SELECT salon_id, name, address, latitude, longitude, contact, description,
-        ( 6371 * acos( cos( radians(?) ) * cos( radians( latitude ) ) * cos( radians( longitude ) - radians(?) ) + sin( radians(?) ) * sin( radians( latitude ) ) ) ) AS distance_km
-        FROM salons
-        HAVING distance_km <= ?
-        ORDER BY distance_km ASC
-        LIMIT 100";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$lat, $lng, $lat, $radius_km]);
-    $rows = $stmt->fetchAll();
-} else if ($q !== '') {
-    $stmt = $pdo->prepare("SELECT salon_id, name, address, latitude, longitude, contact, description FROM salons WHERE name LIKE ? OR address LIKE ? LIMIT 100");
-    $like = '%' . $q . '%';
-    $stmt->execute([$like, $like]);
-    $rows = $stmt->fetchAll();
-} else {
-    $stmt = $pdo->prepare("SELECT salon_id, name, address, latitude, longitude, contact, description FROM salons LIMIT 100");
-    $stmt->execute();
-    $rows = $stmt->fetchAll();
+$sql = "SELECT id AS salon_id, name, address, latitude, longitude FROM salons";
+$params = [];
+
+if ($q !== '') {
+    $sql .= " WHERE name LIKE :q OR address LIKE :q";
+    $params[':q'] = "%$q%";
+} elseif ($lat !== '' && $lng !== '') {
+    $sql .= " ORDER BY (POW(latitude-:lat,2)+POW(longitude-:lng,2)) ASC LIMIT 20";
+    $params[':lat'] = $lat;
+    $params[':lng'] = $lng;
 }
 
-echo json_encode($rows);
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
+echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
