@@ -1,97 +1,75 @@
-let map;
-let markers = [];
+// Initialize map
+let map = L.map('map').setView([7.2906, 80.6337], 13); // Default: Anuradhapura
 
-function initMap() {
-  map = new google.maps.Map(document.getElementById("map"), {
-    center: { lat: 6.9271, lng: 79.8612 }, // Default Colombo
-    zoom: 12,
-  });
+// Add OpenStreetMap tiles
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+}).addTo(map);
+
+// Array to hold salon markers
+let salonMarkers = [];
+
+// Default marker
+let defaultMarker = L.marker([7.2906, 80.6337]).addTo(map)
+    .bindPopup("Welcome to Salon Finder! Use the search form to find salons.")
+    .openPopup();
+
+// Function to add salon markers
+function addSalonMarker(lat, lng, name, type, distance) {
+    let marker = L.marker([lat, lng]).addTo(map)
+        .bindPopup(`<b>${name}</b><br>Type: ${type}<br>Distance: ${distance} km`);
+    salonMarkers.push(marker);
 }
 
-function clearMarkers() {
-  markers.forEach(marker => marker.setMap(null));
-  markers = [];
+// Function to clear all salon markers
+function clearSalonMarkers() {
+    salonMarkers.forEach(marker => map.removeLayer(marker));
+    salonMarkers = [];
 }
 
-function showResultsOnMap(salons) {
-  clearMarkers();
-  let bounds = new google.maps.LatLngBounds();
-  let resultsDiv = document.getElementById("results");
-  resultsDiv.innerHTML = "";
+// Handle search form submit
+document.getElementById('searchForm').addEventListener('submit', function(e) {
+    e.preventDefault();
 
-  salons.forEach(salon => {
-    let position = { lat: parseFloat(salon.latitude), lng: parseFloat(salon.longitude) };
+    let location = document.getElementById('locationInput').value;
+    let type = document.getElementById('typeSelect').value;
+    let radius = document.getElementById('radiusInput').value;
 
-    let marker = new google.maps.Marker({
-      position,
-      map,
-      title: salon.name
-    });
+    // Clear previous markers
+    clearSalonMarkers();
 
-    let infoWindow = new google.maps.InfoWindow({
-      content: `<strong>${salon.name}</strong><br>${salon.address}<br>Type: ${salon.type}<br>Rating: ${salon.rating}`
-    });
-
-    marker.addListener("click", () => infoWindow.open(map, marker));
-    markers.push(marker);
-    bounds.extend(position);
-
-    // Add to results list
-    resultsDiv.innerHTML += `
-      <div class="salon">
-        <strong>${salon.name}</strong><br>
-        ${salon.address}<br>
-        Type: ${salon.type}<br>
-        Rating: ${salon.rating}
-      </div>
-    `;
-  });
-
-  if (salons.length > 0) {
-    map.fitBounds(bounds);
-  } else {
-    resultsDiv.innerHTML = "<p>No salons found in this area.</p>";
-  }
-}
-
-// Handle search form
-document.getElementById("searchForm").addEventListener("submit", function(e) {
-  e.preventDefault();
-  let location = document.getElementById("locationInput").value;
-  let type = document.getElementById("typeSelect").value;
-  let radius = document.getElementById("radiusInput").value;
-
-  fetch(`search.php?location=${encodeURIComponent(location)}&type=${type}&radius=${radius}`)
+    // Fetch salons from PHP
+    fetch(`search_salon.php?location=${encodeURIComponent(location)}&type=${encodeURIComponent(type)}&radius=${radius}`)
     .then(response => response.json())
     .then(data => {
-      if (data.error) {
-        alert(data.error);
-      } else {
-        showResultsOnMap(data);
-      }
-    });
+        if(data.length === 0){
+            alert("No salons found in this area!");
+            return;
+        }
+
+        // Add markers
+        data.forEach(salon => {
+            addSalonMarker(salon.lat, salon.lng, salon.name, salon.type, salon.distance);
+        });
+
+        // Center map to first salon
+        map.setView([data[0].lat, data[0].lng], 14);
+    })
+    .catch(err => console.error(err));
 });
 
-// Use My Location
-document.getElementById("useLocation").addEventListener("click", () => {
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(pos => {
-      let lat = pos.coords.latitude;
-      let lng = pos.coords.longitude;
-      let type = document.getElementById("typeSelect").value;
-      let radius = document.getElementById("radiusInput").value;
+// Handle "Use my location" button
+document.getElementById('useLocation').addEventListener('click', function() {
+    if(navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position){
+            let lat = position.coords.latitude;
+            let lng = position.coords.longitude;
+            map.setView([lat, lng], 14);
 
-      fetch(`search.php?lat=${lat}&lng=${lng}&type=${type}&radius=${radius}`)
-        .then(response => response.json())
-        .then(data => {
-          if (data.error) {
-            alert(data.error);
-          } else {
-            showResultsOnMap(data);
-          }
+            L.marker([lat, lng]).addTo(map)
+                .bindPopup("You are here!").openPopup();
         });
-    });
-  } else {
-    alert("Geolocation not supported by your browser.");
-  }
+    } else {
+        alert("Geolocation is not supported by your browser.");
+    }
 });

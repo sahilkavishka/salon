@@ -2,62 +2,89 @@
 session_start();
 require '../includes/config.php';
 
-// ✅ Check login and role
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'owner') {
-    header("Location: login.php");
-    exit;
+if (!isset($_SESSION["role"]) || $_SESSION["role"] !== "owner") {
+    die("Access denied.");
 }
 
-// Handle delete request
+$owner_id = $_SESSION['user_id'];
+
+// Handle Delete request
 if (isset($_GET['delete'])) {
-    $salon_id = (int) $_GET['delete'];
-    $stmt = $pdo->prepare("DELETE FROM salons WHERE id = ? AND owner_id = ?");
-    $stmt->execute([$salon_id, $_SESSION['user_id']]);
-    header("Location: manage_salons.php?msg=deleted");
-    exit;
+    $salon_id = (int)$_GET['delete'];
+
+    // Delete salon images from uploads folder
+    $stmt = $pdo->prepare("SELECT logo, images FROM salons WHERE id = ? AND owner_id = ?");
+    $stmt->execute([$salon_id, $owner_id]);
+    $salon = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($salon) {
+        if ($salon['logo'] && file_exists("../uploads/".$salon['logo'])) {
+            unlink("../uploads/".$salon['logo']);
+        }
+        $images = json_decode($salon['images'], true);
+        if ($images) {
+            foreach ($images as $img) {
+                if (file_exists("../uploads/".$img)) unlink("../uploads/".$img);
+            }
+        }
+
+        // Delete salon from DB
+        $del = $pdo->prepare("DELETE FROM salons WHERE id = ? AND owner_id = ?");
+        $del->execute([$salon_id, $owner_id]);
+        header("Location: manage_salons.php");
+        exit;
+    }
 }
 
-// Fetch salons owned by this user
-$stmt = $pdo->prepare("SELECT * FROM salons WHERE owner_id = ?");
-$stmt->execute([$_SESSION['user_id']]);
+// Fetch salons for this owner
+$stmt = $pdo->prepare("SELECT * FROM salons WHERE owner_id = ? ORDER BY id DESC");
+$stmt->execute([$owner_id]);
 $salons = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Manage My Salons</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    a { text-decoration: none; margin: 0 5px; }
-    .salon { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 5px; }
-    .actions { margin-top: 10px; }
-  </style>
+<meta charset="UTF-8">
+<title>Manage Salons</title>
+<link rel="stylesheet" href="assets/css/manage_salons.css">
 </head>
 <body>
-  <h1>My Salons</h1>
-  <p><a href="index.php">🏠 Back to Home</a> | <a href="add_salon.php">➕ Add New Salon</a></p>
 
-  <?php if (isset($_GET['msg']) && $_GET['msg'] === 'deleted'): ?>
-    <p style="color: green;">Salon deleted successfully.</p>
-  <?php endif; ?>
-
-  <?php if (count($salons) > 0): ?>
+<h2>Manage Your Salons</h2>
+<div class="container">
+<?php if ($salons): ?>
     <?php foreach ($salons as $salon): ?>
-      <div class="salon">
-        <strong><?= htmlspecialchars($salon['name']) ?></strong><br>
-        <?= htmlspecialchars($salon['address']) ?><br>
-        Type: <?= htmlspecialchars($salon['type']) ?><br>
-        Rating: <?= htmlspecialchars($salon['rating']) ?><br>
+        <div class="card">
+            <?php if ($salon['logo']): ?>
+                <img src="../uploads/<?= htmlspecialchars($salon['logo']) ?>" alt="Logo" class="logo">
+            <?php endif; ?>
+            <h3><?= htmlspecialchars($salon['name']) ?></h3>
+            <p><?= htmlspecialchars($salon['address']) ?></p>
+            <span class="type"><?= htmlspecialchars($salon['type']) ?></span>
 
-        <div class="actions">
-          <a href="edit_salon.php?id=<?= $salon['id'] ?>">✏️ Edit</a>
-          <a href="manage_salons.php?delete=<?= $salon['id'] ?>" onclick="return confirm('Are you sure you want to delete this salon?');">🗑 Delete</a>
+            <div class="images">
+                <?php
+                $images = json_decode($salon['images'], true);
+                if ($images):
+                    foreach ($images as $img):
+                        if($img):
+                ?>
+                    <img src="../uploads/<?= htmlspecialchars($img) ?>" alt="Salon Image">
+                <?php
+                        endif;
+                    endforeach;
+                endif;
+                ?>
+            </div>
+
+            <a href="edit_salon.php?id=<?= $salon['id'] ?>" class="edit">Edit</a>
+            <a href="manage_salons.php?delete=<?= $salon['id'] ?>" class="delete" onclick="return confirm('Are you sure you want to delete this salon?');">Delete</a>
         </div>
-      </div>
     <?php endforeach; ?>
-  <?php else: ?>
-    <p>You haven’t added any salons yet.</p>
-  <?php endif; ?>
+<?php else: ?>
+    <p style="text-align:center; grid-column:1/-1;">You have not added any salons yet.</p>
+<?php endif; ?>
+</div>
+
 </body>
 </html>

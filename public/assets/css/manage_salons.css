@@ -1,0 +1,518 @@
+/* Reset and Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Playfair Display', 'Georgia', serif;
+  background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 50%, #ff9a9e 100%);
+  min-height: 100vh;
+  padding: 3rem 2rem;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Decorative Background Elements */
+body::before {
+  content: '💼';
+  position: absolute;
+  top: 8%;
+  left: 10%;
+  font-size: 4rem;
+  opacity: 0.2;
+  animation: float 9s ease-in-out infinite;
+}
+
+body::after {
+  content: '⚙️';
+  position: absolute;
+  bottom: 8%;
+  right: 10%;
+  font-size: 4rem;
+  opacity: 0.2;
+  animation: float 11s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-30px) rotate(15deg);
+  }
+}
+
+/* Page Header */
+h2 {
+  text-align: center;
+  font-size: 3rem;
+  background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
+  letter-spacing: 3px;
+  margin-bottom: 3rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+  animation: slideDown 0.6s ease-out;
+  position: relative;
+}
+
+h2::before {
+  content: '✨';
+  position: absolute;
+  left: -60px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 2rem;
+}
+
+h2::after {
+  content: '✨';
+  position: absolute;
+  right: -60px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 2rem;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Container Grid */
+.container {
+  max-width: 1300px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 2rem;
+  animation: fadeIn 0.8s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Salon Card */
+.card {
+  background: linear-gradient(135deg, #ffffff 0%, #fff8f0 100%);
+  padding: 2rem;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  border: 3px solid #d4af37;
+  position: relative;
+  transition: all 0.4s ease;
+  animation: cardSlideIn 0.6s ease-out;
+  overflow: hidden;
+}
+
+@keyframes cardSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card:hover {
+  transform: translateY(-10px) rotate(1deg);
+  box-shadow: 0 15px 40px rgba(212, 175, 55, 0.3);
+}
+
+/* Decorative corner icon */
+.card::before {
+  content: '💇';
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  font-size: 2rem;
+  opacity: 0.15;
+}
+
+/* Logo */
+.card img.logo {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  margin-bottom: 1.2rem;
+  border: 4px solid #d4af37;
+  object-fit: cover;
+  box-shadow: 0 6px 15px rgba(212, 175, 55, 0.3);
+  transition: all 0.3s ease;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.card:hover img.logo {
+  transform: scale(1.1) rotate(5deg);
+  box-shadow: 0 8px 20px rgba(212, 175, 55, 0.5);
+}
+
+/* Card Title */
+.card h3 {
+  margin: 1rem 0 0.8rem 0;
+  font-size: 1.6rem;
+  color: #2c3e50;
+  font-weight: 700;
+  font-family: 'Playfair Display', serif;
+  text-align: center;
+}
+
+/* Card Text */
+.card p {
+  margin: 0.6rem 0;
+  color: #555;
+  font-size: 1rem;
+  line-height: 1.6;
+  font-family: 'Segoe UI', sans-serif;
+  text-align: center;
+}
+
+/* Type Badge */
+.card .type {
+  display: inline-block;
+  padding: 0.5rem 1.2rem;
+  background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+  color: #2c3e50;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  margin-top: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 0 4px 10px rgba(212, 175, 55, 0.3);
+  font-family: 'Segoe UI', sans-serif;
+}
+
+/* Images Gallery */
+.card .images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin: 1.5rem 0;
+  justify-content: center;
+  padding: 1rem 0;
+  border-top: 2px solid #e0c097;
+  border-bottom: 2px solid #e0c097;
+}
+
+.card .images img {
+  width: 90px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 2px solid #e0c097;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.card .images img:hover {
+  transform: scale(1.15);
+  border-color: #d4af37;
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+  z-index: 10;
+}
+
+/* Action Buttons */
+.card a {
+  display: inline-block;
+  margin: 1rem 0.5rem 0 0;
+  padding: 0.8rem 1.5rem;
+  text-decoration: none;
+  border-radius: 25px;
+  font-weight: 700;
+  color: #fff;
+  transition: all 0.3s ease;
+  font-family: 'Segoe UI', sans-serif;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.card a::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.5s, height 0.5s;
+}
+
+.card a:hover::before {
+  width: 300px;
+  height: 300px;
+}
+
+/* Edit Button */
+.card a.edit {
+  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+}
+
+.card a.edit:hover {
+  background: linear-gradient(135deg, #2980b9 0%, #21618c 100%);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(52, 152, 219, 0.4);
+}
+
+.card a.edit::after {
+  content: '✏️';
+  margin-left: 0.5rem;
+  font-size: 1rem;
+}
+
+/* Delete Button */
+.card a.delete {
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+}
+
+.card a.delete:hover {
+  background: linear-gradient(135deg, #c0392b 0%, #a93226 100%);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(231, 76, 60, 0.4);
+}
+
+.card a.delete::after {
+  content: '🗑️';
+  margin-left: 0.5rem;
+  font-size: 1rem;
+}
+
+/* Empty State */
+.container p[style*="grid-column"] {
+  text-align: center;
+  grid-column: 1/-1;
+  font-size: 1.3rem;
+  color: #2c3e50;
+  font-weight: 600;
+  padding: 4rem 2rem;
+  background: linear-gradient(135deg, #ffffff 0%, #fff8f0 100%);
+  border-radius: 20px;
+  border: 3px dashed #d4af37;
+  font-family: 'Segoe UI', sans-serif;
+  position: relative;
+}
+
+.container p[style*="grid-column"]::before {
+  content: '📭';
+  display: block;
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+/* Navigation Links */
+.nav-links {
+  text-align: center;
+  margin-bottom: 2rem;
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.nav-links a {
+  display: inline-block;
+  padding: 0.8rem 1.8rem;
+  background: linear-gradient(135deg, #ffffff 0%, #fff8f0 100%);
+  color: #2c3e50;
+  text-decoration: none;
+  border-radius: 25px;
+  font-weight: 700;
+  border: 2px solid #d4af37;
+  transition: all 0.3s ease;
+  font-family: 'Segoe UI', sans-serif;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.nav-links a:hover {
+  background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(212, 175, 55, 0.4);
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .container {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  body {
+    padding: 2rem 1rem;
+  }
+
+  h2 {
+    font-size: 2.2rem;
+    letter-spacing: 2px;
+    margin-bottom: 2rem;
+  }
+
+  h2::before,
+  h2::after {
+    display: none;
+  }
+
+  .container {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .card {
+    padding: 1.5rem;
+  }
+
+  .card img.logo {
+    width: 100px;
+    height: 100px;
+  }
+
+  .card h3 {
+    font-size: 1.4rem;
+  }
+
+  .card .images img {
+    width: 70px;
+    height: 70px;
+  }
+
+  .card a {
+    padding: 0.7rem 1.2rem;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  h2 {
+    font-size: 1.8rem;
+    letter-spacing: 1px;
+  }
+
+  .card {
+    padding: 1.2rem;
+  }
+
+  .card img.logo {
+    width: 80px;
+    height: 80px;
+  }
+
+  .card h3 {
+    font-size: 1.2rem;
+  }
+
+  .card a {
+    display: block;
+    margin: 0.8rem 0 0 0;
+    text-align: center;
+  }
+
+  .card .images {
+    gap: 0.5rem;
+  }
+
+  .card .images img {
+    width: 60px;
+    height: 60px;
+  }
+}
+
+/* Loading Animation */
+.loading {
+  text-align: center;
+  padding: 3rem;
+  font-size: 1.5rem;
+  color: #2c3e50;
+  font-weight: 600;
+}
+
+.loading::after {
+  content: '...';
+  animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots {
+  0%, 20% {
+    content: '.';
+  }
+  40% {
+    content: '..';
+  }
+  60%, 100% {
+    content: '...';
+  }
+}
+
+/* Confirmation Dialog Styling */
+.confirm-delete {
+  background: rgba(0, 0, 0, 0.8);
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.confirm-dialog {
+  background: white;
+  padding: 2rem;
+  border-radius: 20px;
+  max-width: 400px;
+  text-align: center;
+  border: 3px solid #d4af37;
+}
+
+/* Success Message */
+.success-message {
+  position: fixed;
+  top: 2rem;
+  right: 2rem;
+  background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+  color: #155724;
+  padding: 1rem 2rem;
+  border-radius: 15px;
+  border: 2px solid #28a745;
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  animation: slideInRight 0.5s ease-out;
+  z-index: 1000;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

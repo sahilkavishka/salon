@@ -1,4 +1,6 @@
-/* Reset and Base Styles */
+/* ================================
+   Reset and Base Styles
+================================= */
 * {
   margin: 0;
   padding: 0;
@@ -12,9 +14,9 @@ body {
   color: #2c2c2c;
 }
 
-/* =============================
+/* ================================
    Header
-============================= */
+================================= */
 header {
   display: flex;
   justify-content: space-between;
@@ -86,9 +88,9 @@ header {
   box-shadow: 0 4px 12px rgba(212, 175, 55, 0.6);
 }
 
-/* =============================
+/* ================================
    Search Form
-============================= */
+================================= */
 #searchForm {
   max-width: 1000px;
   margin: 2.5rem auto;
@@ -111,6 +113,12 @@ header {
   font-size: 1rem;
   font-family: 'Segoe UI', sans-serif;
   transition: all 0.3s ease;
+}
+
+#locationInput:focus, #typeSelect:focus, #radiusInput:focus {
+  outline: none;
+  border-color: #d4af37;
+  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.15);
 }
 
 #locationInput {
@@ -152,9 +160,9 @@ header {
   background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
 }
 
-/* =============================
+/* ================================
    Map
-============================= */
+================================= */
 #map {
   max-width: 1200px;
   height: 550px;
@@ -166,9 +174,9 @@ header {
   border: 3px solid #d4af37;
 }
 
-/* =============================
-   Results
-============================= */
+/* ================================
+   Results / Salon Cards
+================================= */
 #results {
   max-width: 1200px;
   margin: 2.5rem auto;
@@ -239,9 +247,9 @@ header {
   font-family: 'Segoe UI', sans-serif;
 }
 
-/* =============================
+/* ================================
    Responsive Design
-============================= */
+================================= */
 @media (max-width: 768px) {
   header {
     flex-direction: column;
