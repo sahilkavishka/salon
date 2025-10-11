@@ -3,9 +3,10 @@
 require_once __DIR__ . '/../config.php';
 session_start();
 
-// Detect login and role
+// ✅ Consistent login detection
 $loggedIn = isset($_SESSION['user_id']);
 $role = $_SESSION['role'] ?? 'guest';
+$userName = $_SESSION['user_name'] ?? '';
 ?>
 <!doctype html>
 <html lang="en">
@@ -13,9 +14,8 @@ $role = $_SESSION['role'] ?? 'guest';
   <meta charset="utf-8">
   <title>Salonora - Find Salons Nearby</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <!-- Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
   <style>
     #map { height: 500px; width: 100%; border-radius: 10px; margin-top: 15px; }
     .search-bar { max-width: 600px; margin: 20px auto; }
@@ -34,18 +34,29 @@ $role = $_SESSION['role'] ?? 'guest';
       </button>
       <div class="collapse navbar-collapse" id="navbarNav">
         <ul class="navbar-nav ms-auto">
-          <?php if(!$loggedIn): ?>
+
+          <?php if (!$loggedIn): ?>
+            <!-- Guest -->
             <li class="nav-item"><a class="nav-link" href="register.php">Register</a></li>
             <li class="nav-item"><a class="nav-link" href="login.php">Login</a></li>
-          <?php else: ?>
-            <?php if($role === 'owner'): ?>
-              <li class="nav-item"><a class="nav-link" href="owner/dashboard.php">Dashboard</a></li>
-            <?php else: ?>
-              <li class="nav-item"><a class="nav-link" href="user/profile.php">Profile</a></li>
-              <li class="nav-item"><a class="nav-link" href="user/appointment.php">My Appointments</a></li>
-            <?php endif; ?>
+
+          <?php elseif ($role === 'owner'): ?>
+            <!-- Owner -->
+            <li class="nav-item"><a class="nav-link" href="owner/dashboard.php">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link" href="owner/salon_add.php">Add Salon</a></li>
+            <li class="nav-item"><a class="nav-link" href="owner/salon_list.php">Salon List</a></li>
+            <li class="nav-item"><a class="nav-link" href="owner/services.php">Services</a></li>
             <li class="nav-item"><a class="nav-link text-danger" href="logout.php">Logout</a></li>
+
+          <?php elseif ($role === 'customer'): ?>
+            <!-- Customer -->
+            <li class="nav-item"><a class="nav-link" href="user/profile.php">Profile</a></li>
+            <li class="nav-item"><a class="nav-link" href="user/appointment.php">My Appointments</a></li>
+            <li class="nav-item"><a class="nav-link" href="user/salon_view.php">Browse Salons</a></li>
+            <li class="nav-item"><a class="nav-link text-danger" href="logout.php">Logout</a></li>
+
           <?php endif; ?>
+
         </ul>
       </div>
     </div>
@@ -63,10 +74,10 @@ $role = $_SESSION['role'] ?? 'guest';
 
   <!-- 🔹 Footer -->
   <footer>
-    <p>&copy; <?=date('Y')?> Salonora. All rights reserved.</p>
+    <p>&copy; <?= date('Y') ?> Salonora. All rights reserved.</p>
   </footer>
 
-  <!-- 🔹 JS -->
+  <!-- JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     let map, markers = [];
@@ -141,6 +152,6 @@ $role = $_SESSION['role'] ?? 'guest';
     });
   </script>
 
-  <script src="https://maps.googleapis.com/maps/api/js?key=<?=GOOGLE_MAPS_API_KEY?>&callback=initMap" async defer></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=<?= GOOGLE_MAPS_API_KEY ?>&callback=initMap" async defer></script>
 </body>
 </html>

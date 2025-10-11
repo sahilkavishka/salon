@@ -1,20 +1,21 @@
 <?php
 // owner/service_add.php
-session_start();
-require_once __DIR__ . '/../includes/config.php';
+
+require_once __DIR__ . '/../auth_check.php';
+checkAuth('owner');
 
 if (!isset($_SESSION['id']) || ($_SESSION['role'] ?? '') !== 'owner') {
     header('Location: ../public/login.php');
     exit;
 }
 
-$owner_id = $_SESSION['id'];
+$salon_id = $_SESSION['id'];
 $salon_id = intval($_GET['salon_id'] ?? 0);
 if (!$salon_id) die('Salon ID required.');
 
 // verify ownership
-$stmt = $pdo->prepare("SELECT * FROM salons WHERE salon_id = ? AND owner_id = ?");
-$stmt->execute([$salon_id, $owner_id]);
+$stmt = $pdo->prepare("SELECT * FROM salons WHERE salon_id = ? AND salon_id = ?");
+$stmt->execute([$salon_id, $salon_id]);
 if (!$stmt->fetch()) die('Not authorized to add service for this salon.');
 
 $errors = [];

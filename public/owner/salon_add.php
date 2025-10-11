@@ -1,14 +1,14 @@
 <?php
 // owner/salon_add.php
-session_start();
-require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../auth_check.php';
+checkAuth('owner');
 if (!isset($_SESSION['id']) || $_SESSION['role'] !== 'owner') {
     header('Location: ../public/login.php');
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $owner_id = $_SESSION['id'];
+    $salon_id = $_SESSION['id'];
     $name = trim($_POST['name'] ?? '');
     $address = trim($_POST['address'] ?? '');
     $latitude = $_POST['latitude'] ?? null;
@@ -28,8 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    $stmt = $pdo->prepare("INSERT INTO salons (owner_id, name, address, latitude, longitude, contact, description, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$owner_id, $name, $address, $latitude, $longitude, $contact, $description, $imagePath]);
+    $stmt = $pdo->prepare("INSERT INTO salons (salon_id, name, address, latitude, longitude, contact, description, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$salon_id, $name, $address, $latitude, $longitude, $contact, $description, $imagePath]);
     header('Location: salon_list.php');
     exit;
 }

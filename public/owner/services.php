@@ -1,7 +1,8 @@
 <?php
 // owner/service_add.php
-session_start();
-require_once __DIR__ . '/../db.php';
+
+require_once __DIR__ . '/../auth_check.php';
+checkAuth('owner');
 if (!isset($_SESSION['id']) || $_SESSION['role'] !== 'owner') {
     header('Location: ../public/login.php');
     exit;
@@ -9,7 +10,7 @@ if (!isset($_SESSION['id']) || $_SESSION['role'] !== 'owner') {
 $salon_id = $_GET['salon_id'] ?? null;
 if (!$salon_id) { die('Salon id required'); }
 // Validate owner owns the salon (important)
-$stmt = $pdo->prepare("SELECT * FROM salons WHERE salon_id = ? AND owner_id = ?");
+$stmt = $pdo->prepare("SELECT * FROM salons WHERE salon_id = ? AND salon_id = ?");
 $stmt->execute([$salon_id, $_SESSION['id']]);
 if (!$stmt->fetch()) { die('Not authorized'); }
 

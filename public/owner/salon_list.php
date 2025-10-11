@@ -1,14 +1,15 @@
 <?php
 // owner/salon_list.php
-session_start();
-require_once __DIR__ . '/../db.php';
+
+require_once __DIR__ . '/../auth_check.php';
+checkAuth('owner');
 if (!isset($_SESSION['id']) || $_SESSION['role'] !== 'owner') {
     header('Location: ../public/login.php');
     exit;
 }
-$owner_id = $_SESSION['id'];
-$stmt = $pdo->prepare("SELECT * FROM salons WHERE owner_id = ?");
-$stmt->execute([$owner_id]);
+$salon_id = $_SESSION['id'];
+$stmt = $pdo->prepare("SELECT * FROM salons WHERE salon_id = ?");
+$stmt->execute([$salon_id]);
 $salons = $stmt->fetchAll();
 ?>
 <!doctype html><html><head><meta charset="utf-8"><title>My Salons</title></head><body>

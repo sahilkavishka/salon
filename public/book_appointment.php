@@ -1,7 +1,8 @@
 <?php
 // public/book_appointment.php
 session_start();
-require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../auth_check.php';
+checkAuth('customer');
 if (!isset($_SESSION['id'])) {
     header('Location: login.php');
     exit;

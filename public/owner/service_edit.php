@@ -1,19 +1,20 @@
 <?php
 // owner/service_edit.php
-session_start();
-require_once __DIR__ . '/../includes/config.php';
+
+require_once __DIR__ . '/../auth_check.php';
+checkAuth('owner');
 
 if (!isset($_SESSION['id']) || ($_SESSION['role'] ?? '') !== 'owner') {
     header('Location: ../public/login.php');
     exit;
 }
-$owner_id = $_SESSION['id'];
+$salon_id = $_SESSION['id'];
 $service_id = intval($_GET['id'] ?? 0);
 if (!$service_id) die('Service id required.');
 
 // fetch service and salon
 $stmt = $pdo->prepare("
-  SELECT sv.*, s.owner_id
+  SELECT sv.*, s.salon_id
   FROM services sv
   JOIN salons s ON sv.salon_id = s.salon_id
   WHERE sv.service_id = ?
@@ -21,7 +22,7 @@ $stmt = $pdo->prepare("
 $stmt->execute([$service_id]);
 $row = $stmt->fetch();
 if (!$row) die('Service not found.');
-if ($row['owner_id'] != $owner_id) die('Not authorized.');
+if ($row['salon_id'] != $salon_id) die('Not authorized.');
 
 $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

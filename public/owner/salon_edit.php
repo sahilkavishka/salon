@@ -1,15 +1,15 @@
 <?php
 // owner/salon_edit.php
-session_start();
-require_once __DIR__ . '/../includes/config.php';
-require_once __DIR__ . '/../includes/functions.php';
+
+require_once __DIR__ . '/../auth_check.php';
+checkAuth('owner');
 
 if (!isset($_SESSION['id']) || ($_SESSION['role'] ?? '') !== 'owner') {
     header('Location: /salonora/public/login.php');
     exit;
 }
 
-$owner_id = $_SESSION['id'];
+$salon_id = $_SESSION['id'];
 $salon_id = intval($_GET['id'] ?? 0);
 
 if (!$salon_id) {
@@ -19,8 +19,8 @@ if (!$salon_id) {
 }
 
 // Verify owner owns salon
-$stmt = $pdo->prepare("SELECT * FROM salons WHERE salon_id = ? AND owner_id = ?");
-$stmt->execute([$salon_id, $owner_id]);
+$stmt = $pdo->prepare("SELECT * FROM salons WHERE salon_id = ? AND salon_id = ?");
+$stmt->execute([$salon_id, $salon_id]);
 $salon = $stmt->fetch();
 
 if (!$salon) {
@@ -85,8 +85,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         try {
-            $stmt = $pdo->prepare("UPDATE salons SET name=?, address=?, contact=?, description=?, latitude=?, longitude=?, image=?, updated_at=NOW() WHERE salon_id=? AND owner_id=?");
-            $stmt->execute([$name, $address, $contact, $description, $latitude, $longitude, $imagePath, $salon_id, $owner_id]);
+            $stmt = $pdo->prepare("UPDATE salons SET name=?, address=?, contact=?, description=?, latitude=?, longitude=?, image=?, updated_at=NOW() WHERE salon_id=? AND salon_id=?");
+            $stmt->execute([$name, $address, $contact, $description, $latitude, $longitude, $imagePath, $salon_id, $salon_id]);
             
             $_SESSION['success'] = 'Salon updated successfully!';
             header("Location: salon_list.php");
