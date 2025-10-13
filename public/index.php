@@ -32,7 +32,6 @@ $userName = $_SESSION['user_name'] ?? '';
           <?php else: ?>
             <li class="nav-item"><a class="nav-link" href="user/profile.php">Profile</a></li>
             <li class="nav-item"><a class="nav-link" href="user/appointment.php">My Appointments</a></li>
-            <li class="nav-item"><a class="nav-link" href="user/salon_view.php">salon_view</a></li>
           <?php endif; ?>
           <li class="nav-item"><a class="nav-link text-danger" href="logout.php">Logout</a></li>
         <?php endif; ?>

@@ -1,49 +1,106 @@
 <?php
-// owner/salon_add.php
+// public/owner/salon_add.php
+
+session_start();
+
+// adjust path if your config is elsewhere. This expects config.php at project root.
+require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../auth_check.php';
+
+// only owners allowed
 checkAuth('owner');
-if (!isset($_SESSION['id']) || $_SESSION['role'] !== 'owner') {
-    header('Location: ../public/login.php');
-    exit;
-}
+
+$owner_id = $_SESSION['id'];
+
+$errors = [];
+$success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $salon_id = $_SESSION['id'];
     $name = trim($_POST['name'] ?? '');
     $address = trim($_POST['address'] ?? '');
-    $latitude = $_POST['latitude'] ?? null;
-    $longitude = $_POST['longitude'] ?? null;
-    $contact = $_POST['contact'] ?? '';
-    $description = $_POST['description'] ?? '';
-    $imagePath = null;
 
-    // handle image upload (optional)
+    if ($name === '') $errors[] = 'Salon name is required.';
+    if ($address === '') $errors[] = 'Salon address is required.';
+
+    // handle optional image upload
+    $imagePath = null;
     if (!empty($_FILES['image']['name'])) {
-        $targetDir = __DIR__ . '/uploads/';
-        if (!is_dir($targetDir)) mkdir($targetDir, 0755, true);
-        $filename = time() . '_' . basename($_FILES['image']['name']);
-        $targetFile = $targetDir . $filename;
-        if (move_uploaded_file($_FILES['image']['tmp_name'], $targetFile)) {
-            $imagePath = 'owner/uploads/' . $filename; // relative path
+        $file = $_FILES['image'];
+        // basic validation
+        $allowed = ['image/jpeg','image/png','image/gif'];
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            $errors[] = 'Image upload error.';
+        } elseif (!in_array(mime_content_type($file['tmp_name']), $allowed, true)) {
+            $errors[] = 'Only JPG/PNG/GIF images allowed.';
+        } else {
+            // sanitize filename and move
+            $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+            $safe = 'uploads/salon_' . time() . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
+            // ensure uploads directory exists (relative to project root)
+            $destDir = __DIR__ . '/../../uploads';
+            if (!is_dir($destDir)) mkdir($destDir, 0755, true);
+            $destFull = __DIR__ . '/../../' . $safe;
+            if (!move_uploaded_file($file['tmp_name'], $destFull)) {
+                $errors[] = 'Failed to save uploaded image.';
+            } else {
+                $imagePath = $safe; // store relative path
+            }
         }
     }
 
-    $stmt = $pdo->prepare("INSERT INTO salons (salon_id, name, address, latitude, longitude, contact, description, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$salon_id, $name, $address, $latitude, $longitude, $contact, $description, $imagePath]);
-    header('Location: salon_list.php');
-    exit;
+    if (empty($errors)) {
+        $stmt = $pdo->prepare("INSERT INTO salons (owner_id, name, address, image) VALUES (?, ?, ?, ?)");
+        $stmt->execute([$owner_id, $name, $address, $imagePath]);
+
+        $success = 'Salon added successfully.';
+        // clear form fields
+        $name = $address = '';
+    }
 }
 ?>
-<!-- HTML form minimal -->
-<!doctype html><html><head><meta charset="utf-8"><title>Add Salon</title></head><body>
-<form method="post" enctype="multipart/form-data">
-  <input name="name" placeholder="Salon name" required><br>
-  <input name="address" placeholder="Address"><br>
-  <input name="latitude" placeholder="Latitude"><br>
-  <input name="longitude" placeholder="Longitude"><br>
-  <input name="contact" placeholder="Contact"><br>
-  <textarea name="description" placeholder="Description"></textarea><br>
-  <input type="file" name="image"><br>
-  <button type="submit">Add Salon</button>
-</form>
-</body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Add Salon - Salonora</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Add New Salon</h2>
+    <div>
+      <a href="dashboard.php" class="btn btn-secondary btn-sm">← Dashboard</a>
+      <a href="../logout.php" class="btn btn-danger btn-sm">Logout</a>
+    </div>
+  </div>
+
+  <?php if (!empty($errors)): ?>
+    <div class="alert alert-danger">
+      <?php foreach ($errors as $e) echo htmlspecialchars($e) . '<br>'; ?>
+    </div>
+  <?php endif; ?>
+
+  <?php if ($success): ?>
+    <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
+  <?php endif; ?>
+
+  <form method="post" enctype="multipart/form-data" class="card p-3">
+    <div class="mb-3">
+      <label class="form-label">Salon Name</label>
+      <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($name ?? '') ?>" required>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Address</label>
+      <textarea name="address" class="form-control" rows="3" required><?= htmlspecialchars($address ?? '') ?></textarea>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Image (optional)</label>
+      <input type="file" name="image" accept="image/*" class="form-control">
+      <div class="form-text">JPG, PNG or GIF. Max size depends on PHP settings.</div>
+    </div>
+    <button class="btn btn-primary">Add Salon</button>
+  </form>
+</div>
+</body>
+</html>

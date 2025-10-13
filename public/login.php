@@ -25,11 +25,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // ✅ Redirect based on role
         if ($_SESSION['role'] === 'owner') {
-            header('Location: owner/dashboard.php');
+         header('Location: /salonora/public/owner/dashboard.php');
+         exit;
         } else {
-            header('Location: index.php');
+         header('Location: index.php');
+         exit;
         }
-        exit;
+        
     } else {
         $error = "Invalid login credentials.";
     }

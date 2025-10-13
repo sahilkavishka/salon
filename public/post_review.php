@@ -1,22 +1,25 @@
 <?php
 // public/post_review.php
 session_start();
-require_once __DIR__ . '/../auth_check.php';
-checkAuth('customer');
+require_once __DIR__ . '/../config.php';
+
 if (!isset($_SESSION['id'])) {
     header('Location: login.php');
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $id = $_SESSION['id'];
-    $salon_id = intval($_POST['salon_id']);
-    $rating = intval($_POST['rating']);
+    $user_id = $_SESSION['id'];
+    $salon_id = intval($_POST['salon_id'] ?? 0);
+    $rating = intval($_POST['rating'] ?? 0);
     $comment = trim($_POST['comment'] ?? '');
 
-    if ($rating < 1 || $rating > 5) $rating = 5; // fallback
-    $stmt = $pdo->prepare("INSERT INTO reviews (id, salon_id, rating, comment) VALUES (?, ?, ?, ?)");
-    $stmt->execute([$id, $salon_id, $rating, $comment]);
-    header("Location: salon_view.php?id=$salon_id");
+    if ($salon_id && $rating) {
+        $stmt = $pdo->prepare("INSERT INTO reviews (user_id, salon_id, rating, comment, created_at) VALUES (?, ?, ?, ?, NOW())");
+        $stmt->execute([$user_id, $salon_id, $rating, $comment]);
+    }
+
+    header("Location: user/salon_view.php?id=$salon_id");
     exit;
 }
+?>
