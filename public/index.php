@@ -6,6 +6,15 @@ session_start();
 $loggedIn = isset($_SESSION['id']);
 $role = $_SESSION['role'] ?? 'guest';
 $userName = $_SESSION['user_name'] ?? '';
+
+// Fetch salons with coordinates and services
+$stmt = $pdo->query("
+    SELECT s.id, s.name, s.address, s.lat, s.lng, sr.id AS service_id, sr.name AS service_name
+    FROM salons s
+    LEFT JOIN services sr ON s.id = sr.salon_id
+    WHERE s.lat IS NOT NULL AND s.lng IS NOT NULL
+");
+$salons = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!doctype html>
 <html lang="en">
@@ -14,15 +23,26 @@ $userName = $_SESSION['user_name'] ?? '';
   <title>Salonora - Find Salons Nearby</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>#map{height:420px;border-radius:8px;margin-top:15px}</style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body { background: #f8f9fa; }
+    #map { height: 450px; border-radius: 10px; margin-top: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    .btn-custom { border-radius: 8px; transition: 0.2s; }
+    .btn-custom:hover { transform: translateY(-2px); }
+    .navbar-brand { font-weight: bold; }
+  </style>
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-  <div class="container-fluid">
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+  <div class="container">
     <a class="navbar-brand" href="index.php">Salonora</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"><span class="navbar-toggler-icon"></span></button>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
     <div class="collapse navbar-collapse" id="nav">
-      <ul class="navbar-nav ms-auto">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
         <?php if (!$loggedIn): ?>
           <li class="nav-item"><a class="nav-link" href="register.php">Register</a></li>
           <li class="nav-item"><a class="nav-link" href="login.php">Login</a></li>
@@ -41,16 +61,123 @@ $userName = $_SESSION['user_name'] ?? '';
   </div>
 </nav>
 
+<!-- Map Container -->
 <div class="container text-center mt-4">
-  <h2>Find the Best Salons Near You</h2>
-  <div class="input-group mb-3" style="max-width:640px;margin:0 auto;">
-    <input id="searchBox" class="form-control" placeholder="Search by salon name or address">
-    <button id="searchBtn" class="btn btn-primary">Search</button>
+  <h2 class="mb-4">Find the Best Salons Near You</h2>
+  <div class="input-group mb-4 mx-auto" style="max-width:640px;">
+    <input id="searchBox" type="text" class="form-control" placeholder="Search by salon name or address">
+    <button id="searchBtn" class="btn btn-light btn-custom">Search</button>
   </div>
   <div id="map"></div>
 </div>
 
-<footer class="text-center mt-4 mb-4">&copy; <?= date('Y') ?> Salonora</footer>
+<!-- Book Appointment Modal -->
+<div class="modal fade" id="bookModal" tabindex="-1">
+  <div class="modal-dialog">
+    <form method="post" action="user/book_appointment.php" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Book Appointment</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="salon_id" id="modalSalonId">
+        <input type="hidden" name="service_id" id="modalServiceId">
+        <p id="modalServiceName"></p>
+        <div class="mb-2">
+          <label>Date</label>
+          <input type="date" name="appointment_date" class="form-control" required>
+        </div>
+        <div class="mb-2">
+          <label>Time</label>
+          <input type="time" name="appointment_time" class="form-control" required>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Book Now</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Review Modal -->
+<div class="modal fade" id="reviewModal" tabindex="-1">
+  <div class="modal-dialog">
+    <form method="post" action="user/post_review.php" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Write a Review</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="salon_id" id="reviewSalonId">
+        <div class="mb-2">
+          <label>Rating</label>
+          <select name="rating" class="form-select" required>
+            <option value="5">★★★★★</option>
+            <option value="4">★★★★</option>
+            <option value="3">★★★</option>
+            <option value="2">★★</option>
+            <option value="1">★</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label>Comment</label>
+          <textarea name="comment" class="form-control" rows="3" placeholder="Your review..." required></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-success">Submit Review</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer class="text-center mt-5 mb-4 text-muted">&copy; <?= date('Y') ?> Salonora</footer>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+var map = L.map('map').setView([6.9271, 79.8612], 15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+var salons = <?= json_encode($salons) ?>;
+
+salons.forEach(function(salon){
+    var popupContent = `
+        <b>${salon.name}</b><br>${salon.address}<br>
+        <?php if ($loggedIn && $role !== 'owner'): ?>
+        <button class="btn btn-sm btn-primary btn-custom mt-1" onclick="openBookModal(${salon.id}, ${salon.service_id}, '${salon.service_name}')">Book Appointment</button>
+        <button class="btn btn-sm btn-success btn-custom mt-1" onclick="openReviewModal(${salon.id})">Write Review</button>
+        <?php endif; ?>
+    `;
+    L.marker([salon.lat, salon.lng]).addTo(map).bindPopup(popupContent);
+});
+
+// Search functionality
+document.getElementById('searchBtn').addEventListener('click', function(){
+    var query = document.getElementById('searchBox').value.toLowerCase();
+    salons.forEach(function(salon){ 
+        // basic filter: only zoom to first matching salon
+        if(salon.name.toLowerCase().includes(query) || salon.address.toLowerCase().includes(query)){
+            map.setView([salon.lat, salon.lng], 17);
+        }
+    });
+});
+
+// Open modals
+function openBookModal(salonId, serviceId, serviceName){
+    document.getElementById('modalSalonId').value = salonId;
+    document.getElementById('modalServiceId').value = serviceId;
+    document.getElementById('modalServiceName').textContent = serviceName;
+    new bootstrap.Modal(document.getElementById('bookModal')).show();
+}
+
+function openReviewModal(salonId){
+    document.getElementById('reviewSalonId').value = salonId;
+    new bootstrap.Modal(document.getElementById('reviewModal')).show();
+}
+</script>
 </body>
-</html>
+</html
