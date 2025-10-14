@@ -1,114 +1,76 @@
 <?php
-// public/user/salon_view.php
 session_start();
 require_once __DIR__ . '/../../config.php';
+require_once __DIR__ . '/../auth_check.php';
+checkAuth(); // anyone logged in
 
-$salon_id = intval($_GET['id'] ?? 0);
-if (!$salon_id) {
-    die('Salon ID required.');
-}
-
-// 🔹 Fetch salon details
-$stmt = $pdo->prepare("SELECT * FROM salons WHERE id = ?");
-$stmt->execute([$salon_id]);
-$salon = $stmt->fetch(PDO::FETCH_ASSOC);
-if (!$salon) die('Salon not found.');
-
-// 🔹 Fetch salon services
-$stmt = $pdo->prepare("SELECT * FROM services WHERE salon_id = ?");
-$stmt->execute([$salon_id]);
-$services = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// 🔹 Fetch reviews
-$stmt = $pdo->prepare("
-    SELECT r.*, u.username AS user_name 
-    FROM reviews r 
-    JOIN users u ON r.user_id = u.id 
-    WHERE r.salon_id = ? 
-    ORDER BY r.created_at DESC
+// ✅ Fetch all salons
+$stmt = $pdo->query("
+    SELECT 
+        s.id AS salon_id,
+        s.name,
+        s.address,
+        s.image,
+        u.username AS owner_name,
+        COUNT(sr.id) AS service_count
+    FROM salons s
+    LEFT JOIN users u ON s.owner_id = u.id
+    LEFT JOIN services sr ON s.id = sr.salon_id
+    GROUP BY s.id
+    ORDER BY s.name ASC
 ");
-$stmt->execute([$salon_id]);
-$reviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$salons = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title><?= htmlspecialchars($salon['name']) ?> - Salonora</title>
+  <meta charset="UTF-8">
+  <title>All Salons - Salonora</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #f8f9fa; }
+    .salon-card { border-radius: 12px; overflow: hidden; transition: transform 0.2s; }
+    .salon-card:hover { transform: translateY(-5px); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    .salon-img { width: 100%; height: 180px; object-fit: cover; }
+  </style>
 </head>
-<body class="bg-light">
-<div class="container mt-4">
-  <a href="../index.php" class="btn btn-secondary btn-sm mb-3">← Back to Home</a>
+<body>
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>All Salons</h2>
+    <div>
+      <?php if (isset($_SESSION['id'])): ?>
+        <a href="../logout.php" class="btn btn-danger btn-sm">Logout</a>
+      <?php else: ?>
+        <a href="../login.php" class="btn btn-primary btn-sm">Login</a>
+      <?php endif; ?>
+    </div>
+  </div>
 
-  <h2><?= htmlspecialchars($salon['name']) ?></h2>
-  <p><?= htmlspecialchars($salon['address']) ?></p>
-
-  <?php if (!empty($salon['image'])): ?>
-    <img src="../../<?= htmlspecialchars($salon['image']) ?>" class="img-fluid mb-3" style="max-width:400px;">
-  <?php endif; ?>
-
-  <h4>Services</h4>
-  <?php if (empty($services)): ?>
-    <div class="alert alert-info">No services listed yet.</div>
+  <?php if (empty($salons)): ?>
+    <div class="alert alert-info">No salons available at the moment.</div>
   <?php else: ?>
-    <ul class="list-group mb-4">
-      <?php foreach ($services as $s): ?>
-        <li class="list-group-item d-flex justify-content-between align-items-center">
-          <div>
-            <?= htmlspecialchars($s['name']) ?> — Rs.<?= htmlspecialchars($s['price']) ?> / <?= htmlspecialchars($s['duration']) ?> mins
+    <div class="row">
+      <?php foreach ($salons as $salon): ?>
+        <div class="col-md-4 mb-4">
+          <div class="card salon-card">
+            <img src="../../<?= htmlspecialchars($salon['image'] ?: 'assets/img/default_salon.jpg') ?>" class="salon-img" alt="<?= htmlspecialchars($salon['name']) ?>">
+            <div class="card-body">
+              <h5 class="card-title"><?= htmlspecialchars($salon['name']) ?></h5>
+              <p class="card-text mb-1">
+                <strong>Address:</strong> <?= htmlspecialchars($salon['address']) ?><br>
+                <strong>Owner:</strong> <?= htmlspecialchars($salon['owner_name']) ?><br>
+                <strong>Services:</strong> <?= htmlspecialchars($salon['service_count']) ?>
+              </p>
+              <a href="salon_details.php?id=<?= $salon['salon_id'] ?>" class="btn btn-outline-primary btn-sm">View Details</a>
+              <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'customer'): ?>
+                <a href="salon_details.php?id=<?= $salon['salon_id'] ?>#services" class="btn btn-primary btn-sm">Book Now</a>
+              <?php endif; ?>
+            </div>
           </div>
-          <?php if (isset($_SESSION['id'])): ?>
-            <form method="post" action="../book_appointment.php" class="d-flex">
-              <input type="hidden" name="salon_id" value="<?= $salon_id ?>">
-              <input type="hidden" name="service_id" value="<?= $s['id'] ?>">
-              <input type="date" name="appointment_date" class="form-control form-control-sm me-2" required>
-              <input type="time" name="appointment_time" class="form-control form-control-sm me-2" required>
-              <button type="submit" class="btn btn-primary btn-sm">Book</button>
-            </form>
-          <?php else: ?>
-            <a href="../login.php" class="btn btn-outline-primary btn-sm">Login to Book</a>
-          <?php endif; ?>
-        </li>
-      <?php endforeach; ?>
-    </ul>
-  <?php endif; ?>
-
-  <h4>Reviews</h4>
-  <?php if (empty($reviews)): ?>
-    <div class="alert alert-secondary">No reviews yet.</div>
-  <?php else: ?>
-    <?php foreach ($reviews as $r): ?>
-      <div class="card mb-2">
-        <div class="card-body">
-          <strong><?= htmlspecialchars($r['user_name']) ?></strong> — ⭐ <?= htmlspecialchars($r['rating']) ?>/5
-          <p class="mt-2 mb-1"><?= nl2br(htmlspecialchars($r['comment'])) ?></p>
-          <small class="text-muted"><?= htmlspecialchars($r['created_at']) ?></small>
         </div>
-      </div>
-    <?php endforeach; ?>
-  <?php endif; ?>
-
-  <?php if (isset($_SESSION['id'])): ?>
-    <h5 class="mt-4">Leave a Review</h5>
-    <form method="post" action="../post_review.php" class="card p-3">
-      <input type="hidden" name="salon_id" value="<?= $salon_id ?>">
-      <div class="mb-2">
-        <label class="form-label">Rating</label>
-        <select name="rating" class="form-select form-select-sm w-25">
-          <?php for ($i=5; $i>=1; $i--): ?>
-            <option><?= $i ?></option>
-          <?php endfor; ?>
-        </select>
-      </div>
-      <div class="mb-2">
-        <label class="form-label">Comment</label>
-        <textarea name="comment" class="form-control" rows="3"></textarea>
-      </div>
-      <button class="btn btn-success btn-sm">Submit Review</button>
-    </form>
-  <?php else: ?>
-    <p><a href="../login.php">Login</a> to leave a review.</p>
+      <?php endforeach; ?>
+    </div>
   <?php endif; ?>
 </div>
 </body>

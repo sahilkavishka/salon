@@ -31,7 +31,8 @@ $userName = $_SESSION['user_name'] ?? '';
             <li class="nav-item"><a class="nav-link" href="owner/dashboard.php">Dashboard</a></li>
           <?php else: ?>
             <li class="nav-item"><a class="nav-link" href="user/profile.php">Profile</a></li>
-            <li class="nav-item"><a class="nav-link" href="user/appointment.php">My Appointments</a></li>
+            <li class="nav-item"><a class="nav-link" href="user/appointments.php">My Appointments</a></li>
+            <li class="nav-item"><a class="nav-link" href="user/salon_view.php">salons</a></li>
           <?php endif; ?>
           <li class="nav-item"><a class="nav-link text-danger" href="logout.php">Logout</a></li>
         <?php endif; ?>

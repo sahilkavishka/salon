@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../auth_check.php';
 checkAuth('owner');
 
+
 $owner_id = $_SESSION['id'];
 
 // 🔹 Fetch salons owned by this owner
@@ -62,7 +63,6 @@ $recent = $stmt->fetchAll(PDO::FETCH_ASSOC);
           <div>
             <a class="btn btn-sm btn-outline-primary" href="salon_edit.php?id=<?= $salon['salon_id'] ?>">Edit</a>
             <a class="btn btn-sm btn-outline-success" href="services.php?salon_id=<?= $salon['salon_id'] ?>">Services</a>
-            <a class="btn btn-sm btn-outline-secondary" href="appointments.php?salon_id=<?= $salon['salon_id'] ?>">Appointments</a>
           </div>
         </li>
       <?php endforeach; ?>
