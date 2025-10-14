@@ -2,15 +2,16 @@
 session_start();
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../auth_check.php';
-checkAuth(); // anyone logged in
+checkAuth();
 
-// ✅ Fetch all salons
+// Fetch all salons with service count
 $stmt = $pdo->query("
     SELECT 
         s.id AS salon_id,
         s.name,
         s.address,
         s.image,
+        s.owner_id,
         u.username AS owner_name,
         COUNT(sr.id) AS service_count
     FROM salons s
@@ -20,6 +21,10 @@ $stmt = $pdo->query("
     ORDER BY s.name ASC
 ");
 $salons = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Determine logged-in role
+$logged_user_id = $_SESSION['id'] ?? 0;
+$logged_user_role = $_SESSION['role'] ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -48,13 +53,15 @@ $salons = $stmt->fetchAll(PDO::FETCH_ASSOC);
   </div>
 
   <?php if (empty($salons)): ?>
-    <div class="alert alert-info">No salons available at the moment.</div>
+    <div class="alert alert-info">No salons available.</div>
   <?php else: ?>
     <div class="row">
       <?php foreach ($salons as $salon): ?>
         <div class="col-md-4 mb-4">
           <div class="card salon-card">
-            <img src="../../<?= htmlspecialchars($salon['image'] ?: 'assets/img/default_salon.jpg') ?>" class="salon-img" alt="<?= htmlspecialchars($salon['name']) ?>">
+            <img src="<?= htmlspecialchars('../../' . ($salon['image'] ?: 'assets/img/default_salon.jpg')) ?>" 
+                 class="salon-img" 
+                 alt="<?= htmlspecialchars($salon['name']) ?>">
             <div class="card-body">
               <h5 class="card-title"><?= htmlspecialchars($salon['name']) ?></h5>
               <p class="card-text mb-1">
@@ -63,8 +70,11 @@ $salons = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <strong>Services:</strong> <?= htmlspecialchars($salon['service_count']) ?>
               </p>
               <a href="salon_details.php?id=<?= $salon['salon_id'] ?>" class="btn btn-outline-primary btn-sm">View Details</a>
-              <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'customer'): ?>
-                <a href="salon_details.php?id=<?= $salon['salon_id'] ?>#services" class="btn btn-primary btn-sm">Book Now</a>
+
+              <?php
+              $can_interact = in_array($logged_user_role, ['user', 'customer']) && $logged_user_id != $salon['owner_id'];
+              if ($can_interact): ?>
+                <a href="salon_details.php?id=<?= $salon['salon_id'] ?>#services" class="btn btn-primary btn-sm mt-1">Book Now</a>
               <?php endif; ?>
             </div>
           </div>

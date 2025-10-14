@@ -7,9 +7,9 @@ checkAuth();
 $salon_id = intval($_GET['id'] ?? 0);
 if ($salon_id <= 0) die("Invalid salon ID.");
 
-// Salon info
+// Fetch salon info
 $stmt = $pdo->prepare("
-    SELECT s.*, u.username AS owner_name 
+    SELECT s.*, u.username AS owner_name
     FROM salons s
     LEFT JOIN users u ON s.owner_id = u.id
     WHERE s.id = ?
@@ -18,12 +18,12 @@ $stmt->execute([$salon_id]);
 $salon = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$salon) die("Salon not found.");
 
-// Services
+// Fetch services
 $stmt = $pdo->prepare("SELECT * FROM services WHERE salon_id = ?");
 $stmt->execute([$salon_id]);
 $services = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Reviews
+// Fetch reviews
 $stmt = $pdo->prepare("
     SELECT r.*, u.username 
     FROM reviews r
@@ -33,7 +33,13 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$salon_id]);
 $reviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Determine if logged-in user can interact
+$logged_user_id = $_SESSION['id'] ?? 0;
+$logged_user_role = $_SESSION['role'] ?? '';
+$can_interact = in_array($logged_user_role, ['user', 'customer']) && $logged_user_id != $salon['owner_id'];
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -48,9 +54,9 @@ $reviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
   <h2><?= htmlspecialchars($salon['name']) ?></h2>
   <p><strong>Owner:</strong> <?= htmlspecialchars($salon['owner_name']) ?></p>
   <p><strong>Address:</strong> <?= htmlspecialchars($salon['address']) ?></p>
-  <?php if ($salon['image']): ?>
-    <img src="../../<?= htmlspecialchars($salon['image']) ?>" style="max-width: 400px;" class="rounded mb-3">
-  <?php endif; ?>
+
+  <img src="<?= htmlspecialchars('../../' . ($salon['image'] ?: 'assets/img/default_salon.jpg')) ?>" 
+       class="rounded mb-3" style="max-width:400px;">
 
   <h4 id="services">Services</h4>
   <?php if (empty($services)): ?>
@@ -62,8 +68,9 @@ $reviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
           <div class="card p-3">
             <h5><?= htmlspecialchars($s['name']) ?></h5>
             <p>Price: Rs <?= htmlspecialchars($s['price']) ?> | <?= htmlspecialchars($s['duration']) ?> mins</p>
-            <?php if ($_SESSION['role'] === 'customer'): ?>
-              <form method="post" action="../book_appointment.php">
+
+            <?php if ($can_interact): ?>
+              <form method="post" action="../../book_appointment.php">
                 <input type="hidden" name="salon_id" value="<?= $salon_id ?>">
                 <input type="hidden" name="service_id" value="<?= $s['id'] ?>">
                 <input type="date" name="appointment_date" class="form-control mb-2" required>
@@ -90,9 +97,9 @@ $reviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <?php endforeach; ?>
   <?php endif; ?>
 
-  <?php if ($_SESSION['role'] === 'customer'): ?>
+  <?php if ($can_interact): ?>
     <h5 class="mt-4">Write a Review</h5>
-    <form method="post" action="../post_review.php" class="card p-3">
+    <form method="post" action="../../post_review.php" class="card p-3">
       <input type="hidden" name="salon_id" value="<?= $salon_id ?>">
       <select name="rating" class="form-select mb-2" required>
         <option value="5">★★★★★</option>

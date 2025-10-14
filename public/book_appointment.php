@@ -1,28 +1,37 @@
 <?php
 session_start();
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../auth_check.php';
-checkAuth('customer');
+checkAuth();
 
-$user_id = $_SESSION['id'];
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $salon_id = intval($_POST['salon_id']);
-    $service_id = intval($_POST['service_id']);
-    $date = $_POST['appointment_date'] ?? '';
-    $time = $_POST['appointment_time'] ?? '';
-
-    if (!$salon_id || !$service_id || !$date || !$time) {
-        die("Missing required fields.");
-    }
-
-    $stmt = $pdo->prepare("
-        INSERT INTO appointments (user_id, salon_id, service_id, appointment_date, appointment_time, status, created_at)
-        VALUES (?, ?, ?, ?, ?, 'Pending', NOW())
-    ");
-    $stmt->execute([$user_id, $salon_id, $service_id, $date, $time]);
-
-    header("Location: user/appointments.php?success=1");
-    exit;
+if (!isset($_SESSION['id'], $_POST['salon_id'], $_POST['service_id'], $_POST['appointment_date'], $_POST['appointment_time'])) {
+    die("Invalid request.");
 }
-?>
+
+// Fetch salon owner
+$salon_id = intval($_POST['salon_id']);
+$stmt = $pdo->prepare("SELECT owner_id FROM salons WHERE id = ?");
+$stmt->execute([$salon_id]);
+$salon = $stmt->fetch(PDO::FETCH_ASSOC);
+if (!$salon) die("Salon not found.");
+
+// Prevent owner from booking their own salon
+if ($_SESSION['id'] == $salon['owner_id']) {
+    die("You cannot book an appointment at your own salon.");
+}
+
+// Insert appointment
+$stmt = $pdo->prepare("
+    INSERT INTO appointments (salon_id, service_id, user_id, appointment_date, appointment_time)
+    VALUES (?, ?, ?, ?, ?)
+");
+$stmt->execute([
+    $salon_id,
+    intval($_POST['service_id']),
+    $_SESSION['id'],
+    $_POST['appointment_date'],
+    $_POST['appointment_time']
+]);
+
+header("Location: salon_details.php?id=$salon_id&msg=booked");
+exit;
