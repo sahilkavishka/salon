@@ -14,16 +14,21 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$user) die('User not found.');
 
 $errors = [];
+$success = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
-    if ($name === '') $errors[] = 'Name required.';
+
+    if ($name === '') $errors[] = 'Name is required.';
+    if ($phone !== '' && !preg_match('/^[0-9+\-\s]+$/', $phone)) $errors[] = 'Phone can only contain numbers, +, - and spaces.';
+
     if (empty($errors)) {
         $u = $pdo->prepare('UPDATE users SET username=?, phone=? WHERE id=?');
         $u->execute([$name, $phone, $id]);
         $_SESSION['user_name'] = $name;
-        header('Location: profile.php');
-        exit;
+        $success = 'Profile updated successfully.';
+        $user['name'] = $name;
+        $user['phone'] = $phone;
     }
 }
 ?>
@@ -37,8 +42,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body class="bg-light">
 <div class="container mt-4">
   <h2>My Profile</h2>
+
   <?php if ($errors): ?>
-    <div class="alert alert-danger"><?php foreach ($errors as $e) echo htmlspecialchars($e) . '<br>'; ?></div>
+    <div class="alert alert-danger">
+      <?php foreach ($errors as $e) echo htmlspecialchars($e) . '<br>'; ?>
+    </div>
+  <?php endif; ?>
+
+  <?php if ($success): ?>
+    <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
   <?php endif; ?>
 
   <form method="post" class="card p-3">
@@ -53,8 +65,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="mb-3">
       <label class="form-label">Phone</label>
       <input name="phone" class="form-control" value="<?= htmlspecialchars($user['phone'] ?? '') ?>">
+      <div class="form-text">Optional. Numbers, +, - allowed.</div>
     </div>
-    <button class="btn btn-primary">Save Profile</button>
+    <button type="submit" class="btn btn-primary">Save Profile</button>
   </form>
 </div>
 </body>

@@ -13,7 +13,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Find user
         $stmt = $pdo->prepare("SELECT id, username, password, role FROM users WHERE email = ?");
         $stmt->execute([$email]);
-        $stmt->setFetchMode(PDO::FETCH_ASSOC);
         $user = $stmt->fetch();
 
         if ($user && password_verify($password, $user['password'])) {
@@ -24,9 +23,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Redirect based on role
             if ($_SESSION['role'] === 'owner') {
-                header('Location: owner/dashboard.php');
+                header('Location: /salonora/public/owner/dashboard.php');
             } else {
-                header('Location: user/index.php');
+                header('Location: index.php');
             }
             exit;
         } else {
@@ -68,20 +67,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <span class="toggle-password" onclick="togglePassword()">Show</span>
       </div>
 
-      <!-- Optional feature: Remember Me -->
-      <!--
       <div class="mb-3 form-check">
-        <input type="checkbox" class="form-check-input" id="rememberMe" name="remember">
+        <input type="checkbox" class="form-check-input" id="rememberMe">
         <label class="form-check-label" for="rememberMe">Remember me</label>
       </div>
-      -->
 
       <button type="submit" class="btn btn-primary w-100">Login</button>
     </form>
 
     <div class="text-center mt-3">
-      <small>Don't have an account? <a href="register.php">Register here</a></small><br>
-      <small><a href="forgot_password.php">Forgot password?</a></small>
+      <small>Don't have an account? <a href="register.php">Register here</a></small>
     </div>
   </div>
 

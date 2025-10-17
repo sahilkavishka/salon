@@ -7,17 +7,12 @@ checkAuth('owner');
 
 $owner_id = $_SESSION['id'];
 
-// Flash messages
-$flash_success = $_SESSION['flash_success'] ?? null;
-$flash_error = $_SESSION['flash_error'] ?? null;
-unset($_SESSION['flash_success'], $_SESSION['flash_error']);
-
-// Fetch salons
-$stmt = $pdo->prepare("SELECT id AS salon_id, name, address FROM salons WHERE owner_id = ?");
+// 🔹 Fetch all salons owned by this owner
+$stmt = $pdo->prepare("SELECT id AS salon_id, name, address, image FROM salons WHERE owner_id = ?");
 $stmt->execute([$owner_id]);
 $salons = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch recent appointments
+// 🔹 Fetch recent appointments (last 10) for all salons
 $stmt = $pdo->prepare("
     SELECT 
         a.id AS appointment_id,
@@ -49,36 +44,36 @@ $recent = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <div class="container mt-4">
 
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>Welcome, <?= htmlspecialchars($_SESSION['user_name'] ?? 'Owner') ?> 👋</h2>
+    <h2>Welcome, <?= htmlspecialchars($_SESSION['user_name']) ?> 👋</h2>
     <a href="../logout.php" class="btn btn-danger btn-sm">Logout</a>
   </div>
 
-  <?php if ($flash_success): ?>
-      <div class="alert alert-success"><?= htmlspecialchars($flash_success) ?></div>
-  <?php endif; ?>
-  <?php if ($flash_error): ?>
-      <div class="alert alert-danger"><?= htmlspecialchars($flash_error) ?></div>
-  <?php endif; ?>
-
   <h4>Your Salons</h4>
   <?php if (empty($salons)): ?>
-    <div class="alert alert-info">No salons yet. <a href="salon_add.php">Add one</a>.</div>
+    <div class="alert alert-info">
+      You don't have any salons yet. <a href="salon_add.php">Add one</a>.
+    </div>
   <?php else: ?>
-    <ul class="list-group mb-4">
+    <div class="row row-cols-1 row-cols-md-2 g-3 mb-4">
       <?php foreach ($salons as $salon): ?>
-        <li class="list-group-item d-flex justify-content-between align-items-center">
-          <div>
-            <strong><?= htmlspecialchars($salon['name']) ?></strong><br>
-            <small><?= htmlspecialchars($salon['address']) ?></small>
+        <div class="col">
+          <div class="card h-100">
+            <?php if ($salon['image']): ?>
+              <img src="../../<?= htmlspecialchars($salon['image']) ?>" class="card-img-top" alt="<?= htmlspecialchars($salon['name']) ?>">
+            <?php endif; ?>
+            <div class="card-body">
+              <h5 class="card-title"><?= htmlspecialchars($salon['name']) ?></h5>
+              <p class="card-text"><?= htmlspecialchars($salon['address']) ?></p>
+            </div>
+            <div class="card-footer d-flex justify-content-between">
+              <a class="btn btn-sm btn-outline-primary" href="salon_edit.php?id=<?= $salon['salon_id'] ?>">Edit</a>
+              <a class="btn btn-sm btn-outline-success" href="services.php?salon_id=<?= $salon['salon_id'] ?>">Services</a>
+              <a class="btn btn-sm btn-outline-info" href="appointments.php">Appointments</a>
+            </div>
           </div>
-          <div>
-            <a class="btn btn-sm btn-outline-primary" href="salon_edit.php?id=<?= $salon['salon_id'] ?>">Edit</a>
-            <a class="btn btn-sm btn-outline-success" href="services.php?salon_id=<?= $salon['salon_id'] ?>">Services</a>
-            <a class="btn btn-sm btn-outline-info" href="appointments.php">Appointments</a>
-          </div>
-        </li>
+        </div>
       <?php endforeach; ?>
-    </ul>
+    </div>
   <?php endif; ?>
 
   <h4>Recent Appointments</h4>
@@ -86,7 +81,7 @@ $recent = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <div class="alert alert-secondary">No recent appointments found.</div>
   <?php else: ?>
     <div class="table-responsive">
-      <table class="table table-striped table-hover">
+      <table class="table table-striped table-bordered">
         <thead class="table-dark">
           <tr>
             <th>ID</th>
@@ -99,22 +94,15 @@ $recent = $stmt->fetchAll(PDO::FETCH_ASSOC);
           </tr>
         </thead>
         <tbody>
-          <?php foreach ($recent as $a): 
-              $badge = match($a['status']) {
-                  'pending' => 'bg-warning text-dark',
-                  'confirmed' => 'bg-success',
-                  'rejected' => 'bg-danger',
-                  default => 'bg-secondary'
-              };
-          ?>
+          <?php foreach ($recent as $a): ?>
             <tr>
-              <td><?= (int)$a['appointment_id'] ?></td>
+              <td><?= $a['appointment_id'] ?></td>
               <td><?= htmlspecialchars($a['salon_name']) ?></td>
               <td><?= htmlspecialchars($a['service_name']) ?></td>
               <td><?= htmlspecialchars($a['customer_name']) ?></td>
               <td><?= htmlspecialchars($a['appointment_date']) ?></td>
-              <td><?= date('H:i', strtotime($a['appointment_time'])) ?></td>
-              <td><span class="badge <?= $badge ?>"><?= htmlspecialchars($a['status']) ?></span></td>
+              <td><?= htmlspecialchars(substr($a['appointment_time'],0,5)) ?></td>
+              <td><span class="badge bg-info text-dark"><?= htmlspecialchars($a['status']) ?></span></td>
             </tr>
           <?php endforeach; ?>
         </tbody>
