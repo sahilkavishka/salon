@@ -5,15 +5,14 @@ require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../auth_check.php';
 checkAuth('owner');
 
-
 $owner_id = $_SESSION['id'];
 
-// 🔹 Fetch salons owned by this owner
+// Fetch salons
 $stmt = $pdo->prepare("SELECT id AS salon_id, name, address FROM salons WHERE owner_id = ?");
 $stmt->execute([$owner_id]);
 $salons = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// 🔹 Fetch recent appointments (with appointment_time)
+// Fetch recent appointments
 $stmt = $pdo->prepare("
     SELECT 
         a.id AS appointment_id,
@@ -45,7 +44,7 @@ $recent = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <div class="container mt-4">
 
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>Welcome, <?= htmlspecialchars($_SESSION['user_name']) ?> 👋</h2>
+    <h2>Welcome, <?= htmlspecialchars($_SESSION['user_name'] ?? 'Owner') ?> 👋</h2>
     <a href="../logout.php" class="btn btn-danger btn-sm">Logout</a>
   </div>
 
@@ -74,7 +73,7 @@ $recent = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <div class="alert alert-secondary">No recent appointments found.</div>
   <?php else: ?>
     <div class="table-responsive">
-      <table class="table table-striped">
+      <table class="table table-striped table-hover">
         <thead class="table-dark">
           <tr>
             <th>ID</th>
@@ -87,15 +86,22 @@ $recent = $stmt->fetchAll(PDO::FETCH_ASSOC);
           </tr>
         </thead>
         <tbody>
-          <?php foreach ($recent as $a): ?>
+          <?php foreach ($recent as $a): 
+              $badge = match($a['status']) {
+                  'pending' => 'bg-warning text-dark',
+                  'confirmed' => 'bg-success',
+                  'rejected' => 'bg-danger',
+                  default => 'bg-secondary'
+              };
+          ?>
             <tr>
-              <td><?= $a['appointment_id'] ?></td>
+              <td><?= (int)$a['appointment_id'] ?></td>
               <td><?= htmlspecialchars($a['salon_name']) ?></td>
               <td><?= htmlspecialchars($a['service_name']) ?></td>
               <td><?= htmlspecialchars($a['customer_name']) ?></td>
               <td><?= htmlspecialchars($a['appointment_date']) ?></td>
-              <td><?= htmlspecialchars($a['appointment_time']) ?></td>
-              <td><span class="badge bg-info text-dark"><?= htmlspecialchars($a['status']) ?></span></td>
+              <td><?= date('H:i', strtotime($a['appointment_time'])) ?></td>
+              <td><span class="badge <?= $badge ?>"><?= htmlspecialchars($a['status']) ?></span></td>
             </tr>
           <?php endforeach; ?>
         </tbody>

@@ -9,10 +9,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = strtolower(trim($_POST['email'] ?? ''));
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
-    $role = in_array($_POST['role'] ?? 'user', ['user','owner']) ? $_POST['role'] : 'user';
+    $role = ($_POST['role'] === 'owner') ? 'owner' : 'user';
 
     $errors = [];
 
+    // Basic validation
     if (!$name || !$username || !$email || !$password || !$confirm_password) {
         $errors[] = "All fields are required.";
     }
@@ -25,11 +26,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = "Passwords do not match.";
     }
 
-    // Check if email exists
-    $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
-    $stmt->execute([$email]);
+    // Check if email or username exists
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ? OR username = ?");
+    $stmt->execute([$email, $username]);
     if ($stmt->fetch()) {
-        $errors[] = "Email is already registered.";
+        $errors[] = "Email or Username is already registered.";
     }
 
     if (empty($errors)) {
@@ -93,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
       <div class="mb-3 position-relative">
         <label class="form-label">Password</label>
-        <input type="password" name="password" class="form-control" id="password" required>
+        <input type="password" name="password" class="form-control" id="password" pattern=".{6,}" title="At least 6 characters" required>
         <span class="toggle-password" onclick="togglePassword()">Show</span>
       </div>
       <div class="mb-3 position-relative">
