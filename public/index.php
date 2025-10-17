@@ -60,7 +60,15 @@ if ($user_id) {
             <li class="nav-item"><a class="nav-link" href="user/profile.php">Profile</a></li>
             <li class="nav-item"><a class="nav-link" href="user/my_appointments.php">My Appointments</a></li>
             <li class="nav-item"><a class="nav-link" href="user/salon_view.php">salons</a></li>
-            <li class="nav-item"><a class="nav-link"  href="/public/notifications.php" >notification</a></li>
+            <li class="nav-item"><a class="nav-link"  href="notifications.php" >notification  <?php if ($unreadCount > 0): ?>
+        <span style="
+            position:absolute;
+            top:-5px; right:-10px;
+            background:red; color:white;
+            padding:2px 6px; border-radius:50%;
+            font-size:12px;
+        "><?php echo $unreadCount; ?></span>
+    <?php endif; ?></a></li>
           <?php endif; ?>
           <li class="nav-item"><a class="nav-link text-danger" href="logout.php">Logout</a></li>
         <?php endif; ?>
