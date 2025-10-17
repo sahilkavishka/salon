@@ -75,21 +75,15 @@ $logged_user_role = $_SESSION['role'] ?? '';
               </div>
               <div class="mt-2 d-flex flex-column gap-1">
                 <a href="salon_details.php?id=<?= $salon['salon_id'] ?>" class="btn btn-outline-primary btn-sm">View Details</a>
-                <?php if ($can_interact): ?>
-                  <button class="btn btn-primary btn-sm" 
-                          data-bs-toggle="modal" 
-                          data-bs-target="#bookModal" 
-                          data-salon="<?= $salon['salon_id'] ?>" 
-                          data-name="<?= htmlspecialchars($salon['name']) ?>">
-                    Book Appointment
-                  </button>
+                
+                  
                   <button class="btn btn-success btn-sm" 
                           data-bs-toggle="modal" 
                           data-bs-target="#reviewModal" 
                           data-salon="<?= $salon['salon_id'] ?>">
                     Write Review
                   </button>
-                <?php endif; ?>
+                
               </div>
             </div>
           </div>

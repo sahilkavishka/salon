@@ -125,6 +125,34 @@ $user_can_interact = isset($_SESSION['role'], $_SESSION['id']) &&
     </div>
   </div>
 </div>
+<?php
+// salon_details.php (excerpt) - make sure session started earlier and config included
+// Example variables assumed: $salon['id'], $services = array of services with id & name/price
+?>
+
+<!-- Booking form (simple, posts to book_appointment.php) -->
+<h3>Request Appointment</h3>
+<form action="/public/user/book_appointment.php" method="post" id="bookForm">
+    <input type="hidden" name="salon_id" value="<?php echo htmlspecialchars($salon['id']); ?>">
+
+    <label for="service_id">Select Service</label>
+    <select name="service_id" id="service_id" required>
+        <option value="">-- Choose service --</option>
+        <?php foreach ($services as $s): ?>
+            <option value="<?php echo (int)$s['id']; ?>">
+                <?php echo htmlspecialchars($s['name']); ?>
+            </option>
+        <?php endforeach; ?>
+    </select>
+
+    <label for="appointment_date">Date</label>
+    <input type="date" id="appointment_date" name="appointment_date" required min="<?php echo date('Y-m-d'); ?>">
+
+    <label for="appointment_time">Time</label>
+    <input type="time" id="appointment_time" name="appointment_time" required>
+
+    <button type="submit">Request Appointment</button>
+</form>
 
 <!-- Review Modal -->
 <div class="modal fade" id="reviewModal" tabindex="-1">
