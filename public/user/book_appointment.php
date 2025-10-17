@@ -51,6 +51,20 @@ try {
         ':appointment_date' => $appointment_date,
         ':appointment_time' => $appointment_time,
     ]);
+    // Get salon owner
+$stmtOwner = $pdo->prepare("SELECT owner_id FROM salons WHERE id = :id");
+$stmtOwner->execute([':id' => $salon_id]);
+$owner = $stmtOwner->fetch(PDO::FETCH_ASSOC);
+
+if ($owner) {
+    $ownerId = $owner['owner_id'];
+
+    // Add notification for owner
+    $msg = "New appointment request received for service ID $service_id on $appointment_date at $appointment_time.";
+    $stmtNotify = $pdo->prepare("INSERT INTO notifications (user_id, message) VALUES (:uid, :msg)");
+    $stmtNotify->execute([':uid' => $ownerId, ':msg' => $msg]);
+}
+
 
     $_SESSION['flash_success'] = "Appointment request sent. The salon owner will confirm if the slot is available.";
     header("Location: ../user/salon_details.php?id={$salon_id}");

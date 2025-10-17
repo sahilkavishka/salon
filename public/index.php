@@ -15,6 +15,13 @@ $stmt = $pdo->query("
     WHERE s.lat IS NOT NULL AND s.lng IS NOT NULL
 ");
 $salons = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$user_id = $_SESSION['id'] ?? null;
+$unreadCount = 0;
+if ($user_id) {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = :uid AND is_read = 0");
+    $stmt->execute([':uid' => $user_id]);
+    $unreadCount = $stmt->fetchColumn();
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -51,8 +58,9 @@ $salons = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <li class="nav-item"><a class="nav-link" href="owner/dashboard.php">Dashboard</a></li>
           <?php else: ?>
             <li class="nav-item"><a class="nav-link" href="user/profile.php">Profile</a></li>
-            <li class="nav-item"><a class="nav-link" href="user/appointments.php">My Appointments</a></li>
+            <li class="nav-item"><a class="nav-link" href="user/my_appointments.php">My Appointments</a></li>
             <li class="nav-item"><a class="nav-link" href="user/salon_view.php">salons</a></li>
+            <li class="nav-item"><a class="nav-link"  href="/public/notifications.php" >notification</a></li>
           <?php endif; ?>
           <li class="nav-item"><a class="nav-link text-danger" href="logout.php">Logout</a></li>
         <?php endif; ?>

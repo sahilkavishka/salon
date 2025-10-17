@@ -26,11 +26,13 @@ if ($appointment_id <= 0 || !in_array($action, ['confirm','reject'])) {
     exit;
 }
 
-// fetch appointment and salon owner info
+// fetch appointment + related info (include user's email)
 $stmt = $pdo->prepare("
-    SELECT a.*, sal.owner_id
+    SELECT a.*, sal.owner_id, u.email AS user_email, u.username AS user_name, srv.name AS service_name, sal.name AS salon_name
     FROM appointments a
     JOIN salons sal ON sal.id = a.salon_id
+    JOIN users u ON u.id = a.user_id
+    JOIN services srv ON srv.id = a.service_id
     WHERE a.id = :id
 ");
 $stmt->execute([':id' => $appointment_id]);
@@ -42,32 +44,47 @@ if (!$appointment) {
     exit;
 }
 
-// ensure this owner owns the salon
 if ((int)$appointment['owner_id'] !== (int)$owner_id) {
-    $_SESSION['flash_error'] = "You are not allowed to change this appointment.";
+    $_SESSION['flash_error'] = "You are not allowed to update this appointment.";
     header('Location: appointments.php');
     exit;
 }
 
-// only pending appointments can be confirmed or rejected
 if ($appointment['status'] !== 'pending') {
-    $_SESSION['flash_error'] = "Only pending appointments can be acted upon.";
+    $_SESSION['flash_error'] = "Only pending appointments can be changed.";
     header('Location: appointments.php');
     exit;
 }
 
+$userEmail = $appointment['user_email'];
+$userName = $appointment['user_name'];
+$serviceName = $appointment['service_name'];
+$salonName = $appointment['salon_name'];
+$date = $appointment['appointment_date'];
+$time = substr($appointment['appointment_time'], 0, 5);
+
+// -------------------- REJECT --------------------
 if ($action === 'reject') {
     $stmt = $pdo->prepare("UPDATE appointments SET status = 'rejected', updated_at = NOW() WHERE id = :id");
     $stmt->execute([':id' => $appointment_id]);
-    $_SESSION['flash_success'] = "Appointment rejected.";
+
+    // Send rejection email
+    $subject = "Appointment Rejected - $salonName";
+    $message = "Dear $userName,\n\nYour appointment request for $serviceName at $salonName on $date at $time has been rejected.\n\nPlease try another slot or service.\n\nThank you,\n$salonName";
+    $headers = "From: noreply@salonora.com\r\n";
+
+    @mail($userEmail, $subject, $message, $headers);
+
+    $_SESSION['flash_success'] = "Appointment rejected and user notified.";
     header('Location: appointments.php');
     exit;
 }
 
-// if confirm -> check availability: no existing confirmed appointment at same salon/service/date/time
+// -------------------- CONFIRM --------------------
 try {
     $pdo->beginTransaction();
 
+    // Check if slot already booked
     $stmt = $pdo->prepare("
         SELECT COUNT(*) FROM appointments
         WHERE salon_id = :salon_id
@@ -83,28 +100,42 @@ try {
         ':appointment_date' => $appointment['appointment_date'],
         ':appointment_time' => $appointment['appointment_time'],
     ]);
-    $count = (int)$stmt->fetchColumn();
 
-    if ($count > 0) {
-        // slot already taken
+    if ($stmt->fetchColumn() > 0) {
         $pdo->rollBack();
-        $_SESSION['flash_error'] = "The selected slot is already booked. Consider rejecting or notifying the user.";
+        $_SESSION['flash_error'] = "Slot already booked.";
         header('Location: appointments.php');
         exit;
     }
 
-    // update to confirmed
     $stmt = $pdo->prepare("UPDATE appointments SET status = 'confirmed', updated_at = NOW() WHERE id = :id");
     $stmt->execute([':id' => $appointment_id]);
-
     $pdo->commit();
-    $_SESSION['flash_success'] = "Appointment confirmed and added to booked appointments.";
+
+    // Send confirmation email
+    $subject = "Appointment Confirmed - $salonName";
+    $message = "Dear $userName,\n\nYour appointment for $serviceName at $salonName has been confirmed.\n\n📅 Date: $date\n🕒 Time: $time\n\nThank you for choosing $salonName!\n\n- Salonora Team";
+    $headers = "From: noreply@salonora.com\r\n";
+
+    @mail($userEmail, $subject, $message, $headers);
+    // Add notification for user
+$msg = "Your appointment for $serviceName at $salonName on $date $time has been CONFIRMED.";
+$stmtNotify = $pdo->prepare("INSERT INTO notifications (user_id, message) VALUES (:uid, :msg)");
+$stmtNotify->execute([':uid' => $appointment['user_id'], ':msg' => $msg]);
+
+// Add notification for user
+$msg = "Your appointment for $serviceName at $salonName on $date $time has been REJECTED.";
+$stmtNotify = $pdo->prepare("INSERT INTO notifications (user_id, message) VALUES (:uid, :msg)");
+$stmtNotify->execute([':uid' => $appointment['user_id'], ':msg' => $msg]);
+
+
+    $_SESSION['flash_success'] = "Appointment confirmed and user notified.";
     header('Location: appointments.php');
     exit;
 
 } catch (PDOException $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
-    $_SESSION['flash_error'] = "Could not confirm appointment. Try again.";
+    $_SESSION['flash_error'] = "Error confirming appointment.";
     header('Location: appointments.php');
     exit;
 }
