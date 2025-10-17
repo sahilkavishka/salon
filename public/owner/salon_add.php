@@ -1,13 +1,8 @@
 <?php
 // public/owner/salon_add.php
-
 session_start();
-
-// adjust path if your config is elsewhere. This expects config.php at project root.
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../auth_check.php';
-
-// only owners allowed
 checkAuth('owner');
 
 $owner_id = $_SESSION['id'];
@@ -22,28 +17,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($name === '') $errors[] = 'Salon name is required.';
     if ($address === '') $errors[] = 'Salon address is required.';
 
-    // handle optional image upload
     $imagePath = null;
     if (!empty($_FILES['image']['name'])) {
         $file = $_FILES['image'];
-        // basic validation
         $allowed = ['image/jpeg','image/png','image/gif'];
+
         if ($file['error'] !== UPLOAD_ERR_OK) {
             $errors[] = 'Image upload error.';
         } elseif (!in_array(mime_content_type($file['tmp_name']), $allowed, true)) {
-            $errors[] = 'Only JPG/PNG/GIF images allowed.';
+            $errors[] = 'Only JPG, PNG or GIF images allowed.';
         } else {
-            // sanitize filename and move
-            $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
             $safe = 'uploads/salon_' . time() . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
-            // ensure uploads directory exists (relative to project root)
+
             $destDir = __DIR__ . '/../../uploads';
             if (!is_dir($destDir)) mkdir($destDir, 0755, true);
+
             $destFull = __DIR__ . '/../../' . $safe;
             if (!move_uploaded_file($file['tmp_name'], $destFull)) {
                 $errors[] = 'Failed to save uploaded image.';
             } else {
-                $imagePath = $safe; // store relative path
+                $imagePath = $safe;
             }
         }
     }
@@ -51,10 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         $stmt = $pdo->prepare("INSERT INTO salons (owner_id, name, address, image) VALUES (?, ?, ?, ?)");
         $stmt->execute([$owner_id, $name, $address, $imagePath]);
-
-        $success = 'Salon added successfully.';
-        // clear form fields
-        $name = $address = '';
+        $_SESSION['flash_success'] = 'Salon added successfully.';
+        header('Location: dashboard.php');
+        exit;
     }
 }
 ?>
@@ -79,10 +72,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="alert alert-danger">
       <?php foreach ($errors as $e) echo htmlspecialchars($e) . '<br>'; ?>
     </div>
-  <?php endif; ?>
-
-  <?php if ($success): ?>
-    <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
   <?php endif; ?>
 
   <form method="post" enctype="multipart/form-data" class="card p-3">

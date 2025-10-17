@@ -7,6 +7,11 @@ checkAuth('owner');
 
 $owner_id = $_SESSION['id'];
 
+// Flash messages
+$flash_success = $_SESSION['flash_success'] ?? null;
+$flash_error = $_SESSION['flash_error'] ?? null;
+unset($_SESSION['flash_success'], $_SESSION['flash_error']);
+
 // Fetch salons
 $stmt = $pdo->prepare("SELECT id AS salon_id, name, address FROM salons WHERE owner_id = ?");
 $stmt->execute([$owner_id]);
@@ -48,6 +53,13 @@ $recent = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <a href="../logout.php" class="btn btn-danger btn-sm">Logout</a>
   </div>
 
+  <?php if ($flash_success): ?>
+      <div class="alert alert-success"><?= htmlspecialchars($flash_success) ?></div>
+  <?php endif; ?>
+  <?php if ($flash_error): ?>
+      <div class="alert alert-danger"><?= htmlspecialchars($flash_error) ?></div>
+  <?php endif; ?>
+
   <h4>Your Salons</h4>
   <?php if (empty($salons)): ?>
     <div class="alert alert-info">No salons yet. <a href="salon_add.php">Add one</a>.</div>
@@ -62,6 +74,7 @@ $recent = $stmt->fetchAll(PDO::FETCH_ASSOC);
           <div>
             <a class="btn btn-sm btn-outline-primary" href="salon_edit.php?id=<?= $salon['salon_id'] ?>">Edit</a>
             <a class="btn btn-sm btn-outline-success" href="services.php?salon_id=<?= $salon['salon_id'] ?>">Services</a>
+            <a class="btn btn-sm btn-outline-info" href="appointments.php">Appointments</a>
           </div>
         </li>
       <?php endforeach; ?>
