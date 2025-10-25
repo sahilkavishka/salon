@@ -72,7 +72,7 @@ $completed = array_filter($appointments, fn($a) => $a['status'] === 'completed')
     <a class="navbar-brand" href="../../index.php"><i class="fas fa-spa"></i> Salonora</a>
     <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
       <ul class="navbar-nav align-items-center">
-        <li class="nav-item"><a href="../../index.php" class="nav-link">Home</a></li>
+        <li class="nav-item"><a href="index.php" class="nav-link">Home</a></li>
         <li class="nav-item"><a href="salon_view.php" class="nav-link">Salons</a></li>
         <li class="nav-item"><a href="my_appointments.php" class="nav-link active">Appointments</a></li>
         <li class="nav-item"><a href="profile.php" class="nav-link">Profile</a></li>
