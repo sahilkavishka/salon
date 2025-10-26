@@ -37,13 +37,17 @@ require_once __DIR__ . '/../config.php';
       </button>
 
       <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
-        <ul class="navbar-nav align-items-center">
-          <li class="nav-item"><a href="index.php" class="nav-link active">Home</a></li>
-          <li class="nav-item"><a class="nav-link" href="user/salon_view.php"><i class="fas fa-cut me-1"></i> Salons</a></li>
-          <li class="nav-item"><a class="nav-link" href="user/my_appointments.php"><i class="far fa-calendar-check me-1"></i> Appointments</a></li>
-          <li class="nav-item"><a class="nav-link" href="notification.php"><i class="far fa-cut me-1"></i> notification</a></li>
-          <li class="nav-item"><a class="nav-link" href="user/profile.php"><i class="far fa-user me-1"></i> Profile</a></li>
-          <li class="nav-item"><a href="#contact" class="nav-link">Contact</a></li>
+          <ul class="navbar-nav align-items-center">
+            <li class="nav-item"><a href="/salonora/public/index.php" class="nav-link active">Home</a></li>
+<li class="nav-item"><a href="/salonora/public/user/salon_view.php" class="nav-link"><i class="fas fa-cut me-1"></i> Salons</a></li>
+<li class="nav-item"><a href="/salonora/public/user/my_appointments.php" class="nav-link"><i class="far fa-calendar-check me-1"></i> Appointments</a></li>
+<li class="nav-item"><a href="#contact" class="nav-link">Contact</a></li>
+<li class="nav-item"><a href="/salonora/public/notifications.php" class="nav-link"><i class="far fa-bell me-1"></i> Notifications</a></li>
+<li class="nav-item"><a href="/salonora/public/user/profile.php" class="nav-link"><i class="far fa-user me-1"></i> Profile</a></li>
+
+  
+
+
           <?php if (isset($_SESSION['id'])): ?>
             <li class="nav-item ms-3">
               <a href="logout.php" class="btn btn-outline-light btn-sm">
