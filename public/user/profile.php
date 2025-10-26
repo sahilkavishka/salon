@@ -1,16 +1,24 @@
 <?php
 // public/user/profile.php
+
 session_start();
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../auth_check.php';
 
-$id = $_SESSION['id'];
+// Check user session
+$id = $_SESSION['user_id'] ?? $_SESSION['id'] ?? null;
+
+if (!$id) {
+    header('Location: ../login.php');
+    exit;
+}
 
 // Fetch user data
 $stmt = $pdo->prepare('SELECT id, username AS name, email, phone, created_at FROM users WHERE id = ?');
 $stmt->execute([$id]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$user) die('User not found.');
+
 
 // Get user statistics
 $stmt = $pdo->prepare('SELECT COUNT(*) as total FROM appointments WHERE user_id = ?');
