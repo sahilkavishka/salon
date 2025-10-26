@@ -596,6 +596,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
   </div>
 
+  <!-- Logout Success Message (if redirected from logout) -->
+  <?php if (isset($_GET['logout']) && $_GET['logout'] === 'success'): ?>
+  <script>
+    // Show temporary success message
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-success';
+    alert.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; background: linear-gradient(135deg, #00b894 0%, #00cec9 100%); color: white; padding: 1rem 1.5rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); animation: slideInRight 0.3s ease;';
+    alert.innerHTML = '<i class="fas fa-check-circle" style="margin-right: 0.5rem;"></i>You have been successfully logged out';
+    document.body.appendChild(alert);
+    
+    setTimeout(() => {
+      alert.style.animation = 'slideOutRight 0.3s ease';
+      setTimeout(() => alert.remove(), 300);
+    }, 3000);
+
+    // Add animations
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideInRight {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+      @keyframes slideOutRight {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100%); opacity: 0; }
+      }
+    `;
+    document.head.appendChild(style);
+  </script>
+  <?php endif; ?>
+
   <script>
     // Password toggle
     function togglePassword() {

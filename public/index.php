@@ -41,6 +41,7 @@ require_once __DIR__ . '/../config.php';
           <li class="nav-item"><a href="index.php" class="nav-link active">Home</a></li>
           <li class="nav-item"><a class="nav-link" href="user/salon_view.php"><i class="fas fa-cut me-1"></i> Salons</a></li>
           <li class="nav-item"><a class="nav-link" href="user/my_appointments.php"><i class="far fa-calendar-check me-1"></i> Appointments</a></li>
+          <li class="nav-item"><a class="nav-link" href="notification.php"><i class="far fa-cut me-1"></i> notification</a></li>
           <li class="nav-item"><a class="nav-link" href="user/profile.php"><i class="far fa-user me-1"></i> Profile</a></li>
           <li class="nav-item"><a href="#contact" class="nav-link">Contact</a></li>
           <?php if (isset($_SESSION['id'])): ?>
