@@ -58,7 +58,7 @@ $logged_user_role = $_SESSION['role'] ?? '';
       </button>
       <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
         <ul class="navbar-nav align-items-center">
-          <li class="nav-item"><a href="../../index.php" class="nav-link">Home</a></li>
+          <li class="nav-item"><a href="/salonora/public/index.php" class="nav-link">Home</a></li>
           <li class="nav-item"><a class="nav-link active" href="salon_view.php">Salons</a></li>
           <li class="nav-item"><a class="nav-link" href="my_appointments.php">Appointments</a></li>
           <li class="nav-item"><a class="nav-link" href="profile.php">Profile</a></li>
