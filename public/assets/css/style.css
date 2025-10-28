@@ -149,12 +149,12 @@ a {
    ================================ */
 .hero-section {
   position: relative;
-  min-height: 100vh;
+  min-height: 110vh;
   display: flex;
   align-items: center;
   background: var(--gradient-dark);
   overflow: hidden;
-  padding-top: 80px;
+  padding-top: 0px;
 }
 
 .hero-overlay {

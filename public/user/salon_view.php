@@ -1,8 +1,41 @@
 <?php
+// public/user/salon_view.php
 session_start();
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../auth_check.php';
 checkAuth();
+
+// Handle review submission
+if (
+    $_SERVER['REQUEST_METHOD'] === 'POST' &&
+    isset($_POST['salon_id'], $_POST['rating'], $_POST['comment'])
+) {
+    $salon_id = intval($_POST['salon_id']);
+    $user_id = $_SESSION['id'] ?? 0;
+    $rating = intval($_POST['rating']);
+    $comment = trim($_POST['comment']);
+    $errors = [];
+
+    if ($rating < 1 || $rating > 5) $errors[] = "Please select a valid rating.";
+    if ($comment === '') $errors[] = "Review cannot be empty.";
+
+    // Optional: Prevent duplicate reviews per user per salon
+    // $checkStmt = $pdo->prepare("SELECT id FROM reviews WHERE salon_id=? AND user_id=?");
+    // $checkStmt->execute([$salon_id, $user_id]);
+    // if ($checkStmt->fetch()) $errors[] = "You have already reviewed this salon.";
+
+    if (empty($errors)) {
+        $stmt = $pdo->prepare(
+            "INSERT INTO reviews (salon_id, user_id, rating, comment, created_at) VALUES (?, ?, ?, ?, NOW())"
+        );
+        $stmt->execute([$salon_id, $user_id, $rating, $comment]);
+        $_SESSION['success_message'] = "Review submitted successfully!";
+    } else {
+        $_SESSION['error_message'] = implode(" ", $errors);
+    }
+    header('Location: salon_view.php');
+    exit;
+}
 
 // Fetch all salons with service count
 $stmt = $pdo->query("
@@ -32,22 +65,12 @@ $logged_user_role = $_SESSION['role'] ?? '';
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>All Salons - Salonora</title>
-  
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  
-  <!-- Google Fonts -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  
-  <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../assets/css/salon_view.css">
-
-  
- 
+  <link rel="stylesheet" href="../assets/css/salon_view.css">
 </head>
 <body>
-  <!-- Navbar -->
   <nav class="navbar navbar-expand-lg">
     <div class="container">
       <a class="navbar-brand" href="../../index.php">
@@ -80,7 +103,6 @@ $logged_user_role = $_SESSION['role'] ?? '';
     </div>
   </nav>
 
-  <!-- Page Header -->
   <div class="page-header">
     <div class="container">
       <div class="page-header-content">
@@ -91,7 +113,22 @@ $logged_user_role = $_SESSION['role'] ?? '';
   </div>
 
   <div class="container pb-5">
-    <!-- Stats Bar -->
+    <?php if (isset($_SESSION['success_message'])): ?>
+      <div class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($_SESSION['success_message']) ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+      <?php unset($_SESSION['success_message']); ?>
+    <?php endif; ?>
+
+    <?php if (isset($_SESSION['error_message'])): ?>
+      <div class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-circle me-2"></i><?= htmlspecialchars($_SESSION['error_message']) ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+      <?php unset($_SESSION['error_message']); ?>
+    <?php endif; ?>
+
     <div class="stats-bar">
       <div class="stat-item">
         <span class="stat-number"><?= count($salons) ?></span>
@@ -107,7 +144,6 @@ $logged_user_role = $_SESSION['role'] ?? '';
       </div>
     </div>
 
-    <!-- Search & Filter -->
     <div class="filter-bar">
       <div class="row align-items-center">
         <div class="col-md-8 mb-3 mb-md-0">
@@ -126,7 +162,6 @@ $logged_user_role = $_SESSION['role'] ?? '';
       </div>
     </div>
 
-    <!-- Salons Grid -->
     <?php if (empty($salons)): ?>
       <div class="empty-state">
         <i class="fas fa-store-slash"></i>
@@ -135,11 +170,11 @@ $logged_user_role = $_SESSION['role'] ?? '';
       </div>
     <?php else: ?>
       <div class="row g-4" id="salonsGrid">
-        <?php foreach ($salons as $salon): 
+        <?php foreach ($salons as $salon):
           $can_interact = in_array($logged_user_role, ['user', 'customer']) && $logged_user_id != $salon['owner_id'];
           $image_path = '../../' . ($salon['image'] ?: 'assets/img/default_salon.jpg');
         ?>
-          <div class="col-lg-4 col-md-6 salon-item" 
+          <div class="col-lg-4 col-md-6 salon-item"
                data-name="<?= strtolower(htmlspecialchars($salon['name'])) ?>"
                data-location="<?= strtolower(htmlspecialchars($salon['address'])) ?>"
                data-owner="<?= strtolower(htmlspecialchars($salon['owner_name'])) ?>"
@@ -172,9 +207,12 @@ $logged_user_role = $_SESSION['role'] ?? '';
                   <a href="salon_details.php?id=<?= $salon['salon_id'] ?>" class="btn btn-view">
                     <i class="fas fa-eye"></i> View Details
                   </a>
-                  <button class="btn btn-review" 
-                          data-bs-toggle="modal" 
-                          data-bs-target="#reviewModal" 
+                  <a href="add_appointment.php?salon_id=<?= $salon['salon_id'] ?>" class="btn btn-primary">
+                    <i class="fas fa-calendar-plus"></i> Add Appointment
+                  </a>
+                  <button class="btn btn-review"
+                          data-bs-toggle="modal"
+                          data-bs-target="#reviewModal"
                           data-salon="<?= $salon['salon_id'] ?>"
                           data-name="<?= htmlspecialchars($salon['name']) ?>">
                     <i class="fas fa-star"></i> Write Review
@@ -191,7 +229,7 @@ $logged_user_role = $_SESSION['role'] ?? '';
   <!-- Review Modal -->
   <div class="modal fade" id="reviewModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-      <form method="post" action="../user/salon_view.php" class="modal-content">
+      <form method="post" action="salon_view.php" class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">
             <i class="fas fa-star me-2"></i>Write a Review
@@ -230,21 +268,17 @@ $logged_user_role = $_SESSION['role'] ?? '';
     </div>
   </div>
 
-  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     // Search functionality
     const searchInput = document.getElementById('searchInput');
     const salonItems = document.querySelectorAll('.salon-item');
-
     searchInput.addEventListener('input', function() {
       const searchTerm = this.value.toLowerCase();
-      
       salonItems.forEach(item => {
         const name = item.dataset.name;
         const location = item.dataset.location;
         const owner = item.dataset.owner;
-        
         if (name.includes(searchTerm) || location.includes(searchTerm) || owner.includes(searchTerm)) {
           item.style.display = 'block';
         } else {
@@ -256,11 +290,9 @@ $logged_user_role = $_SESSION['role'] ?? '';
     // Sort functionality
     const sortSelect = document.getElementById('sortSelect');
     const salonsGrid = document.getElementById('salonsGrid');
-
     sortSelect.addEventListener('change', function() {
       const sortBy = this.value;
       const items = Array.from(salonItems);
-      
       items.sort((a, b) => {
         if (sortBy === 'name') {
           return a.dataset.name.localeCompare(b.dataset.name);
@@ -270,7 +302,6 @@ $logged_user_role = $_SESSION['role'] ?? '';
           return a.dataset.location.localeCompare(b.dataset.location);
         }
       });
-      
       items.forEach(item => salonsGrid.appendChild(item));
     });
 
@@ -280,7 +311,6 @@ $logged_user_role = $_SESSION['role'] ?? '';
       const button = event.relatedTarget;
       const salonId = button.getAttribute('data-salon');
       const salonName = button.getAttribute('data-name');
-      
       document.getElementById('reviewSalonId').value = salonId;
       document.getElementById('reviewSalonName').value = salonName;
     });
