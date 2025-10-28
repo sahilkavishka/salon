@@ -191,7 +191,7 @@ $logged_user_role = $_SESSION['role'] ?? '';
   <!-- Review Modal -->
   <div class="modal fade" id="reviewModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-      <form method="post" action="../post_review.php" class="modal-content">
+      <form method="post" action="../user/salon_view.php" class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">
             <i class="fas fa-star me-2"></i>Write a Review
