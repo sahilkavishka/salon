@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <title>Salonora - Find Premium Salons Nearby</title>
@@ -37,15 +38,15 @@ require_once __DIR__ . '/../config.php';
       </button>
 
       <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
-          <ul class="navbar-nav align-items-center">
-            <li class="nav-item"><a href="/salonora/public/index.php" class="nav-link active">Home</a></li>
-<li class="nav-item"><a href="/salonora/public/user/salon_view.php" class="nav-link"><i class="fas fa-cut me-1"></i> Salons</a></li>
-<li class="nav-item"><a href="/salonora/public/user/my_appointments.php" class="nav-link"><i class="far fa-calendar-check me-1"></i> Appointments</a></li>
-<li class="nav-item"><a href="#contact" class="nav-link">Contact</a></li>
-<li class="nav-item"><a href="/salonora/public/notifications.php" class="nav-link"><i class="far fa-bell me-1"></i> Notifications</a></li>
-<li class="nav-item"><a href="/salonora/public/user/profile.php" class="nav-link"><i class="far fa-user me-1"></i> Profile</a></li>
+        <ul class="navbar-nav align-items-center">
+          <li class="nav-item"><a href="/salonora/public/index.php" class="nav-link active">Home</a></li>
+          <li class="nav-item"><a href="/salonora/public/user/salon_view.php" class="nav-link"><i class="fas fa-cut me-1"></i> Salons</a></li>
+          <li class="nav-item"><a href="/salonora/public/user/my_appointments.php" class="nav-link"><i class="far fa-calendar-check me-1"></i> Appointments</a></li>
+          <li class="nav-item"><a href="#contact" class="nav-link">Contact</a></li>
+          <li class="nav-item"><a href="/salonora/public/notifications.php" class="nav-link"><i class="far fa-bell me-1"></i> Notifications</a></li>
+          <li class="nav-item"><a href="/salonora/public/user/profile.php" class="nav-link"><i class="far fa-user me-1"></i> Profile</a></li>
 
-  
+
 
 
           <?php if (isset($_SESSION['id'])): ?>
@@ -81,7 +82,7 @@ require_once __DIR__ . '/../config.php';
           <p class="hero-subtitle">
             Connect with top-rated salons, explore exclusive services, and book your transformation today.
           </p>
-          
+
           <!-- Enhanced Search Bar -->
           <form class="search-container" action="search.php" method="GET">
             <div class="search-wrapper">
@@ -183,7 +184,7 @@ require_once __DIR__ . '/../config.php';
         <h2 class="section-title">Salons Near You</h2>
         <p class="section-subtitle">Find the perfect salon on our interactive map</p>
       </div>
-      
+
       <div class="map-container">
         <div id="map"></div>
         <div class="map-controls">
@@ -313,16 +314,52 @@ require_once __DIR__ . '/../config.php';
     });
 
     // Sample salon data
-    var salons = [
-      { name: "Salon Elegance", lat: 6.9271, lng: 79.8612, address: "Colombo 07", rating: 4.8, services: 25 },
-      { name: "Beauty Bliss", lat: 6.9350, lng: 79.8560, address: "Colombo 03", rating: 4.9, services: 30 },
-      { name: "Hair & Glow", lat: 6.9205, lng: 79.8789, address: "Nugegoda", rating: 4.7, services: 20 },
-      { name: "Glam Studio", lat: 6.9365, lng: 79.8471, address: "Bambalapitiya", rating: 4.6, services: 22 },
-      { name: "Style Avenue", lat: 6.9180, lng: 79.8650, address: "Dehiwala", rating: 4.8, services: 28 }
+    var salons = [{
+        name: "Salon Elegance",
+        lat: 6.9271,
+        lng: 79.8612,
+        address: "Colombo 07",
+        rating: 4.8,
+        services: 25
+      },
+      {
+        name: "Beauty Bliss",
+        lat: 6.9350,
+        lng: 79.8560,
+        address: "Colombo 03",
+        rating: 4.9,
+        services: 30
+      },
+      {
+        name: "Hair & Glow",
+        lat: 6.9205,
+        lng: 79.8789,
+        address: "Nugegoda",
+        rating: 4.7,
+        services: 20
+      },
+      {
+        name: "Glam Studio",
+        lat: 6.9365,
+        lng: 79.8471,
+        address: "Bambalapitiya",
+        rating: 4.6,
+        services: 22
+      },
+      {
+        name: "Style Avenue",
+        lat: 6.9180,
+        lng: 79.8650,
+        address: "Dehiwala",
+        rating: 4.8,
+        services: 28
+      }
     ];
 
     salons.forEach(salon => {
-      var marker = L.marker([salon.lat, salon.lng], { icon: customIcon }).addTo(map);
+      var marker = L.marker([salon.lat, salon.lng], {
+        icon: customIcon
+      }).addTo(map);
       marker.bindPopup(`
         <div class="map-popup">
           <h6>${salon.name}</h6>
@@ -358,4 +395,5 @@ require_once __DIR__ . '/../config.php';
     });
   </script>
 </body>
+
 </html>
