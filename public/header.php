@@ -18,8 +18,7 @@
   <!-- Main Style CSS (from index.php) -->
   <link rel="stylesheet" href="/salonora/public/assets/css/style.css">
 
-  <!-- Dashboard CSS -->
-  <link rel="stylesheet" href="/salonora/public/assets/css/dashboard.css">
+ 
 
   <style>
     /* Force navbar to always show as scrolled (keeps original colors from style.css) */
