@@ -33,10 +33,11 @@ if (empty($salonIds)) {
         <style>
             body { font-family: 'Poppins', sans-serif; background: #f5f7fa; }
             .navbar-brand { font-weight: 800; background: linear-gradient(135deg,#e91e63,#9c27b0); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+            .navbar{background:rgba(241, 6, 143, 0.57);height: 100px;}
         </style>
     </head>
     <body>
-        <nav class="navbar navbar-expand-lg bg-white shadow-sm">
+        <nav class="navbar navbar-expand-lg bg-pink shadow-sm">
             <div class="container">
                 <a class="navbar-brand" href="../../index.php"><i class="fas fa-spa"></i> Salonora</a>
             </div>
@@ -46,7 +47,7 @@ if (empty($salonIds)) {
                 <i class="fas fa-info-circle fa-3x mb-3"></i>
                 <h4>No Salons Yet</h4>
                 <p>You haven't registered any salons yet. Create your first salon to start managing appointments.</p>
-                <a href="add_salon.php" class="btn btn-primary mt-3">Add Your First Salon</a>
+                <a href="salon_add.php" class="btn btn-primary mt-3">Add Your First Salon</a>
             </div>
         </div>
     </body>
@@ -261,35 +262,7 @@ $totalRevenue = array_sum(array_column($completed, 'service_price'));
 </head>
 <body>
 
-<!-- Navbar -->
-<nav class="navbar navbar-expand-lg bg-white shadow-sm">
-    <div class="container">
-        <a class="navbar-brand" href="../../index.php"><i class="fas fa-spa"></i> Salonora</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
-            <ul class="navbar-nav align-items-center">
-                <li class="nav-item"><a href="dashboard.php" class="nav-link">Dashboard</a></li>
-                <li class="nav-item"><a href="my_salons.php" class="nav-link">My Salons</a></li>
-                <li class="nav-item"><a href="appointments.php" class="nav-link active">Appointments</a></li>
-                <li class="nav-item ms-3">
-                    <a href="../logout.php" class="btn btn-sm btn-danger">
-                        <i class="fas fa-sign-out-alt me-1"></i> Logout
-                    </a>
-                </li>
-            </ul>
-        </div>
-    </div>
-</nav>
 
-<!-- Header -->
-<div class="page-header">
-    <div class="container">
-        <h1><i class="fas fa-calendar-alt me-2"></i>Appointments Management</h1>
-        <p>Manage bookings and customer appointments</p>
-    </div>
-</div>
 
 <div class="container py-4">
     <!-- Statistics Cards -->
@@ -627,12 +600,7 @@ $totalRevenue = array_sum(array_column($completed, 'service_price'));
     </div>
 </div>
 
-<!-- Footer -->
-<footer class="bg-white mt-5 py-4 border-top">
-    <div class="container text-center">
-        <p class="mb-0 text-muted">&copy; 2025 Salonora. All rights reserved.</p>
-    </div>
-</footer>
+
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
