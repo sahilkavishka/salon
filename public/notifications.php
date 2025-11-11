@@ -47,6 +47,8 @@ $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $unread = array_filter($notifications, fn($n) => $n['is_read'] == 0);
 $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
 ?>
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -63,7 +65,7 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
           <link rel="stylesheet" href="../assets/css/notifications.css">
-
+  
   
   <style>
     :root {
@@ -445,22 +447,11 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
       animation: fadeIn 0.3s ease;
     }
   </style>
-</head>
-<body>
-  <!-- Navbar -->
-  <nav class="navbar navbar-expand-lg">
-    <div class="container">
-      <a class="navbar-brand" href="index.php">
-        <i class="fas fa-spa"></i> Salonora
-      </a>
-      <div class="ms-auto">
-        <a href="index.php" class="btn btn-gradient btn-sm">
-          <i class="fas fa-arrow-left me-1"></i> Back
-        </a>
-      </div>
-    </div>
-  </nav>
 
+</head>
+<
+<body>
+ 
   <!-- Page Header -->
   <div class="page-header">
     <div class="container">

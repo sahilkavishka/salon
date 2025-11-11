@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>My Profile - Salonora</title>
-  
+  <?php include __DIR__ . '/../header.php'; ?>
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   
@@ -68,31 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   
 </head>
 <body>
-  <!-- Navbar -->
-  <nav class="navbar navbar-expand-lg">
-    <div class="container">
-      <a class="navbar-brand" href="../../index.php">
-        <i class="fas fa-spa"></i> Salonora
-      </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
-        <ul class="navbar-nav align-items-center">
-          <li class="nav-item"><a href="../../index.php" class="nav-link">Home</a></li>
-          <li class="nav-item"><a class="nav-link" href="salon_view.php">Salons</a></li>
-          <li class="nav-item"><a class="nav-link" href="my_appointments.php">Appointments</a></li>
-          <li class="nav-item"><a class="nav-link active" href="profile.php">Profile</a></li>
-          <li class="nav-item ms-3">
-            <a href="../logout.php" class="btn btn-gradient btn-sm">
-              <i class="fas fa-sign-out-alt me-1"></i> Logout
-            </a>
-          </li>
-        </ul>
-      </div>
-    </div>
-  </nav>
-
+  
   <!-- Page Header -->
   <div class="page-header">
     <div class="container">
@@ -221,7 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
     </div>
   </div>
-
+   <?php include __DIR__ . '/../footer.php'; ?>
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
