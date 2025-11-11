@@ -1,4 +1,5 @@
-
+<!--footer-->
+  <link rel="stylesheet" href="/salonora/public/assets/css/footer.css">
 <!-- Footer -->
 <footer class="footer" id="contact">
   <div class="container">
