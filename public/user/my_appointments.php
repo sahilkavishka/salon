@@ -123,26 +123,7 @@ $upcoming = array_filter($appointments, function($a) use ($now) {
 </head>
 <body>
 
-<!-- Navbar -->
-<nav class="navbar navbar-expand-lg bg-white shadow-sm">
-  <div class="container">
-    <a class="navbar-brand" href="../../index.php"><i class="fas fa-spa"></i> Salonora</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
-      <ul class="navbar-nav align-items-center">
-        <li class="nav-item"><a href="/salonora/public/index.php" class="nav-link">Home</a></li>
-        <li class="nav-item"><a href="salon_view.php" class="nav-link">Salons</a></li>
-        <li class="nav-item"><a href="my_appointments.php" class="nav-link active">Appointments</a></li>
-        <li class="nav-item"><a href="profile.php" class="nav-link">Profile</a></li>
-        <li class="nav-item ms-3">
-          <a href="../logout.php" class="btn btn-sm btn-danger"><i class="fas fa-sign-out-alt me-1"></i> Logout</a>
-        </li>
-      </ul>
-    </div>
-  </div>
-</nav>
+  <?php include __DIR__ . '/../header.php'; ?>
 
 <!-- Header -->
 <div class="page-header">
@@ -353,6 +334,8 @@ $upcoming = array_filter($appointments, function($a) use ($now) {
     <?php endif; ?>
   </div>
 </div>
+  <?php include __DIR__ . '/../footer.php'; ?>
+
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
