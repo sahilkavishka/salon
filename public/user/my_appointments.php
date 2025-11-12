@@ -95,7 +95,7 @@ $upcoming = array_filter($appointments, function($a) use ($now) {
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <style>
-    body { font-family: 'Poppins', sans-serif; background: #f5f7fa; }
+    body { font-family: 'Poppins', sans-serif; background: #faf5f8ff; }
     .navbar-brand { font-weight: 800; background: linear-gradient(135deg,#e91e63,#9c27b0); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
     .page-header { background: linear-gradient(135deg,#e91e63,#9c27b0); padding:4rem 0 3rem; color:white; text-align:center; }
     .appointment-card { background:white; padding:1.5rem; margin-bottom:1.5rem; border-radius:16px; border-left:5px solid; box-shadow:0 2px 8px rgba(0,0,0,0.08); transition: transform 0.2s; }
