@@ -39,6 +39,7 @@
   background: transparent !important;
   transition: var(--transition);
   z-index: 1000;
+  background: rgba(26, 26, 46, 0.95) ;
 }
 
 .navbar.scrolled {
