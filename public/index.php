@@ -27,45 +27,8 @@ require_once __DIR__ . '/../config.php';
 </head>
 
 <body>
-  <!-- Navbar -->
-  <nav class="navbar navbar-expand-lg fixed-top" id="mainNav">
-    <div class="container">
-      <a class="navbar-brand" href="index.php">
-        <i class="fas fa-spa"></i> Salonora
-      </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-        <span class="navbar-toggler-icon"></span>
-      </button>
+    <?php include __DIR__. "../header.php"; ?>
 
-      <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
-        <ul class="navbar-nav align-items-center">
-          <li class="nav-item"><a href="/salonora/public/index.php" class="nav-link active">Home</a></li>
-          <li class="nav-item"><a href="/salonora/public/user/salon_view.php" class="nav-link"><i class="fas fa-cut me-1"></i> Salons</a></li>
-          <li class="nav-item"><a href="/salonora/public/user/my_appointments.php" class="nav-link"><i class="far fa-calendar-check me-1"></i> Appointments</a></li>
-          <li class="nav-item"><a href="#contact" class="nav-link">Contact</a></li>
-          <li class="nav-item"><a href="/salonora/public/notifications.php" class="nav-link"><i class="far fa-bell me-1"></i> Notifications</a></li>
-          <li class="nav-item"><a href="/salonora/public/user/profile.php" class="nav-link"><i class="far fa-user me-1"></i> Profile</a></li>
-
-
-
-
-          <?php if (isset($_SESSION['id'])): ?>
-            <li class="nav-item ms-3">
-              <a href="logout.php" class="btn btn-outline-light btn-sm">
-                <i class="fas fa-sign-out-alt me-1"></i> Logout
-              </a>
-            </li>
-          <?php else: ?>
-            <li class="nav-item ms-3">
-              <a href="login.php" class="btn btn-gradient">
-                <i class="fas fa-sign-in-alt me-1"></i> Login
-              </a>
-            </li>
-          <?php endif; ?>
-        </ul>
-      </div>
-    </div>
-  </nav>
 
   <!-- Hero Section -->
   <section class="hero-section">
@@ -208,7 +171,7 @@ require_once __DIR__ . '/../config.php';
         <a href="user/salon_view.php" class="btn btn-cta">
           Browse Salons <i class="fas fa-arrow-right ms-2"></i>
         </a>
-      </div>
+      </div> 
     </div>
   </section>
   <?php include __DIR__. "../footer.php"; ?>
