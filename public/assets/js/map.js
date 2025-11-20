@@ -1,75 +1,58 @@
-// Initialize map
-let map = L.map('map').setView([7.2906, 80.6337], 13); // Default: Anuradhapura
+// Initialize Map
+let map = L.map('map').setView([7.2906, 80.6337], 13);
 
-// Add OpenStreetMap tiles
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors',
+    attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-// Array to hold salon markers
 let salonMarkers = [];
 
-// Default marker
-let defaultMarker = L.marker([7.2906, 80.6337]).addTo(map)
-    .bindPopup("Welcome to Salon Finder! Use the search form to find salons.")
-    .openPopup();
-
-// Function to add salon markers
-function addSalonMarker(lat, lng, name, type, distance) {
-    let marker = L.marker([lat, lng]).addTo(map)
-        .bindPopup(`<b>${name}</b><br>Type: ${type}<br>Distance: ${distance} km`);
-    salonMarkers.push(marker);
-}
-
-// Function to clear all salon markers
-function clearSalonMarkers() {
-    salonMarkers.forEach(marker => map.removeLayer(marker));
+// Clear Markers
+function clearMarkers() {
+    salonMarkers.forEach(m => map.removeLayer(m));
     salonMarkers = [];
 }
 
-// Handle search form submit
-document.getElementById('searchForm').addEventListener('submit', function(e) {
+// Add Marker
+function addMarker(lat, lng, name, address) {
+    let marker = L.marker([lat, lng]).addTo(map)
+        .bindPopup(`<b>${name}</b><br>${address}`);
+    salonMarkers.push(marker);
+}
+
+// Handle Search
+document.getElementById("searchForm").addEventListener("submit", function(e) {
     e.preventDefault();
 
-    let location = document.getElementById('locationInput').value;
-    let type = document.getElementById('typeSelect').value;
-    let radius = document.getElementById('radiusInput').value;
+    let query = document.getElementById("searchInput").value.trim();
 
-    // Clear previous markers
-    clearSalonMarkers();
+    if (query === "") return;
 
-    // Fetch salons from PHP
-    fetch(`search_salon.php?location=${encodeURIComponent(location)}&type=${encodeURIComponent(type)}&radius=${radius}`)
-    .then(response => response.json())
-    .then(data => {
-        if(data.length === 0){
-            alert("No salons found in this area!");
-            return;
-        }
+    fetch(`search_api.php?query=${encodeURIComponent(query)}`)
+        .then(res => res.json())
+        .then(data => {
+            clearMarkers();
+            const list = document.getElementById("salonList");
+            list.innerHTML = "";
 
-        // Add markers
-        data.forEach(salon => {
-            addSalonMarker(salon.lat, salon.lng, salon.name, salon.type, salon.distance);
-        });
+            if (data.length === 0) {
+                list.innerHTML = `<li class="list-group-item text-danger">No salons found.</li>`;
+                return;
+            }
 
-        // Center map to first salon
-        map.setView([data[0].lat, data[0].lng], 14);
-    })
-    .catch(err => console.error(err));
-});
+            // Add markers + list items
+            data.forEach(salon => {
+                addMarker(salon.lat, salon.lng, salon.name, salon.address);
 
-// Handle "Use my location" button
-document.getElementById('useLocation').addEventListener('click', function() {
-    if(navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(position){
-            let lat = position.coords.latitude;
-            let lng = position.coords.longitude;
-            map.setView([lat, lng], 14);
+                list.innerHTML += `
+                    <li class="list-group-item">
+                        <b>${salon.name}</b><br>
+                        <small>${salon.address}</small>
+                    </li>`;
+            });
 
-            L.marker([lat, lng]).addTo(map)
-                .bindPopup("You are here!").openPopup();
-        });
-    } else {
-        alert("Geolocation is not supported by your browser.");
-    }
+            // Center map on first result
+            map.setView([data[0].lat, data[0].lng], 14);
+        })
+        .catch(err => console.log(err));
 });

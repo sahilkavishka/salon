@@ -21,16 +21,7 @@
  
 
   <style>
-    /* Force navbar to always show as scrolled (keeps original colors from style.css) */
-    #mainNav.scrolled {
-      /* Your style.css will handle the colors */
-    }
-
-    /* Add padding to body to account for fixed navbar */
-    body {
-      padding-top: 80px;
-    }
-    
+   
 /* ================================
    NAVBAR
    ================================ */

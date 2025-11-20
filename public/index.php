@@ -47,16 +47,25 @@ require_once __DIR__ . '/../config.php';
           </p>
 
           <!-- Enhanced Search Bar -->
-          <form class="search-container" action="search.php" method="GET">
-            <div class="search-wrapper">
-              <i class="fas fa-search search-icon"></i>
-              <input type="text" name="query" class="search-input" placeholder="Search salon name, service, or location..." required>
-              <button class="btn-search" type="submit">
-                <span>Search</span>
-                <i class="fas fa-arrow-right ms-2"></i>
-              </button>
-            </div>
-          </form>
+<form id="searchForm" class="search-container">
+  <div class="search-wrapper">
+    <i class="fas fa-search search-icon"></i>
+    <input type="text" id="searchInput" class="search-input" placeholder="Search salon name, service, or location..." required>
+
+    <button class="btn-search" type="submit">
+      <span>Search</span>
+      <i class="fas fa-arrow-right ms-2"></i>
+    </button>
+  </div>
+</form>
+
+
+
+<!-- Salon List -->
+<ul id="salonList" class="list-group mt-3"></ul>
+
+<script src="map.js"></script>
+
 
           <!-- Quick Stats -->
           <div class="quick-stats">
@@ -182,20 +191,20 @@ require_once __DIR__ . '/../config.php';
 
   <!-- Custom Scripts -->
   <script>
-    // Navbar scroll effect
-    window.addEventListener('scroll', function() {
-      const navbar = document.getElementById('mainNav');
-      if (window.scrollY > 100) {
+// Navbar scroll effect
+window.addEventListener('scroll', function () {
+    const navbar = document.getElementById('mainNav');
+    if (window.scrollY > 100) {
         navbar.classList.add('scrolled');
-      } else {
+    } else {
         navbar.classList.remove('scrolled');
-      }
-    });
+    }
+});
 
-    // Particles animation
-    function createParticles() {
-      const container = document.getElementById('particles');
-      for (let i = 0; i < 50; i++) {
+// Particles animation
+function createParticles() {
+    const container = document.getElementById('particles');
+    for (let i = 0; i < 50; i++) {
         const particle = document.createElement('div');
         particle.className = 'particle';
         particle.style.left = Math.random() * 100 + '%';
@@ -203,113 +212,108 @@ require_once __DIR__ . '/../config.php';
         particle.style.animationDelay = Math.random() * 15 + 's';
         particle.style.animationDuration = (Math.random() * 10 + 10) + 's';
         container.appendChild(particle);
-      }
     }
-    createParticles();
+}
+createParticles();
 
-    // Initialize map
-    var map = L.map('map', {
-      zoomControl: false
-    }).setView([6.9271, 79.8612], 13);
+// MAP
+var map = L.map('map', { zoomControl: false }).setView([6.9271, 79.8612], 13);
 
-    L.control.zoom({
-      position: 'topright'
-    }).addTo(map);
+L.control.zoom({ position: 'topright' }).addTo(map);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
 
-    // Custom marker icon
-    var customIcon = L.divIcon({
-      className: 'custom-marker',
-      html: '<i class="fas fa-map-marker-alt"></i>',
-      iconSize: [40, 40],
-      iconAnchor: [20, 40],
-      popupAnchor: [0, -40]
-    });
+// custom icon
+var customIcon = L.divIcon({
+    className: 'custom-marker',
+    html: '<i class="fas fa-map-marker-alt"></i>',
+    iconSize: [40, 40],
+    iconAnchor: [20, 40],
+    popupAnchor: [0, -40]
+});
 
-    // Sample salon data
-    var salons = [{
-        name: "Salon Elegance",
-        lat: 6.9271,
-        lng: 79.8612,
-        address: "Colombo 07",
-        rating: 4.8,
-        services: 25
-      },
-      {
-        name: "Beauty Bliss",
-        lat: 6.9350,
-        lng: 79.8560,
-        address: "Colombo 03",
-        rating: 4.9,
-        services: 30
-      },
-      {
-        name: "Hair & Glow",
-        lat: 6.9205,
-        lng: 79.8789,
-        address: "Nugegoda",
-        rating: 4.7,
-        services: 20
-      },
-      {
-        name: "Glam Studio",
-        lat: 6.9365,
-        lng: 79.8471,
-        address: "Bambalapitiya",
-        rating: 4.6,
-        services: 22
-      },
-      {
-        name: "Style Avenue",
-        lat: 6.9180,
-        lng: 79.8650,
-        address: "Dehiwala",
-        rating: 4.8,
-        services: 28
-      }
-    ];
+let markers = [];
 
-    salons.forEach(salon => {
-      var marker = L.marker([salon.lat, salon.lng], {
-        icon: customIcon
-      }).addTo(map);
-      marker.bindPopup(`
+// Remove all markers
+function clearMarkers() {
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+}
+
+// Add new marker
+function addMarker(s) {
+    var marker = L.marker([s.lat, s.lng], { icon: customIcon }).addTo(map);
+    marker.bindPopup(`
         <div class="map-popup">
-          <h6>${salon.name}</h6>
-          <p class="mb-1"><i class="fas fa-map-marker-alt me-1"></i> ${salon.address}</p>
-          <p class="mb-1"><i class="fas fa-star me-1"></i> ${salon.rating} Rating</p>
-          <p class="mb-2"><i class="fas fa-concierge-bell me-1"></i> ${salon.services} Services</p>
-          <a href="user/salon_view.php" class="btn btn-sm btn-primary w-100">View Details</a>
+          <h6>${s.name}</h6>
+          <p class="mb-1"><i class="fas fa-map-marker-alt me-1"></i> ${s.address}</p>
+          <a href="user/salon_view.php?id=${s.id}" class="btn btn-sm btn-primary w-100">View Details</a>
         </div>
-      `);
-    });
+    `);
+    markers.push(marker);
+}
 
-    // Locate me button
-    document.getElementById('locateMe').addEventListener('click', function() {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(position) {
-          map.setView([position.coords.latitude, position.coords.longitude], 15);
-          L.marker([position.coords.latitude, position.coords.longitude]).addTo(map)
-            .bindPopup('You are here!').openPopup();
+// ------- SEARCH FUNCTION -------
+document.getElementById("searchForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    let q = document.getElementById("searchInput").value;
+    let list = document.getElementById("salonList");
+
+    fetch("search_api.php?query=" + encodeURIComponent(q))
+        .then(r => r.json())
+        .then(data => {
+
+            clearMarkers();
+            list.innerHTML = "";
+
+            if (data.length === 0) {
+                list.innerHTML = `
+                    <li class="list-group-item text-danger">No salons found</li>
+                `;
+                return;
+            }
+
+            data.forEach(s => {
+                addMarker(s);
+                list.innerHTML += `
+                    <li class="list-group-item">
+                        <b>${s.name}</b><br>
+                        <small>${s.address}</small>
+                    </li>
+                `;
+            });
+
+            map.setView([data[0].lat, data[0].lng], 15);
         });
-      }
-    });
+});
 
-    // Fullscreen toggle
-    document.getElementById('fullscreen').addEventListener('click', function() {
-      const mapContainer = document.querySelector('.map-container');
-      if (!document.fullscreenElement) {
+// Locate Me
+document.getElementById('locateMe').addEventListener('click', function () {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function (pos) {
+            map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+            L.marker([pos.coords.latitude, pos.coords.longitude]).addTo(map)
+                .bindPopup('You are here!').openPopup();
+        });
+    }
+});
+
+// Fullscreen
+document.getElementById('fullscreen').addEventListener('click', function () {
+    const mapContainer = document.querySelector('.map-container');
+    if (!document.fullscreenElement) {
         mapContainer.requestFullscreen();
         this.innerHTML = '<i class="fas fa-compress"></i>';
-      } else {
+    } else {
         document.exitFullscreen();
         this.innerHTML = '<i class="fas fa-expand"></i>';
-      }
-    });
-  </script>
+    }
+});
+</script>
+
 </body>
 
 </html>

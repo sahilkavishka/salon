@@ -66,14 +66,7 @@ $total_duration = array_sum(array_column($services, 'duration'));
  
 </head>
 <body>
-  <!-- Navbar -->
-  <nav class="navbar navbar-expand-lg">
-    <div class="container">
-      <a class="navbar-brand" href="../../index.php">
-        <i class="fas fa-spa"></i> Salonora
-      </a>
-    </div>
-  </nav>
+  
 
   <!-- Page Header -->
   <div class="page-header">
