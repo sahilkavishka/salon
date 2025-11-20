@@ -180,11 +180,8 @@ $logged_user_role = $_SESSION['role'] ?? '';
                   <a href="salon_details.php?id=<?= $salon['salon_id'] ?>" class="btn btn-view">
                     <i class="fas fa-eye"></i> View Details
                   </a>
-                  <a href="book_appointment.php?id=<?php echo $salon['salon_id']; ?>" class="btn btn-primary">
+                  <a href="book_appointment.php?salon_id=<?= $salon['salon_id']; ?>" class="btn btn-primary">book appoinment</a>
 
-
-                    <i class="fas fa-calendar-plus"></i> Add Appointment
-                  </a>
                   <button class="btn btn-review"
                           data-bs-toggle="modal"
                           data-bs-target="#reviewModal"

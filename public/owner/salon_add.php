@@ -203,6 +203,21 @@ $page_title = "Add New Salon - Salonora";
           </button>
         </div>
       </div>
+      <div class="mb-3">
+    <label class="form-label">Opening Time</label>
+    <input type="time" name="opening_time" class="form-control" required value="09:00">
+</div>
+
+<div class="mb-3">
+    <label class="form-label">Closing Time</label>
+    <input type="time" name="closing_time" class="form-control" required value="19:00">
+</div>
+
+<div class="mb-3">
+    <label class="form-label">Slot Duration (Minutes)</label>
+    <input type="number" name="slot_duration" class="form-control" required min="5" value="30">
+</div>
+
 
       <!-- Form Actions -->
       <div class="form-actions">

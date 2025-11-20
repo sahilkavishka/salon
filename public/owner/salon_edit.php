@@ -239,6 +239,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
           </div>
         </div>
+        <div class="mb-3">
+    <label class="form-label">Opening Time</label>
+    <input type="time" name="opening_time" class="form-control"
+           value="<?= htmlspecialchars($salon['opening_time']) ?>" required>
+</div>
+
+<div class="mb-3">
+    <label class="form-label">Closing Time</label>
+    <input type="time" name="closing_time" class="form-control"
+           value="<?= htmlspecialchars($salon['closing_time']) ?>" required>
+</div>
+
+<div class="mb-3">
+    <label class="form-label">Slot Duration (Minutes)</label>
+    <input type="number" name="slot_duration" class="form-control" min="5"
+           value="<?= htmlspecialchars($salon['slot_duration']) ?>" required>
+</div>
+
 
         <!-- Form Actions -->
         <div class="form-actions">

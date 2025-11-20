@@ -55,15 +55,7 @@ $user_can_interact = isset($_SESSION['role'], $_SESSION['id']) &&
   
 </head>
 <body>
-  <!-- Navbar -->
-  <nav class="navbar navbar-expand-lg">
-    <div class="container">
-      <a class="navbar-brand" href="../../index.php">
-        <i class="fas fa-spa"></i> Salonora
-      </a>
-    </div>
-  </nav>
-
+  
   <!-- Hero Section -->
   <div class="salon-hero">
     <?php if ($salon['image']): ?>

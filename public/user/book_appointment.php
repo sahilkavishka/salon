@@ -1,157 +1,207 @@
 <?php
 session_start();
 require_once __DIR__ . '/../../config.php';
+require_once __DIR__ . '/../auth_check.php';
+checkAuth();
 
-// Redirect if not logged in
-if (!isset($_SESSION['id'])) {
-    header("Location: ../login.php");
-    exit();
+if (!isset($_GET['salon_id']) || !is_numeric($_GET['salon_id'])) {
+    $_SESSION['error_message'] = 'Salon not specified.';
+    header('Location: salon_view.php');
+    exit;
 }
 
+$salon_id = intval($_GET['salon_id']);
 $user_id = $_SESSION['id'];
-$salon_id = $_GET['id'] ?? '';
-
-if (empty($salon_id)) {
-    die("Invalid salon ID.");
-}
 
 // Fetch salon details
-$stmt = $pdo->prepare("SELECT id, name, address, image FROM salons WHERE id = ?");
+$stmt = $pdo->prepare("SELECT id, name, opening_time, closing_time, slot_duration FROM salons WHERE id=?");
 $stmt->execute([$salon_id]);
 $salon = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$salon) {
-    die("Salon not found.");
+    $_SESSION['error_message'] = 'Salon not found.';
+    header('Location: salon_view.php');
+    exit;
 }
 
-// Fetch services for this salon
-$serviceQuery = $pdo->prepare("SELECT id, name, price FROM services WHERE salon_id = ?");
-$serviceQuery->execute([$salon_id]);
-$services = $serviceQuery->fetchAll(PDO::FETCH_ASSOC);
+// Fetch services
+$serviceStmt = $pdo->prepare("SELECT id, name, price, duration FROM services WHERE salon_id=? ORDER BY name ASC");
+$serviceStmt->execute([$salon_id]);
+$services = $serviceStmt->fetchAll(PDO::FETCH_ASSOC);
 
-$success = '';
-$error = '';
+// Submit booking
+$errors = [];
 
-// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $service_id = $_POST['service_id'] ?? '';
-    $date = $_POST['date'] ?? '';
-    $time = $_POST['time'] ?? '';
+    $service_id = intval($_POST['service_id']);
+    $appointment_date = $_POST['appointment_date'] ?? '';
+    $appointment_time = $_POST['appointment_time'] ?? '';
 
-    if ($service_id && $date && $time) {
+    if ($service_id <= 0) $errors[] = "Select a service.";
+    if ($appointment_date == "") $errors[] = "Select a date.";
+    if ($appointment_time == "") $errors[] = "Select a time.";
+
+    if ($appointment_date < date("Y-m-d")) $errors[] = "Cannot book past date.";
+
+    if (empty($errors)) {
         $stmt = $pdo->prepare("
-            INSERT INTO appointments (user_id, salon_id, service_id, appointment_date, appointment_time, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'pending', NOW(), NOW())
+            INSERT INTO appointments (salon_id, user_id, service_id, appointment_date, appointment_time, status, created_at)
+            VALUES (?, ?, ?, ?, ?, 'pending', NOW())
         ");
 
-        if ($stmt->execute([$user_id, $salon_id, $service_id, $date, $time])) {
-            $success = "🎉 Your appointment has been booked successfully!";
-        } else {
-            $error = "❌ Failed to book appointment. Please try again.";
-        }
-    } else {
-        $error = "⚠️ Please fill in all required fields.";
+        $stmt->execute([
+            $salon_id,
+            $user_id,
+            $service_id,
+            $appointment_date,
+            $appointment_time
+        ]);
+
+        $_SESSION['success_message'] = "Appointment booked successfully!";
+        header("Location: my_appointments.php");
+        exit;
     }
 }
 ?>
-
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>Book Appointment - Salonora</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <title>Book Appointment - <?= htmlspecialchars($salon['name']) ?></title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
 
-  <style>
-    body {
-      background-color: #f4f4f9;
-      font-family: "Poppins", sans-serif;
-    }
-    .booking-card {
-      max-width: 700px;
-      margin: 60px auto;
-      background: #fff;
-      border-radius: 14px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.1);
-      overflow: hidden;
-    }
-    .salon-header img {
-      width: 100%;
-      height: 250px;
-      object-fit: cover;
-    }
-    .salon-header h4 {
-      margin: 15px 0 0;
-    }
-    .form-control, .form-select {
-      border-radius: 8px;
-      padding: 10px;
-    }
-    .btn-book {
-      background-color: #6c63ff;
-      border: none;
-      color: #fff;
-      font-weight: 500;
-      border-radius: 8px;
-      padding: 12px;
-      transition: 0.3s;
-    }
-    .btn-book:hover {
-      background-color: #514ad8;
-    }
-  </style>
+<style>
+.slot-box {
+    padding: 10px 15px;
+    border-radius: 10px;
+    border: 2px solid #007bff;
+    cursor: pointer;
+    margin: 5px;
+    display: inline-block;
+    transition: 0.25s;
+    font-weight: 500;
+}
+.slot-box:hover {
+    background: #007bff;
+    color: white;
+}
+.slot-box.selected {
+    background: #007bff;
+    color: #fff;
+    border-color: #0056b3;
+}
+#slotsArea {
+    display: flex;
+    flex-wrap: wrap;
+}
+#loadingSlots {
+    display: none;
+    text-align: center;
+    font-style: italic;
+}
+</style>
 </head>
 <body>
 
-  <?php include '../header.php'; ?>
+<div class="container mt-4" style="max-width:550px;">
+    <div class="card shadow">
+        <div class="card-header bg-dark text-white">
+            <h4 class="mb-0">Book Appointment</h4>
+            <small>Salon: <?= htmlspecialchars($salon['name']) ?></small>
+        </div>
 
-  <div class="booking-card">
-    <div class="salon-header">
-      <img src="../../uploads/salon/<?php echo htmlspecialchars($salon['image']); ?>" alt="Salon Image">
-      <div class="p-4">
-        <h4><?php echo htmlspecialchars($salon['name']); ?></h4>
-        <p class="text-muted mb-3"><i class="fas fa-map-marker-alt me-2"></i><?php echo htmlspecialchars($salon['address']); ?></p>
-      </div>
+        <div class="card-body">
+
+            <?php if ($errors): ?>
+                <div class="alert alert-danger">
+                    <?php foreach ($errors as $e) echo $e . "<br>"; ?>
+                </div>
+            <?php endif; ?>
+
+            <form method="POST">
+
+                <div class="mb-3">
+                    <label class="form-label">Service</label>
+                    <select name="service_id" class="form-select" required>
+                        <option value="">Select service</option>
+                        <?php foreach ($services as $s): ?>
+                            <option value="<?= $s['id'] ?>">
+                                <?= htmlspecialchars($s['name']) ?> - Rs <?= number_format($s['price'],2) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Appointment Date</label>
+                    <input type="date" name="appointment_date" id="datePicker"
+                           class="form-control" min="<?= date("Y-m-d") ?>" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Available Time Slots</label>
+
+                    <div id="loadingSlots">Loading available slots...</div>
+
+                    <div id="slotsArea">
+                        <p class="text-muted">Select a date to load slots</p>
+                    </div>
+
+                    <input type="hidden" name="appointment_time" id="selectedTime" required>
+                </div>
+
+                <button class="btn btn-primary w-100">Book Appointment</button>
+
+            </form>
+
+        </div>
     </div>
+</div>
 
-    <div class="p-4">
-      <?php if ($success): ?>
-        <div class="alert alert-success"><?php echo $success; ?></div>
-      <?php elseif ($error): ?>
-        <div class="alert alert-danger"><?php echo $error; ?></div>
-      <?php endif; ?>
 
-      <form method="POST">
-        <div class="mb-3">
-          <label class="form-label">Select Service <span class="text-danger">*</span></label>
-          <select name="service_id" class="form-select" required>
-            <option value="">-- Choose a Service --</option>
-            <?php foreach ($services as $service): ?>
-              <option value="<?php echo $service['id']; ?>">
-                <?php echo htmlspecialchars($service['name']); ?> - LKR <?php echo number_format($service['price'], 2); ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
+<script>
+let selectedSlot = null;
 
-        <div class="mb-3">
-          <label class="form-label">Select Date <span class="text-danger">*</span></label>
-          <input type="date" name="date" class="form-control" required min="<?php echo date('Y-m-d'); ?>">
-        </div>
+document.getElementById('datePicker').addEventListener('change', function () {
 
-        <div class="mb-3">
-          <label class="form-label">Select Time <span class="text-danger">*</span></label>
-          <input type="time" name="time" class="form-control" required>
-        </div>
+    let date = this.value;
+    let slotArea = document.getElementById('slotsArea');
+    let loading = document.getElementById('loadingSlots');
+    let hiddenInput = document.getElementById('selectedTime');
 
-        <button type="submit" class="btn btn-book w-100">
-          <i class="fas fa-calendar-check me-2"></i>Book Appointment
-        </button>
-      </form>
-    </div>
-  </div>
+    slotArea.innerHTML = "";
+    hiddenInput.value = "";
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    if (!date) return;
+
+    loading.style.display = "block";
+
+    fetch(`fetch_slots.php?salon_id=<?= $salon_id ?>&date=${date}`)
+        .then(res => res.json())
+        .then(data => {
+            loading.style.display = "none";
+            slotArea.innerHTML = "";
+
+            if (data.length === 0) {
+                slotArea.innerHTML = "<p class='text-danger'>No available slots for this date.</p>";
+                return;
+            }
+
+            data.forEach(t => {
+                let div = document.createElement("div");
+                div.className = "slot-box";
+                div.textContent = t;
+
+                div.addEventListener("click", function () {
+                    document.querySelectorAll(".slot-box").forEach(x => x.classList.remove("selected"));
+                    this.classList.add("selected");
+                    hiddenInput.value = t;
+                });
+
+                slotArea.appendChild(div);
+            });
+        });
+});
+</script>
+
 </body>
 </html>
