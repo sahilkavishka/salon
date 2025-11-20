@@ -5,7 +5,6 @@ $query = trim($_GET['query'] ?? '');
 $results = [];
 
 if ($query !== "") {
-
     $stmt = $pdo->prepare("
         SELECT id, name, address, lat, lng
         FROM salons

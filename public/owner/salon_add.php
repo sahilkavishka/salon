@@ -6,349 +6,183 @@ require_once __DIR__ . '/../auth_check.php';
 checkAuth('owner');
 
 $owner_id = $_SESSION['id'];
-
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  $name = trim($_POST['name'] ?? '');
-  $address = trim($_POST['address'] ?? '');
+    $name = trim($_POST['name'] ?? '');
+    $address = trim($_POST['address'] ?? '');
+    $lat = $_POST['lat'] ?? null;
+    $lng = $_POST['lng'] ?? null;
+    $opening_time = $_POST['opening_time'] ?? '';
+    $closing_time = $_POST['closing_time'] ?? '';
+    $slot_duration = $_POST['slot_duration'] ?? '';
 
-  if ($name === '') $errors[] = 'Salon name is required.';
-  if ($address === '') $errors[] = 'Salon address is required.';
+    if ($name === '') $errors[] = 'Salon name is required.';
+    if ($address === '') $errors[] = 'Salon address is required.';
+    if (!$lat || !$lng) $errors[] = 'Please select the salon location on the map.';
+    if ($opening_time === '') $errors[] = 'Opening time is required.';
+    if ($closing_time === '') $errors[] = 'Closing time is required.';
+    if ($slot_duration === '' || $slot_duration <= 0) $errors[] = 'Slot duration must be positive.';
 
-  $imagePath = null;
-  if (!empty($_FILES['image']['name'])) {
-    $file = $_FILES['image'];
-    $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-
-    if ($file['error'] !== UPLOAD_ERR_OK) {
-      $errors[] = 'Image upload error.';
-    } elseif (!in_array(mime_content_type($file['tmp_name']), $allowed, true)) {
-      $errors[] = 'Only JPG, PNG, GIF or WebP images allowed.';
-    } elseif ($file['size'] > 5 * 1024 * 1024) {
-      $errors[] = 'Image size exceeds 5MB.';
-    } else {
-      $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-      $safe = 'uploads/salon_' . time() . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
-
-      $destDir = __DIR__ . '/../../uploads';
-      if (!is_dir($destDir)) mkdir($destDir, 0755, true);
-
-      $destFull = __DIR__ . '/../../' . $safe;
-      if (!move_uploaded_file($file['tmp_name'], $destFull)) {
-        $errors[] = 'Failed to save uploaded image.';
-      } else {
-        $imagePath = $safe;
-      }
+    $imagePath = null;
+    if (!empty($_FILES['image']['name'])) {
+        $file = $_FILES['image'];
+        $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            $errors[] = 'Image upload error.';
+        } elseif (!in_array(mime_content_type($file['tmp_name']), $allowed, true)) {
+            $errors[] = 'Only JPG, PNG, GIF or WebP images allowed.';
+        } elseif ($file['size'] > 5 * 1024 * 1024) {
+            $errors[] = 'Image size exceeds 5MB.';
+        } else {
+            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            $safe = 'uploads/salon_' . time() . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
+            $destDir = __DIR__ . '/../../uploads';
+            if (!is_dir($destDir)) mkdir($destDir, 0755, true);
+            $destFull = __DIR__ . '/../../' . $safe;
+            if (!move_uploaded_file($file['tmp_name'], $destFull)) {
+                $errors[] = 'Failed to save uploaded image.';
+            } else {
+                $imagePath = $safe;
+            }
+        }
     }
-  }
 
-  if (empty($errors)) {
-    $stmt = $pdo->prepare("INSERT INTO salons (owner_id, name, address, image) VALUES (?, ?, ?, ?)");
-    $stmt->execute([$owner_id, $name, $address, $imagePath]);
-    $_SESSION['flash_success'] = 'Salon added successfully.';
-    header('Location: dashboard.php');
-    exit;
-  }
+    if (empty($errors)) {
+        $stmt = $pdo->prepare("INSERT INTO salons (owner_id, name, address, lat, lng, image, opening_time, closing_time, slot_duration) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$owner_id, $name, $address, $lat, $lng, $imagePath, $opening_time, $closing_time, $slot_duration]);
+        $_SESSION['flash_success'] = 'Salon added successfully.';
+        header('Location: dashboard.php');
+        exit;
+    }
 }
-
-$page_title = "Add New Salon - Salonora";
 ?>
- <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
-  <!-- Google Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Add Salon - Salonora</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<style>
+#salonMap { height: 300px; border: 1px solid #ccc; margin-bottom:10px; }
+.image-preview { display:none; margin-top:10px; }
+.image-preview.show { display:block; }
+.preview-card { border:1px solid #ccc; padding:10px; margin-bottom:15px; border-radius:5px; }
+</style>
+</head>
+<body>
+<?php include __DIR__ . '/../header.php'; ?>
 
-  <!-- Font Awesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></div>
+<div class="container py-5">
+    <h2 class="mb-4">Add Your Salon</h2>
 
-<!-- Add page-specific CSS -->
-<link rel="stylesheet" href="/salonora/public/assets/css/salon_add.css">
-
-<!-- Page Header -->
-<div class="page-header">
-  <div class="container">
-    <div class="page-header-content">
-      <h1 class="page-title">Add Your Salon</h1>
-      <p class="page-subtitle">Register your salon and start attracting customers</p>
-    </div>
-  </div>
-</div>
-
-<div class="container pb-5">
-  <!-- Alerts -->
-  <?php if (!empty($errors)): ?>
-    <div class="alert alert-danger">
-      <i class="fas fa-exclamation-circle"></i>
-      <div>
-        <?php foreach ($errors as $e): ?>
-          <?= htmlspecialchars($e) ?><br>
-        <?php endforeach; ?>
-      </div>
-    </div>
-  <?php endif; ?>
-
-  <!-- Form Container -->
-  <div class="form-container">
-    <div class="form-header">
-      <div class="form-icon">
-        <i class="fas fa-store-alt"></i>
-      </div>
-      <h2 class="form-title">Create Your Salon Profile</h2>
-      <p class="form-description">Fill in the details to get started</p>
-    </div>
-
-    <!-- Steps Indicator -->
-    <div class="steps-indicator">
-      <div class="step active">
-        <i class="fas fa-info-circle"></i>
-        <span>Basic Info</span>
-      </div>
-      <div class="step">
-        <i class="fas fa-image"></i>
-        <span>Image</span>
-      </div>
-      <div class="step">
-        <i class="fas fa-check-circle"></i>
-        <span>Complete</span>
-      </div>
-    </div>
-
-    <!-- Preview Card -->
-    <div class="preview-card">
-      <div class="preview-title">
-        <i class="fas fa-eye"></i>
-        Live Preview
-      </div>
-      <div class="preview-content">
-        <h3 id="previewName">Your Salon Name</h3>
-        <p>
-          <i class="fas fa-map-marker-alt"></i>
-          <span id="previewAddress">Salon Address</span>
-        </p>
-      </div>
-    </div>
+    <?php if (!empty($errors)): ?>
+        <div class="alert alert-danger">
+            <?php foreach ($errors as $e) echo htmlspecialchars($e) . '<br>'; ?>
+        </div>
+    <?php endif; ?>
 
     <form method="post" enctype="multipart/form-data" id="salonForm">
-      <!-- Salon Name -->
-      <div class="form-group">
-        <label class="form-label">
-          <i class="fas fa-store"></i>
-          Salon Name
-          <span class="required">*</span>
-        </label>
-        <input
-          type="text"
-          name="name"
-          id="salonName"
-          class="form-control"
-          value="<?= htmlspecialchars($_POST['name'] ?? '') ?>"
-          required
-          maxlength="100"
-          placeholder="e.g., Elegant Beauty Salon">
-        <div class="form-hint">
-          <i class="fas fa-info-circle"></i>
-          Choose a memorable and professional name
-        </div>
-      </div>
-
-      <!-- Address -->
-      <div class="form-group">
-        <label class="form-label">
-          <i class="fas fa-map-marker-alt"></i>
-          Complete Address
-          <span class="required">*</span>
-        </label>
-        <textarea
-          name="address"
-          id="salonAddress"
-          class="form-textarea"
-          required
-          maxlength="300"
-          placeholder="Enter your complete salon address including street, city, and postal code"><?= htmlspecialchars($_POST['address'] ?? '') ?></textarea>
-        <div class="form-hint">
-          <i class="fas fa-info-circle"></i>
-          Make it easy for customers to find you
-        </div>
-      </div>
-
-      <!-- Image Upload -->
-      <div class="image-upload-section">
-        <label class="form-label">
-          <i class="fas fa-camera"></i>
-          Salon Image (Optional)
-        </label>
-
-        <div class="upload-area" onclick="document.getElementById('imageInput').click()">
-          <div class="upload-icon">
-            <i class="fas fa-cloud-upload-alt"></i>
-          </div>
-          <div class="upload-text">Click to upload or drag and drop</div>
-          <div class="upload-hint">JPG, PNG, GIF or WebP (Max 5MB)</div>
+        <!-- Salon Name -->
+        <div class="mb-3">
+            <label class="form-label"><i class="fas fa-store"></i> Salon Name *</label>
+            <input type="text" name="name" id="salonName" class="form-control" required value="<?= htmlspecialchars($_POST['name'] ?? '') ?>">
         </div>
 
-        <input
-          type="file"
-          name="image"
-          id="imageInput"
-          class="file-input"
-          accept="image/*">
-
-        <div class="image-preview" id="imagePreview">
-          <img id="previewImg" class="preview-image" alt="Preview">
-          <br>
-          <button type="button" class="remove-image" onclick="removeImage()">
-            <i class="fas fa-trash me-2"></i>Remove Image
-          </button>
+        <!-- Address -->
+        <div class="mb-3">
+            <label class="form-label"><i class="fas fa-map-marker-alt"></i> Address *</label>
+            <textarea name="address" id="salonAddress" class="form-control" required><?= htmlspecialchars($_POST['address'] ?? '') ?></textarea>
         </div>
-      </div>
-      <div class="mb-3">
-    <label class="form-label">Opening Time</label>
-    <input type="time" name="opening_time" class="form-control" required value="09:00">
-</div>
 
-<div class="mb-3">
-    <label class="form-label">Closing Time</label>
-    <input type="time" name="closing_time" class="form-control" required value="19:00">
-</div>
+        <!-- Live Preview -->
+        <div class="preview-card">
+            <h5 id="previewName">Your Salon Name</h5>
+            <p><i class="fas fa-map-marker-alt"></i> <span id="previewAddress">Salon Address</span></p>
+        </div>
 
-<div class="mb-3">
-    <label class="form-label">Slot Duration (Minutes)</label>
-    <input type="number" name="slot_duration" class="form-control" required min="5" value="30">
-</div>
+        <!-- Image Upload -->
+        <div class="mb-3">
+            <label class="form-label"><i class="fas fa-camera"></i> Salon Image</label>
+            <input type="file" name="image" id="imageInput" accept="image/*" class="form-control">
+            <div class="image-preview" id="imagePreview">
+                <img id="previewImg" style="max-width:200px;">
+                <button type="button" class="btn btn-sm btn-danger mt-1" onclick="removeImage()"><i class="fas fa-trash"></i> Remove</button>
+            </div>
+        </div>
 
+        <!-- Opening / Closing / Slot Duration -->
+        <div class="row mb-3">
+            <div class="col">
+                <label>Opening Time *</label>
+                <input type="time" name="opening_time" class="form-control" required value="<?= $_POST['opening_time'] ?? '09:00' ?>">
+            </div>
+            <div class="col">
+                <label>Closing Time *</label>
+                <input type="time" name="closing_time" class="form-control" required value="<?= $_POST['closing_time'] ?? '19:00' ?>">
+            </div>
+            <div class="col">
+                <label>Slot Duration (Minutes) *</label>
+                <input type="number" name="slot_duration" class="form-control" required min="5" value="<?= $_POST['slot_duration'] ?? 30 ?>">
+            </div>
+        </div>
 
-      <!-- Form Actions -->
-      <div class="form-actions">
-        <a href="dashboard.php" class="btn-cancel">
-          <i class="fas fa-times"></i>
-          Cancel
-        </a>
-        <button type="submit" class="btn-submit" id="submitBtn">
-          <span class="spinner"></span>
-          <i class="fas fa-plus-circle"></i>
-          Add Salon
-        </button>
-      </div>
+        <!-- Map -->
+        <div class="mb-3">
+            <label class="form-label"><i class="fas fa-map-marker-alt"></i> Select Salon Location *</label>
+            <div id="salonMap"></div>
+            <input type="hidden" name="lat" id="latInput" value="<?= htmlspecialchars($_POST['lat'] ?? '') ?>">
+            <input type="hidden" name="lng" id="lngInput" value="<?= htmlspecialchars($_POST['lng'] ?? '') ?>">
+            <small class="form-text text-muted">Click on the map to set your salon's location.</small>
+        </div>
+
+        <button type="submit" class="btn btn-primary"><i class="fas fa-plus-circle"></i> Add Salon</button>
     </form>
-  </div>
 </div>
 
-<!-- Page-specific Scripts -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-  // Live preview update
-  const salonName = document.getElementById('salonName');
-  const salonAddress = document.getElementById('salonAddress');
-  const previewName = document.getElementById('previewName');
-  const previewAddress = document.getElementById('previewAddress');
+const salonName = document.getElementById('salonName');
+const salonAddress = document.getElementById('salonAddress');
+const previewName = document.getElementById('previewName');
+const previewAddress = document.getElementById('previewAddress');
 
-  salonName.addEventListener('input', function() {
-    previewName.textContent = this.value || 'Your Salon Name';
-  });
+salonName.addEventListener('input', () => previewName.textContent = salonName.value || 'Your Salon Name');
+salonAddress.addEventListener('input', () => previewAddress.textContent = salonAddress.value || 'Salon Address');
 
-  salonAddress.addEventListener('input', function() {
-    previewAddress.textContent = this.value || 'Salon Address';
-  });
-
-  // Image preview
-  const imageInput = document.getElementById('imageInput');
-  const imagePreview = document.getElementById('imagePreview');
-  const previewImg = document.getElementById('previewImg');
-
-  imageInput.addEventListener('change', function(e) {
-    const file = e.target.files[0];
-
-    if (file) {
-      // Validate file size
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Image size exceeds 5MB');
-        this.value = '';
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        previewImg.src = e.target.result;
-        imagePreview.classList.add('show');
-      };
-      reader.readAsDataURL(file);
+// Image preview
+const imageInput = document.getElementById('imageInput');
+const imagePreview = document.getElementById('imagePreview');
+const previewImg = document.getElementById('previewImg');
+imageInput.addEventListener('change', function() {
+    const file = this.files[0];
+    if(file){
+        const reader = new FileReader();
+        reader.onload = e => { previewImg.src = e.target.result; imagePreview.classList.add('show'); }
+        reader.readAsDataURL(file);
     }
-  });
+});
+function removeImage(){ imageInput.value=''; imagePreview.classList.remove('show'); previewImg.src=''; }
 
-  function removeImage() {
-    imageInput.value = '';
-    imagePreview.classList.remove('show');
-    previewImg.src = '';
-  }
+// Leaflet Map
+var map = L.map('salonMap').setView([6.9271, 79.8612], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
 
-  // Form submission with loading state
-  const form = document.getElementById('salonForm');
-  const submitBtn = document.getElementById('submitBtn');
+var marker;
+var oldLat = document.getElementById('latInput').value;
+var oldLng = document.getElementById('lngInput').value;
+if(oldLat && oldLng){ marker = L.marker([oldLat, oldLng]).addTo(map); map.setView([oldLat, oldLng],15); }
 
-  form.addEventListener('submit', function() {
-    submitBtn.classList.add('loading');
-    submitBtn.disabled = true;
-  });
-
-  // Auto-hide alerts
-  setTimeout(() => {
-    const alerts = document.querySelectorAll('.alert');
-    alerts.forEach(alert => {
-      alert.style.transition = 'opacity 0.5s ease';
-      alert.style.opacity = '0';
-      setTimeout(() => alert.remove(), 500);
-    });
-  }, 5000);
-
-  // Input validation feedback
-  const inputs = document.querySelectorAll('.form-control, .form-textarea');
-  inputs.forEach(input => {
-    input.addEventListener('invalid', function() {
-      this.style.borderColor = '#e74c3c';
-    });
-
-    input.addEventListener('input', function() {
-      if (this.validity.valid) {
-        this.style.borderColor = '#e9ecef';
-      }
-    });
-  });
-
-  // Drag and drop functionality
-  const uploadArea = document.querySelector('.upload-area');
-
-  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-    uploadArea.addEventListener(eventName, preventDefaults, false);
-  });
-
-  function preventDefaults(e) {
-    e.preventDefault();
-    e.stopPropagation();
-  }
-
-  ['dragenter', 'dragover'].forEach(eventName => {
-    uploadArea.addEventListener(eventName, () => {
-      uploadArea.style.background = 'rgba(233, 30, 99, 0.1)';
-    }, false);
-  });
-
-  ['dragleave', 'drop'].forEach(eventName => {
-    uploadArea.addEventListener(eventName, () => {
-      uploadArea.style.background = 'transparent';
-    }, false);
-  });
-
-  uploadArea.addEventListener('drop', function(e) {
-    const dt = e.dataTransfer;
-    const files = dt.files;
-    imageInput.files = files;
-
-    const event = new Event('change', {
-      bubbles: true
-    });
-    imageInput.dispatchEvent(event);
-  }, false);
+map.on('click', function(e){
+    if(marker) map.removeLayer(marker);
+    marker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map);
+    document.getElementById('latInput').value = e.latlng.lat;
+    document.getElementById('lngInput').value = e.latlng.lng;
+});
 </script>
 
 <?php include __DIR__ . '/../footer.php'; ?>
