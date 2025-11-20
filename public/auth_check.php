@@ -13,7 +13,7 @@ if (session_status() === PHP_SESSION_NONE) {
  */
 function checkAuth(?string $requiredRole = null): void {
     if (!isset($_SESSION['id']) || !isset($_SESSION['role'])) {
-        header('Location: ../public/login.php');
+        header('Location: /salonora/public/login.php');
         exit;
     }
 
