@@ -65,9 +65,6 @@ require_once __DIR__ . '/../config.php';
                         </div>
                     </form>
 
-                    <!-- Salon List -->
-                    <ul id="salonList" class="list-group mt-3"></ul>
-
                     <!-- Quick Stats -->
                     <div class="quick-stats mt-4">
                         <div class="stat-item">
@@ -147,7 +144,6 @@ require_once __DIR__ . '/../config.php';
     <script>
         // Initialize Map
         var map = L.map('map', { zoomControl: false }).setView([6.9271, 79.8612], 13);
-
         L.control.zoom({ position: 'topright' }).addTo(map);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -170,48 +166,29 @@ require_once __DIR__ . '/../config.php';
             markers = [];
         }
 
-        function addMarker(salon) {
-            var marker = L.marker([salon.lat, salon.lng], { icon: customIcon }).addTo(map);
-            marker.bindPopup(`
-                <div class="map-popup">
-                    <h6>${salon.name}</h6>
-                    <p class="mb-1"><i class="fas fa-map-marker-alt me-1"></i> ${salon.address}</p>
-                    <a href="user/salon_view.php?id=${salon.id}" class="btn btn-sm btn-primary w-100">View Details</a>
-                </div>
-            `);
-            markers.push(marker);
-        }
-
-        // Search Form
+        // Search Form - show markers only
         document.getElementById("searchForm").addEventListener("submit", function(e) {
             e.preventDefault();
             let query = document.getElementById("searchInput").value.trim();
-            let list = document.getElementById("salonList");
             if (!query) return;
 
             fetch(`search_api.php?query=${encodeURIComponent(query)}`)
                 .then(res => res.json())
                 .then(data => {
                     clearMarkers();
-                    list.innerHTML = "";
 
                     if (data.length === 0) {
-                        list.innerHTML = `<li class="list-group-item text-danger">No salons found</li>`;
+                        alert("No salons found");
                         return;
                     }
 
                     let bounds = [];
 
                     data.forEach(s => {
-                        addMarker(s);
-                        bounds.push([s.lat, s.lng]);
+                        var marker = L.marker([s.lat, s.lng], { icon: customIcon }).addTo(map);
+                        markers.push(marker);
 
-                        list.innerHTML += `
-                            <li class="list-group-item">
-                                <b>${s.name}</b><br>
-                                <small>${s.address}</small>
-                            </li>
-                        `;
+                        bounds.push([s.lat, s.lng]);
                     });
 
                     if (bounds.length > 0) {
