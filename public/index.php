@@ -26,7 +26,6 @@ require_once __DIR__ . '/../config.php';
     <link rel="stylesheet" href="assets/css/style.css">
 
     <style>
-        /* Map must have height */
         #map {
             width: 100%;
             height: 500px;
@@ -140,10 +139,10 @@ require_once __DIR__ . '/../config.php';
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-    <!-- Map Script -->
+    <!-- Map JS -->
     <script src="assets/js/map.js"></script>
 
-    <!-- Optional: Particle Animation -->
+    <!-- Particle Animation -->
     <script>
         function createParticles() {
             const container = document.getElementById('particles');

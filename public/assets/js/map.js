@@ -1,29 +1,30 @@
-// Initialize Leaflet Map
+// assets/js/map.js
+
+// Initialize Map
 var map = L.map('map', { zoomControl: false }).setView([6.9271, 79.8612], 13);
 L.control.zoom({ position: 'topright' }).addTo(map);
 
-// Tile Layer
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-// Custom Marker Icon
+// Custom icon
 var customIcon = L.divIcon({
     className: 'custom-marker',
     html: '<i class="fas fa-map-marker-alt fa-2x text-danger"></i>',
     iconSize: [30, 42],
-    iconAnchor: [15, 42]
+    iconAnchor: [15, 42],
+    popupAnchor: [0, -40]
 });
 
 let markers = [];
 
-// Clear previous markers
 function clearMarkers() {
     markers.forEach(m => map.removeLayer(m));
     markers = [];
 }
 
-// Hero Search Form: Search salons by name, service, or address
+// Search Form - show markers only
 document.getElementById("searchForm").addEventListener("submit", function(e) {
     e.preventDefault();
     let query = document.getElementById("searchInput").value.trim();
@@ -35,27 +36,21 @@ document.getElementById("searchForm").addEventListener("submit", function(e) {
             clearMarkers();
 
             if (data.length === 0) {
-                L.popup()
-                    .setLatLng(map.getCenter())
-                    .setContent("<b>No salons found</b>")
-                    .openOn(map);
+                alert("No salons found");
                 return;
             }
 
             let bounds = [];
 
-            data.forEach(s => {
-                let marker = L.marker([s.lat, s.lng], { icon: customIcon }).addTo(map);
-                markers.push(marker);
-
-                // Optional: bind popup for details
-                marker.bindPopup(`
-                    <div class="map-popup">
-                        <a href="user/salon_view.php?id=${s.id}" class="btn btn-sm btn-primary w-100">View Details</a>
-                    </div>
-                `);
-
-                bounds.push([s.lat, s.lng]);
+            data.forEach(salon => {
+                // Make sure lat and lng exist and are numbers
+                const lat = parseFloat(salon.lat);
+                const lng = parseFloat(salon.lng);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+                    markers.push(marker);
+                    bounds.push([lat, lng]);
+                }
             });
 
             if (bounds.length > 0) {
@@ -70,15 +65,13 @@ document.getElementById('locateMe').addEventListener('click', function() {
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(function(pos) {
             map.setView([pos.coords.latitude, pos.coords.longitude], 15);
-            L.marker([pos.coords.latitude, pos.coords.longitude])
-                .addTo(map)
-                .bindPopup('You are here!')
-                .openPopup();
+            L.marker([pos.coords.latitude, pos.coords.longitude]).addTo(map)
+                .bindPopup('You are here!').openPopup();
         });
     }
 });
 
-// Fullscreen Button
+// Fullscreen
 document.getElementById('fullscreen').addEventListener('click', function() {
     const mapContainer = document.querySelector('.map-container');
     if (!document.fullscreenElement) {
