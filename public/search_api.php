@@ -1,7 +1,9 @@
 <?php
 // public/search_api.php
-header('Content-Type: application/json');
+session_start();
 require_once __DIR__ . '/../config.php';
+
+header('Content-Type: application/json');
 
 $query = trim($_GET['query'] ?? '');
 
@@ -11,26 +13,20 @@ if ($query === '') {
 }
 
 try {
-    // Search by salon name or address
+    // Search salons by name, address, or service
     $stmt = $pdo->prepare("
-        SELECT id, name, address, lat, lng
-        FROM salons
-        WHERE name LIKE :q OR address LIKE :q
+        SELECT DISTINCT s.id, s.lat, s.lng
+        FROM salons s
+        LEFT JOIN services srv ON srv.salon_id = s.id
+        WHERE s.name LIKE :q 
+           OR s.address LIKE :q 
+           OR srv.name LIKE :q
     ");
     $stmt->execute([':q' => "%$query%"]);
-    $salons = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Only include lat & lng (for marker-only map)
-    $results = array_map(function($s) {
-        return [
-            'id' => (int)$s['id'],
-            'lat' => (float)$s['lat'],
-            'lng' => (float)$s['lng']
-        ];
-    }, $salons);
+    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode($results);
+
 } catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Server error']);
+    echo json_encode([]);
 }
