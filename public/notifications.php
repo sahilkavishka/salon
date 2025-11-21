@@ -96,32 +96,7 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
       color: var(--text-dark);
     }
 
-    /* Navbar */
-    .navbar {
-      background: white !important;
-      box-shadow: var(--shadow-sm);
-      padding: 1rem 0;
-    }
-
-    .navbar-brand {
-      font-size: 1.5rem;
-      font-weight: 800;
-      background: var(--gradient-primary);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .btn-gradient {
-      background: var(--gradient-primary);
-      color: white;
-      border: none;
-      padding: 0.5rem 1.5rem;
-      border-radius: 50px;
-      font-weight: 600;
-      transition: var(--transition);
-    }
-
+   
     /* Page Header */
     .page-header {
       background: var(--gradient-primary);
