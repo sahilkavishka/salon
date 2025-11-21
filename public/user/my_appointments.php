@@ -97,6 +97,7 @@ body{font-family:'Poppins',sans-serif;background:#faf5f8ff;}
     background:linear-gradient(135deg,#e91e63,#9c27b0);
     padding:4rem 0 3rem;
     color:white;text-align:center;
+    margin-top: 50px;
 }
 .appointment-card{
     background:white;border-radius:18px;padding:1.6rem;margin-bottom:1.5rem;
@@ -204,7 +205,9 @@ body{font-family:'Poppins',sans-serif;background:#faf5f8ff;}
 <?php endif; ?>
 
 </div>
+</div>
 
+<?php include __DIR__ . '/../footer.php'; ?>
 
 <!-- Simple tabs logic -->
 <script>
@@ -220,5 +223,5 @@ tabs.forEach(b=>b.onclick=()=>{
 
 
 </body>
-<?php include __DIR__ . '/../footer.php'; ?>
+
 </html>

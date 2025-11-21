@@ -66,7 +66,7 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="../assets/css/notifications.css">
   
-  
+ 
   <style>
     :root {
       --primary: #e91e63;
@@ -104,6 +104,7 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
       margin-bottom: 3rem;
       position: relative;
       overflow: hidden;
+      margin-top: 50px;
     }
 
     .page-header::before {
@@ -422,7 +423,7 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
       animation: fadeIn 0.3s ease;
     }
   </style>
-
+ <?php include __DIR__ . '../header.php'; ?>
 </head>
 
 <body>
@@ -584,7 +585,7 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
       <?php endif; ?>
     <?php endif; ?>
   </div>
-
+  <?php include __DIR__ . '../footer.php'; ?>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
