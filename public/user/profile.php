@@ -14,37 +14,81 @@ if (!$id) {
 }
 
 // Fetch user data
-$stmt = $pdo->prepare('SELECT id, username AS name, email, phone, created_at FROM users WHERE id = ?');
+$stmt = $pdo->prepare('SELECT id, username AS name, email, phone, profile_picture, location, created_at 
+                       FROM users WHERE id = ?');
 $stmt->execute([$id]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
 if (!$user) die('User not found.');
 
-
-// Get user statistics
-$stmt = $pdo->prepare('SELECT COUNT(*) as total FROM appointments WHERE user_id = ?');
+// Get stats
+$stmt = $pdo->prepare('SELECT COUNT(*) FROM appointments WHERE user_id = ?');
 $stmt->execute([$id]);
-$appointments_count = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+$appointments_count = $stmt->fetchColumn();
 
-$stmt = $pdo->prepare('SELECT COUNT(*) as total FROM reviews WHERE user_id = ?');
+$stmt = $pdo->prepare('SELECT COUNT(*) FROM reviews WHERE user_id = ?');
 $stmt->execute([$id]);
-$reviews_count = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+$reviews_count = $stmt->fetchColumn();
 
 $errors = [];
 $success = '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
     $name = trim($_POST['name'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
+    $location = trim($_POST['location'] ?? '');
+    $profilePicturePath = $user['profile_picture'];
 
     if ($name === '') $errors[] = 'Name is required.';
-    if ($phone !== '' && !preg_match('/^[0-9+\-\s]+$/', $phone)) $errors[] = 'Phone can only contain numbers, +, - and spaces.';
+    if ($phone !== '' && !preg_match('/^[0-9+\-\s]+$/', $phone)) {
+        $errors[] = 'Phone number format is invalid.';
+    }
+
+    // Handle profile picture upload
+    if (!empty($_FILES['profile_picture']['name'])) {
+
+        $allowed = ['image/jpeg', 'image/png'];
+        $fileType = $_FILES['profile_picture']['type'];
+        $fileSize = $_FILES['profile_picture']['size'];
+
+        if (!in_array($fileType, $allowed)) {
+            $errors[] = "Only JPG and PNG images allowed.";
+        }
+
+        if ($fileSize > 2 * 1024 * 1024) {
+            $errors[] = "Image must be below 2MB.";
+        }
+
+        if (empty($errors)) {
+            $ext = pathinfo($_FILES['profile_picture']['name'], PATHINFO_EXTENSION);
+            $fileName = "profile_" . time() . "_" . rand(1000, 9999) . "." . $ext;
+
+            $uploadPath = __DIR__ . '/../../uploads/profile/' . $fileName;
+
+            if (move_uploaded_file($_FILES['profile_picture']['tmp_name'], $uploadPath)) {
+                $profilePicturePath = "uploads/profile/" . $fileName;
+            } else {
+                $errors[] = "Failed to upload profile image.";
+            }
+        }
+    }
 
     if (empty($errors)) {
-        $u = $pdo->prepare('UPDATE users SET username=?, phone=? WHERE id=?');
-        $u->execute([$name, $phone, $id]);
+
+        $query = "UPDATE users SET username=?, phone=?, location=?, profile_picture=? WHERE id=?";
+        $stmt = $pdo->prepare($query);
+        $stmt->execute([$name, $phone, $location, $profilePicturePath, $id]);
+
         $_SESSION['user_name'] = $name;
-        $success = 'Profile updated successfully.';
+
+        $success = "Profile updated successfully.";
+
+        // Update values on page
         $user['name'] = $name;
         $user['phone'] = $phone;
+        $user['location'] = $location;
+        $user['profile_picture'] = $profilePicturePath;
     }
 }
 ?>
@@ -55,125 +99,123 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>My Profile - Salonora</title>
   <?php include __DIR__ . '/../header.php'; ?>
-  <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  
-  <!-- Google Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  
-  <!-- Font Awesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="../assets/css/profile.css">
-  
-  
 </head>
-<body>
-  
-  <!-- Page Header -->
-  <div class="page-header">
-    <div class="container">
-      <h1 class="page-title">My Profile</h1>
-    </div>
-  </div>
 
-  <div class="container pb-5 profile-container">
+<body>
+
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">My Profile</h1>
+    </div>
+</div>
+
+<div class="container pb-5 profile-container">
+
     <!-- Alerts -->
     <?php if ($errors): ?>
       <div class="alert alert-danger">
-        <i class="fas fa-exclamation-circle"></i>
-        <div>
-          <?php foreach ($errors as $e): ?>
+        <?php foreach ($errors as $e): ?>
             <?= htmlspecialchars($e) ?><br>
-          <?php endforeach; ?>
-        </div>
+        <?php endforeach; ?>
       </div>
     <?php endif; ?>
 
     <?php if ($success): ?>
-      <div class="alert alert-success">
-        <i class="fas fa-check-circle"></i>
-        <span><?= htmlspecialchars($success) ?></span>
-      </div>
+      <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
     <?php endif; ?>
 
-    <!-- Profile Card -->
     <div class="profile-card">
+
       <!-- Profile Header -->
       <div class="profile-header">
+
         <div class="profile-avatar">
-          <?= strtoupper(substr($user['name'], 0, 1)) ?>
+            <?php if ($user['profile_picture']): ?>
+                <img src="../../<?= htmlspecialchars($user['profile_picture']) ?>" alt="Profile" class="img-fluid rounded-circle" 
+                     style="width:120px;height:120px;object-fit:cover;">
+            <?php else: ?>
+                <?= strtoupper(substr($user['name'], 0, 1)) ?>
+            <?php endif; ?>
         </div>
+
         <h2 class="profile-name"><?= htmlspecialchars($user['name']) ?></h2>
+
         <p class="profile-email">
-          <i class="fas fa-envelope"></i>
-          <?= htmlspecialchars($user['email']) ?>
+            <i class="fas fa-envelope"></i>
+            <?= htmlspecialchars($user['email']) ?>
         </p>
+
+        <?php if (!empty($user['location'])): ?>
+        <p class="profile-location">
+            <i class="fas fa-map-marker-alt"></i>
+            <?= htmlspecialchars($user['location']) ?>
+        </p>
+        <?php endif; ?>
+
         <div class="member-since">
           <i class="fas fa-calendar-alt"></i>
           Member since <?= date('M Y', strtotime($user['created_at'])) ?>
         </div>
       </div>
 
-      <!-- Stats Grid -->
+      <!-- Stats -->
       <div class="stats-grid">
         <div class="stat-box">
-          <div class="stat-icon">
-            <i class="fas fa-calendar-check"></i>
-          </div>
+          <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
           <span class="stat-number"><?= $appointments_count ?></span>
           <span class="stat-label">Total Appointments</span>
         </div>
+
         <div class="stat-box">
-          <div class="stat-icon">
-            <i class="fas fa-star"></i>
-          </div>
+          <div class="stat-icon"><i class="fas fa-star"></i></div>
           <span class="stat-number"><?= $reviews_count ?></span>
           <span class="stat-label">Reviews Written</span>
         </div>
+
         <div class="stat-box">
-          <div class="stat-icon">
-            <i class="fas fa-trophy"></i>
-          </div>
+          <div class="stat-icon"><i class="fas fa-trophy"></i></div>
           <span class="stat-number">Gold</span>
           <span class="stat-label">Membership Status</span>
         </div>
       </div>
 
-      <!-- Form Section -->
-      <form method="post" class="form-section">
+      <!-- Edit Form -->
+      <form method="post" enctype="multipart/form-data" class="form-section">
         <h3 class="section-title">
-          <i class="fas fa-user-edit"></i>
-          Edit Profile Information
+          <i class="fas fa-user-edit"></i> Edit Profile Information
         </h3>
 
-        <div class="form-group">
-          <label class="form-label">
-            <i class="fas fa-user"></i> Full Name
-          </label>
-          <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($user['name']) ?>" required placeholder="Enter your full name">
-        </div>
+        <label class="form-label"><i class="fas fa-user"></i> Full Name</label>
+        <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($user['name']) ?>" required>
 
-        <div class="form-group">
-          <label class="form-label">
-            <i class="fas fa-envelope"></i> Email Address
-          </label>
-          <input type="email" class="form-control" value="<?= htmlspecialchars($user['email']) ?>" readonly>
-          <div class="form-text">
-            <i class="fas fa-info-circle"></i> Email address cannot be changed
-          </div>
-        </div>
+        <label class="form-label"><i class="fas fa-phone"></i> Phone Number</label>
+        <input type="text" name="phone" class="form-control" value="<?= htmlspecialchars($user['phone']) ?>">
 
-        <div class="form-group">
-          <label class="form-label">
-            <i class="fas fa-phone"></i> Phone Number
-          </label>
-          <input type="text" name="phone" class="form-control" value="<?= htmlspecialchars($user['phone'] ?? '') ?>" placeholder="+94 71 234 5678">
-          <div class="form-text">
-            <i class="fas fa-info-circle"></i> Optional. Numbers, +, - and spaces allowed
-          </div>
-        </div>
+        <label class="form-label"><i class="fas fa-map-marker-alt"></i> Location</label>
+        <select name="location" class="form-control" required>
+            <option value="">Select your city</option>
 
-        <div class="text-center">
+            <?php
+            $cities = [
+                "Colombo", "Kandy", "Galle", "Matara", "Jaffna", "Negombo", "Anuradhapura",
+                "Kurunegala", "Badulla", "Batticaloa", "Trincomalee", "Kegalle",
+                "Ratnapura", "Hambantota", "Polonnaruwa", "Puttalam", "Mannar",
+                "Nuwara Eliya", "Kalutara", "Gampaha"
+            ];
+
+            foreach ($cities as $city):
+                $selected = ($user['location'] === $city) ? "selected" : "";
+                echo "<option value='$city' $selected>$city</option>";
+            endforeach;
+            ?>
+        </select>
+
+        <label class="form-label"><i class="fas fa-image"></i> Profile Picture</label>
+        <input type="file" name="profile_picture" class="form-control">
+
+        <div class="text-center mt-3">
           <button type="submit" class="btn-save">
             <i class="fas fa-save"></i> Save Changes
           </button>
@@ -182,10 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       <!-- Quick Actions -->
       <div class="quick-actions">
-        <h4 class="section-title">
-          <i class="fas fa-bolt"></i>
-          Quick Actions
-        </h4>
+        <h4 class="section-title"><i class="fas fa-bolt"></i> Quick Actions</h4>
         <div class="action-buttons">
           <a href="my_appointments.php" class="btn-action btn-action-primary">
             <i class="fas fa-calendar-alt"></i> View Appointments
@@ -195,32 +234,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </a>
         </div>
       </div>
-    </div>
-  </div>
-   <?php include __DIR__ . '/../footer.php'; ?>
-  <!-- Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    // Auto-hide alerts after 5 seconds
-    setTimeout(() => {
-      const alerts = document.querySelectorAll('.alert');
-      alerts.forEach(alert => {
-        alert.style.transition = 'opacity 0.5s ease';
-        alert.style.opacity = '0';
-        setTimeout(() => alert.remove(), 500);
-      });
-    }, 5000);
 
-    // Phone number formatting
-    const phoneInput = document.querySelector('input[name="phone"]');
-    if (phoneInput) {
-      phoneInput.addEventListener('input', function(e) {
-        let value = e.target.value;
-        // Remove any characters that aren't numbers, +, -, or spaces
-        value = value.replace(/[^0-9+\-\s]/g, '');
-        e.target.value = value;
-      });
-    }
-  </script>
+    </div>
+</div>
+
+<?php include __DIR__ . '/../footer.php'; ?>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
 </body>
 </html>
