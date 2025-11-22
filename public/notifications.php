@@ -7,48 +7,140 @@ checkAuth();
 
 $user_id = $_SESSION['id'];
 
-// Mark notification as read if requested
-if (isset($_GET['mark_read']) && isset($_GET['id'])) {
-    $notif_id = intval($_GET['id']);
-    $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?");
-    $stmt->execute([$notif_id, $user_id]);
-    header('Location: notifications.php');
-    exit;
+// CSRF token generation
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// Mark all as read
-if (isset($_GET['mark_all_read'])) {
-    $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ?");
+// Handle actions with CSRF protection
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Validate CSRF token
+    $csrf = $_POST['csrf_token'] ?? '';
+    if (!$csrf || !hash_equals($_SESSION['csrf_token'], $csrf)) {
+        $_SESSION['error_message'] = 'Invalid security token.';
+        header('Location: notifications.php');
+        exit;
+    }
+
+    // Mark notification as read
+    if (isset($_POST['mark_read']) && isset($_POST['id'])) {
+        $notif_id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
+        if ($notif_id) {
+            try {
+                $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?");
+                $stmt->execute([$notif_id, $user_id]);
+                $_SESSION['success_message'] = 'Notification marked as read.';
+            } catch (PDOException $e) {
+                error_log("Mark read error: " . $e->getMessage());
+                $_SESSION['error_message'] = 'Failed to update notification.';
+            }
+        }
+        header('Location: notifications.php');
+        exit;
+    }
+
+    // Mark all as read
+    if (isset($_POST['mark_all_read'])) {
+        try {
+            $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0");
+            $affected = $stmt->execute([$user_id]);
+            $_SESSION['success_message'] = 'All notifications marked as read.';
+        } catch (PDOException $e) {
+            error_log("Mark all read error: " . $e->getMessage());
+            $_SESSION['error_message'] = 'Failed to update notifications.';
+        }
+        header('Location: notifications.php');
+        exit;
+    }
+
+    // Delete notification
+    if (isset($_POST['delete']) && isset($_POST['id'])) {
+        $notif_id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
+        if ($notif_id) {
+            try {
+                $stmt = $pdo->prepare("DELETE FROM notifications WHERE id = ? AND user_id = ?");
+                $stmt->execute([$notif_id, $user_id]);
+                $_SESSION['success_message'] = 'Notification deleted.';
+            } catch (PDOException $e) {
+                error_log("Delete notification error: " . $e->getMessage());
+                $_SESSION['error_message'] = 'Failed to delete notification.';
+            }
+        }
+        header('Location: notifications.php');
+        exit;
+    }
+
+    // Delete all read notifications
+    if (isset($_POST['delete_all_read'])) {
+        try {
+            $stmt = $pdo->prepare("DELETE FROM notifications WHERE user_id = ? AND is_read = 1");
+            $stmt->execute([$user_id]);
+            $_SESSION['success_message'] = 'All read notifications deleted.';
+        } catch (PDOException $e) {
+            error_log("Delete all read error: " . $e->getMessage());
+            $_SESSION['error_message'] = 'Failed to delete notifications.';
+        }
+        header('Location: notifications.php');
+        exit;
+    }
+}
+
+// Fetch notifications with error handling
+try {
+    $stmt = $pdo->prepare("
+        SELECT * FROM notifications 
+        WHERE user_id = ? 
+        ORDER BY created_at DESC 
+        LIMIT 100
+    ");
     $stmt->execute([$user_id]);
-    header('Location: notifications.php');
-    exit;
+    $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    error_log("Fetch notifications error: " . $e->getMessage());
+    $notifications = [];
 }
-
-// Delete notification
-if (isset($_GET['delete']) && isset($_GET['id'])) {
-    $notif_id = intval($_GET['id']);
-    $stmt = $pdo->prepare("DELETE FROM notifications WHERE id = ? AND user_id = ?");
-    $stmt->execute([$notif_id, $user_id]);
-    header('Location: notifications.php');
-    exit;
-}
-
-// Fetch notifications
-$stmt = $pdo->prepare("
-    SELECT * FROM notifications 
-    WHERE user_id = ? 
-    ORDER BY created_at DESC 
-    LIMIT 50
-");
-$stmt->execute([$user_id]);
-$notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Separate read and unread
 $unread = array_filter($notifications, fn($n) => $n['is_read'] == 0);
 $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
+
+// Function to get notification icon based on message content
+function getNotificationIcon($message) {
+    if (stripos($message, 'confirmed') !== false) {
+        return '<i class="fas fa-check-circle"></i>';
+    } elseif (stripos($message, 'rejected') !== false || stripos($message, 'cancelled') !== false) {
+        return '<i class="fas fa-times-circle"></i>';
+    } elseif (stripos($message, 'completed') !== false) {
+        return '<i class="fas fa-check-double"></i>';
+    } elseif (stripos($message, 'review') !== false || stripos($message, 'rating') !== false) {
+        return '<i class="fas fa-star"></i>';
+    } elseif (stripos($message, 'appointment') !== false) {
+        return '<i class="fas fa-calendar-check"></i>';
+    } else {
+        return '<i class="fas fa-bell"></i>';
+    }
+}
+
+// Function to format time ago
+function timeAgo($timestamp) {
+    $time_diff = time() - strtotime($timestamp);
+    
+    if ($time_diff < 60) {
+        return 'Just now';
+    } elseif ($time_diff < 3600) {
+        $mins = floor($time_diff / 60);
+        return $mins . ' minute' . ($mins > 1 ? 's' : '') . ' ago';
+    } elseif ($time_diff < 86400) {
+        $hours = floor($time_diff / 3600);
+        return $hours . ' hour' . ($hours > 1 ? 's' : '') . ' ago';
+    } elseif ($time_diff < 604800) {
+        $days = floor($time_diff / 86400);
+        return $days . ' day' . ($days > 1 ? 's' : '') . ' ago';
+    } else {
+        return date('M d, Y h:i A', strtotime($timestamp));
+    }
+}
 ?>
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -64,9 +156,7 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
   
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="../assets/css/notifications.css">
   
- 
   <style>
     :root {
       --primary: #e91e63;
@@ -96,7 +186,6 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
       color: var(--text-dark);
     }
 
-   
     /* Page Header */
     .page-header {
       background: var(--gradient-primary);
@@ -104,7 +193,7 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
       margin-bottom: 3rem;
       position: relative;
       overflow: hidden;
-      margin-top: 50px;
+      margin-top: 70px;
     }
 
     .page-header::before {
@@ -190,6 +279,7 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
     .actions-group {
       display: flex;
       gap: 1rem;
+      flex-wrap: wrap;
     }
 
     .btn-action {
@@ -203,6 +293,7 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
       text-decoration: none;
       border: 2px solid;
       white-space: nowrap;
+      cursor: pointer;
     }
 
     .btn-mark-all {
@@ -213,6 +304,17 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
 
     .btn-mark-all:hover {
       background: var(--primary);
+      color: white;
+    }
+
+    .btn-delete-all {
+      background: white;
+      color: #e74c3c;
+      border-color: #e74c3c;
+    }
+
+    .btn-delete-all:hover {
+      background: #e74c3c;
       color: white;
     }
 
@@ -241,13 +343,6 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
     .notification-card:hover {
       box-shadow: var(--shadow-md);
       transform: translateX(5px);
-    }
-
-    .notification-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 0.75rem;
     }
 
     .notification-icon {
@@ -304,6 +399,7 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
       cursor: pointer;
       transition: var(--transition);
       background: transparent;
+      padding: 0;
     }
 
     .btn-icon:hover {
@@ -354,6 +450,26 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
     .empty-state p {
       color: var(--text-light);
       margin-bottom: 2rem;
+    }
+
+    .btn-gradient {
+      background: var(--gradient-primary);
+      color: white;
+      padding: 0.75rem 2rem;
+      border-radius: 50px;
+      border: none;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: var(--transition);
+    }
+
+    .btn-gradient:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      color: white;
     }
 
     /* Section Divider */
@@ -423,22 +539,37 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
       animation: fadeIn 0.3s ease;
     }
   </style>
- <?php include __DIR__ . '../header.php'; ?>
 </head>
 
 <body>
- 
+  <?php include __DIR__ . '/header.php'; ?>
+
   <!-- Page Header -->
   <div class="page-header">
     <div class="container">
       <div class="page-header-content">
-        <h1 class="page-title">Notifications</h1>
+        <h1 class="page-title"><i class="fas fa-bell me-2"></i>Notifications</h1>
         <p class="page-subtitle">Stay updated with your latest activities</p>
       </div>
     </div>
   </div>
 
   <div class="container pb-5">
+    
+    <?php if(isset($_SESSION['success_message'])): ?>
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+      <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($_SESSION['success_message']); ?>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <?php unset($_SESSION['success_message']); endif; ?>
+
+    <?php if(isset($_SESSION['error_message'])): ?>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+      <i class="fas fa-exclamation-circle me-2"></i><?= htmlspecialchars($_SESSION['error_message']); ?>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <?php unset($_SESSION['error_message']); endif; ?>
+
     <!-- Notifications Header -->
     <div class="notifications-header">
       <div class="notification-stats">
@@ -464,9 +595,21 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
 
       <div class="actions-group">
         <?php if (count($unread) > 0): ?>
-          <a href="?mark_all_read=1" class="btn-action btn-mark-all">
-            <i class="fas fa-check-double"></i> Mark All as Read
-          </a>
+          <form method="POST" style="display: inline;">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+            <button type="submit" name="mark_all_read" class="btn-action btn-mark-all">
+              <i class="fas fa-check-double"></i> Mark All as Read
+            </button>
+          </form>
+        <?php endif; ?>
+        
+        <?php if (count($read) > 0): ?>
+          <form method="POST" style="display: inline;" onsubmit="return confirm('Delete all read notifications?');">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+            <button type="submit" name="delete_all_read" class="btn-action btn-delete-all">
+              <i class="fas fa-trash"></i> Clear Read
+            </button>
+          </form>
         <?php endif; ?>
       </div>
     </div>
@@ -477,8 +620,8 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
         <i class="far fa-bell-slash"></i>
         <h4>No Notifications Yet</h4>
         <p>You're all caught up! New notifications will appear here.</p>
-        <a href="index.php" class="btn btn-gradient">
-          <i class="fas fa-home me-2"></i> Go to Home
+        <a href="index.php" class="btn-gradient">
+          <i class="fas fa-home"></i> Go to Home
         </a>
       </div>
     <?php else: ?>
@@ -493,42 +636,36 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
           <div class="notification-card unread">
             <div style="display: flex; gap: 1rem;">
               <div class="notification-icon">
-                <?php if (strpos($notif['message'], 'confirmed') !== false): ?>
-                  <i class="fas fa-check-circle"></i>
-                <?php elseif (strpos($notif['message'], 'rejected') !== false || strpos($notif['message'], 'cancelled') !== false): ?>
-                  <i class="fas fa-times-circle"></i>
-                <?php elseif (strpos($notif['message'], 'review') !== false): ?>
-                  <i class="fas fa-star"></i>
-                <?php else: ?>
-                  <i class="fas fa-bell"></i>
-                <?php endif; ?>
+                <?= getNotificationIcon($notif['message']) ?>
               </div>
               
               <div class="notification-content">
-                <div class="notification-header">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
                   <div style="flex: 1;">
                     <div class="notification-message">
                       <?= htmlspecialchars($notif['message']) ?>
                     </div>
                     <div class="notification-time">
                       <i class="far fa-clock"></i>
-                      <?php
-                        $time_diff = time() - strtotime($notif['created_at']);
-                        if ($time_diff < 60) echo 'Just now';
-                        elseif ($time_diff < 3600) echo floor($time_diff / 60) . ' minutes ago';
-                        elseif ($time_diff < 86400) echo floor($time_diff / 3600) . ' hours ago';
-                        else echo date('M d, Y h:i A', strtotime($notif['created_at']));
-                      ?>
+                      <?= timeAgo($notif['created_at']) ?>
                     </div>
                   </div>
                   
                   <div class="notification-actions">
-                    <a href="?mark_read=1&id=<?= $notif['id'] ?>" class="btn-icon read" title="Mark as read">
-                      <i class="fas fa-check"></i>
-                    </a>
-                    <a href="?delete=1&id=<?= $notif['id'] ?>" class="btn-icon delete" title="Delete" onclick="return confirm('Delete this notification?');">
-                      <i class="fas fa-trash"></i>
-                    </a>
+                    <form method="POST" style="display: inline;">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                      <input type="hidden" name="id" value="<?= $notif['id'] ?>">
+                      <button type="submit" name="mark_read" class="btn-icon read" title="Mark as read">
+                        <i class="fas fa-check"></i>
+                      </button>
+                    </form>
+                    <form method="POST" style="display: inline;" onsubmit="return confirm('Delete this notification?');">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                      <input type="hidden" name="id" value="<?= $notif['id'] ?>">
+                      <button type="submit" name="delete" class="btn-icon delete" title="Delete">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    </form>
                   </div>
                 </div>
               </div>
@@ -549,33 +686,29 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
           <div class="notification-card read">
             <div style="display: flex; gap: 1rem;">
               <div class="notification-icon">
-                <?php if (strpos($notif['message'], 'confirmed') !== false): ?>
-                  <i class="fas fa-check-circle"></i>
-                <?php elseif (strpos($notif['message'], 'rejected') !== false || strpos($notif['message'], 'cancelled') !== false): ?>
-                  <i class="fas fa-times-circle"></i>
-                <?php elseif (strpos($notif['message'], 'review') !== false): ?>
-                  <i class="fas fa-star"></i>
-                <?php else: ?>
-                  <i class="fas fa-bell"></i>
-                <?php endif; ?>
+                <?= getNotificationIcon($notif['message']) ?>
               </div>
               
               <div class="notification-content">
-                <div class="notification-header">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
                   <div style="flex: 1;">
                     <div class="notification-message">
                       <?= htmlspecialchars($notif['message']) ?>
                     </div>
                     <div class="notification-time">
                       <i class="far fa-clock"></i>
-                      <?= date('M d, Y h:i A', strtotime($notif['created_at'])) ?>
+                      <?= timeAgo($notif['created_at']) ?>
                     </div>
                   </div>
                   
                   <div class="notification-actions">
-                    <a href="?delete=1&id=<?= $notif['id'] ?>" class="btn-icon delete" title="Delete" onclick="return confirm('Delete this notification?');">
-                      <i class="fas fa-trash"></i>
-                    </a>
+                    <form method="POST" style="display: inline;" onsubmit="return confirm('Delete this notification?');">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                      <input type="hidden" name="id" value="<?= $notif['id'] ?>">
+                      <button type="submit" name="delete" class="btn-icon delete" title="Delete">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    </form>
                   </div>
                 </div>
               </div>
@@ -585,7 +718,9 @@ $read = array_filter($notifications, fn($n) => $n['is_read'] == 1);
       <?php endif; ?>
     <?php endif; ?>
   </div>
-  <?php include __DIR__ . '../footer.php'; ?>
+
+  <?php include __DIR__ . '/footer.php'; ?>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

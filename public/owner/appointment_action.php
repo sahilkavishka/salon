@@ -154,4 +154,18 @@ try {
     http_response_code(500);
     echo json_encode(['error' => 'An unexpected error occurred']);
 }
+// After successfully updating appointment status
+$notification_message = '';
+if ($action === 'confirm') {
+    $notification_message = "Your appointment at {$appt['salon_name']} for {$appt['service_name']} has been confirmed!";
+} elseif ($action === 'reject') {
+    $notification_message = "Your appointment at {$appt['salon_name']} for {$appt['service_name']} has been rejected.";
+} elseif ($action === 'complete') {
+    $notification_message = "Your appointment at {$appt['salon_name']} has been completed. Please leave a review!";
+}
+
+if ($notification_message) {
+    $stmt = $pdo->prepare("INSERT INTO notifications (user_id, message) VALUES (?, ?)");
+    $stmt->execute([$appt['user_id'], $notification_message]);
+}
 ?>
