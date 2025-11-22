@@ -32,16 +32,11 @@ if (empty($salonIds)) {
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
         <style>
             body { font-family: 'Poppins', sans-serif; background: #f5f7fa; }
+            .navbar { background: rgba(241, 6, 143, 0.57); padding: 1rem 0; }
             .navbar-brand { font-weight: 800; background: linear-gradient(135deg,#e91e63,#9c27b0); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-            .navbar{background:rgba(241, 6, 143, 0.57);height: 100px;}
         </style>
     </head>
     <body>
-        <nav class="navbar navbar-expand-lg bg-pink shadow-sm">
-            <div class="container">
-                <a class="navbar-brand" href="../../index.php"><i class="fas fa-spa"></i> Salonora</a>
-            </div>
-        </nav>
         <div class="container mt-5 text-center">
             <div class="alert alert-info">
                 <i class="fas fa-info-circle fa-3x mb-3"></i>
@@ -135,6 +130,8 @@ $stmt = $pdo->prepare("
     SELECT 
         a.*, 
         u.username AS user_name,
+        u.email AS user_email,
+        u.phone AS user_phone,
         s.name AS service_name,
         s.price AS service_price,
         sal.name AS salon_name
@@ -154,7 +151,10 @@ $stmt = $pdo->prepare("
     SELECT 
         a.*, 
         u.username AS user_name,
+        u.email AS user_email,
+        u.phone AS user_phone,
         s.name AS service_name,
+        s.price AS service_price,
         sal.name AS salon_name
     FROM appointments a
     JOIN users u ON u.id = a.user_id
@@ -169,6 +169,11 @@ $cancelled = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Calculate statistics
 $totalRevenue = array_sum(array_column($completed, 'service_price'));
+
+// Generate CSRF token
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 ?>
 
 <!DOCTYPE html>
@@ -183,9 +188,19 @@ $totalRevenue = array_sum(array_column($completed, 'service_price'));
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        body { font-family: 'Poppins', sans-serif; background: #f5f7fa; }
-        .navbar-brand { font-weight: 800; background: linear-gradient(135deg,#e91e63,#9c27b0); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-        .page-header { background: linear-gradient(135deg,#e91e63,#9c27b0); padding:3rem 0 2rem; color:white; }
+        body { 
+            font-family: 'Poppins', sans-serif; 
+            background: #f5f7fa; 
+        }
+        
+        
+        
+        .page-header { 
+            background: linear-gradient(135deg,#e91e63,#9c27b0); 
+            padding:3rem 0 2rem; 
+            color:white;
+            margin-bottom: 2rem;
+        }
         
         .stat-card { 
             background: white; 
@@ -236,11 +251,17 @@ $totalRevenue = array_sum(array_column($completed, 'service_price'));
         .btn-complete { background: #3498db; color: white; border: none; }
         .btn-complete:hover { background: #2980b9; color: white; }
         
-        .nav-pills .nav-link { border-radius: 50px; margin: 0 0.25rem; }
-        .nav-pills .nav-link.active { background: linear-gradient(135deg,#e91e63,#9c27b0); }
         
-        .info-item { display: flex; align-items: center; margin-bottom: 0.5rem; }
-        .info-item i { width: 24px; margin-right: 8px; }
+        
+        .info-item { 
+            display: flex; 
+            align-items: center; 
+            margin-bottom: 0.5rem; 
+        }
+        .info-item i { 
+            width: 24px; 
+            margin-right: 8px; 
+        }
         
         .empty-state { 
             text-align: center; 
@@ -249,7 +270,11 @@ $totalRevenue = array_sum(array_column($completed, 'service_price'));
             border-radius: 16px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         }
-        .empty-state i { font-size: 4rem; color: #bdc3c7; margin-bottom: 1rem; }
+        .empty-state i { 
+            font-size: 4rem; 
+            color: #bdc3c7; 
+            margin-bottom: 1rem; 
+        }
         
         .filter-section { 
             background: white; 
@@ -258,13 +283,62 @@ $totalRevenue = array_sum(array_column($completed, 'service_price'));
             margin-bottom: 1.5rem;
             box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        
+        .alert {
+            border-radius: 12px;
+            border: none;
+        }
     </style>
 </head>
 <body>
 
 
 
+<!-- Page Header -->
+<div class="page-header">
+    <div class="container">
+        <h2><i class="fas fa-calendar-alt me-2"></i>Appointment Management</h2>
+        <p class="mb-0">Manage all your salon appointments in one place</p>
+    </div>
+</div>
+
 <div class="container py-4">
+    <!-- Success/Error Messages -->
+    <?php if (isset($_SESSION['success_message'])): ?>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($_SESSION['success_message']) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <?php unset($_SESSION['success_message']); ?>
+    <?php endif; ?>
+    
+    <?php if (isset($_SESSION['error_message'])): ?>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i><?= htmlspecialchars($_SESSION['error_message']) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <?php unset($_SESSION['error_message']); ?>
+    <?php endif; ?>
+
     <!-- Statistics Cards -->
     <div class="row mb-4">
         <div class="col-md-3 mb-3">
@@ -389,28 +463,37 @@ $totalRevenue = array_sum(array_column($completed, 'service_price'));
                                 <span><?= htmlspecialchars($apt['user_phone']) ?></span>
                             </div>
                             <?php endif; ?>
+                            <?php if (!empty($apt['user_email'])): ?>
+                            <div class="info-item">
+                                <i class="fas fa-envelope text-info"></i>
+                                <span><?= htmlspecialchars($apt['user_email']) ?></span>
+                            </div>
+                            <?php endif; ?>
                         </div>
                         <div class="col-md-4 text-md-end mt-3 mt-md-0">
                             <?php if ($apt['status'] === 'pending'): ?>
-                                <form action="owner_confirm.php" method="post" style="display:inline;">
+                                <form action="appointment_action.php" method="post" class="d-inline mb-1">
+                                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
                                     <input type="hidden" name="appointment_id" value="<?= $apt['id'] ?>">
                                     <input type="hidden" name="action" value="confirm">
-                                    <button type="submit" class="btn btn-sm btn-confirm mb-1">
+                                    <button type="submit" class="btn btn-sm btn-confirm w-100 mb-1">
                                         <i class="fas fa-check me-1"></i>Confirm
                                     </button>
                                 </form>
-                                <form action="owner_confirm.php" method="post" style="display:inline;">
+                                <form action="appointment_action.php" method="post" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
                                     <input type="hidden" name="appointment_id" value="<?= $apt['id'] ?>">
                                     <input type="hidden" name="action" value="reject">
-                                    <button type="submit" class="btn btn-sm btn-reject mb-1" onclick="return confirm('Reject this request?')">
+                                    <button type="submit" class="btn btn-sm btn-reject w-100" onclick="return confirm('Reject this request?')">
                                         <i class="fas fa-times me-1"></i>Reject
                                     </button>
                                 </form>
                             <?php elseif ($apt['status'] === 'confirmed'): ?>
-                                <form action="owner_confirm.php" method="post" style="display:inline;">
+                                <form action="appointment_action.php" method="post" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
                                     <input type="hidden" name="appointment_id" value="<?= $apt['id'] ?>">
                                     <input type="hidden" name="action" value="complete">
-                                    <button type="submit" class="btn btn-sm btn-complete mb-1">
+                                    <button type="submit" class="btn btn-sm btn-complete w-100">
                                         <i class="fas fa-check-double me-1"></i>Mark Complete
                                     </button>
                                 </form>
@@ -470,14 +553,16 @@ $totalRevenue = array_sum(array_column($completed, 'service_price'));
                             </small>
                         </div>
                         <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                            <form action="owner_confirm.php" method="post" style="display:inline;">
+                            <form action="appointment_action.php" method="post" class="mb-2">
+                                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
                                 <input type="hidden" name="appointment_id" value="<?= $apt['id'] ?>">
                                 <input type="hidden" name="action" value="confirm">
-                                <button type="submit" class="btn btn-confirm w-100 mb-2">
+                                <button type="submit" class="btn btn-confirm w-100">
                                     <i class="fas fa-check me-1"></i>Confirm Booking
                                 </button>
                             </form>
-                            <form action="owner_confirm.php" method="post" style="display:inline;">
+                            <form action="appointment_action.php" method="post">
+                                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
                                 <input type="hidden" name="appointment_id" value="<?= $apt['id'] ?>">
                                 <input type="hidden" name="action" value="reject">
                                 <button type="submit" class="btn btn-reject w-100" onclick="return confirm('Are you sure you want to reject this request?')">
@@ -528,9 +613,16 @@ $totalRevenue = array_sum(array_column($completed, 'service_price'));
                                 <span><?= htmlspecialchars($apt['user_phone']) ?></span>
                             </div>
                             <?php endif; ?>
+                            <?php if (!empty($apt['user_email'])): ?>
+                            <div class="info-item">
+                                <i class="fas fa-envelope text-info"></i>
+                                <span><?= htmlspecialchars($apt['user_email']) ?></span>
+                            </div>
+                            <?php endif; ?>
                         </div>
                         <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                            <form action="owner_confirm.php" method="post" style="display:inline;">
+                            <form action="appointment_action.php" method="post">
+                                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
                                 <input type="hidden" name="appointment_id" value="<?= $apt['id'] ?>">
                                 <input type="hidden" name="action" value="complete">
                                 <button type="submit" class="btn btn-complete w-100">
@@ -557,11 +649,36 @@ $totalRevenue = array_sum(array_column($completed, 'service_price'));
             <?php foreach ($completed as $apt): ?>
                 <div class="appointment-card completed">
                     <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <h5><?= htmlspecialchars($apt['user_name']) ?></h5>
-                            <p class="mb-1"><strong><?= htmlspecialchars($apt['salon_name']) ?></strong></p>
-                            <p class="mb-1"><?= htmlspecialchars($apt['service_name']) ?> - Rs <?= number_format($apt['service_price'], 2) ?></p>
-                            <p class="mb-1 text-muted"><?= date('M d, Y', strtotime($apt['appointment_date'])) ?> at <?= date('h:i A', strtotime($apt['appointment_time'])) ?></p>
+                        <div class="flex-grow-1">
+                            <h5 class="mb-2"><?= htmlspecialchars($apt['user_name']) ?></h5>
+                            <div class="info-item">
+                                <i class="fas fa-store text-primary"></i>
+                                <span><strong><?= htmlspecialchars($apt['salon_name']) ?></strong></span>
+                            </div>
+                            <div class="info-item">
+                                <i class="fas fa-cut text-success"></i>
+                                <span><?= htmlspecialchars($apt['service_name']) ?></span>
+                            </div>
+                            <div class="info-item">
+                                <i class="fas fa-rupee-sign text-danger"></i>
+                                <span>Rs <?= number_format($apt['service_price'], 2) ?></span>
+                            </div>
+                            <div class="info-item">
+                                <i class="fas fa-calendar text-muted"></i>
+                                <span><?= date('M d, Y', strtotime($apt['appointment_date'])) ?> at <?= date('h:i A', strtotime($apt['appointment_time'])) ?></span>
+                            </div>
+                            <?php if (!empty($apt['user_phone'])): ?>
+                            <div class="info-item">
+                                <i class="fas fa-phone text-info"></i>
+                                <span><?= htmlspecialchars($apt['user_phone']) ?></span>
+                            </div>
+                            <?php endif; ?>
+                            <?php if (!empty($apt['user_email'])): ?>
+                            <div class="info-item">
+                                <i class="fas fa-envelope text-info"></i>
+                                <span><?= htmlspecialchars($apt['user_email']) ?></span>
+                            </div>
+                            <?php endif; ?>
                         </div>
                         <span class="status-badge completed">Completed</span>
                     </div>
@@ -583,13 +700,35 @@ $totalRevenue = array_sum(array_column($completed, 'service_price'));
             <?php foreach ($cancelled as $apt): ?>
                 <div class="appointment-card cancelled">
                     <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <h5><?= htmlspecialchars($apt['user_name']) ?></h5>
-                            <p class="mb-1"><strong><?= htmlspecialchars($apt['salon_name']) ?></strong></p>
-                            <p class="mb-1"><?= htmlspecialchars($apt['service_name']) ?></p>
-                            <p class="mb-1 text-muted"><?= date('M d, Y', strtotime($apt['appointment_date'])) ?> at <?= date('h:i A', strtotime($apt['appointment_time'])) ?></p>
-                            <?php if (!empty($apt['cancellation_reason'])): ?>
-                            <small class="text-muted"><i class="fas fa-info-circle"></i> Reason: <?= htmlspecialchars($apt['cancellation_reason']) ?></small>
+                        <div class="flex-grow-1">
+                            <h5 class="mb-2"><?= htmlspecialchars($apt['user_name']) ?></h5>
+                            <div class="info-item">
+                                <i class="fas fa-store text-primary"></i>
+                                <span><strong><?= htmlspecialchars($apt['salon_name']) ?></strong></span>
+                            </div>
+                            <div class="info-item">
+                                <i class="fas fa-cut text-success"></i>
+                                <span><?= htmlspecialchars($apt['service_name']) ?></span>
+                            </div>
+                            <div class="info-item">
+                                <i class="fas fa-rupee-sign text-danger"></i>
+                                <span>Rs <?= number_format($apt['service_price'], 2) ?></span>
+                            </div>
+                            <div class="info-item">
+                                <i class="fas fa-calendar text-muted"></i>
+                                <span><?= date('M d, Y', strtotime($apt['appointment_date'])) ?> at <?= date('h:i A', strtotime($apt['appointment_time'])) ?></span>
+                            </div>
+                            <?php if (!empty($apt['user_phone'])): ?>
+                            <div class="info-item">
+                                <i class="fas fa-phone text-info"></i>
+                                <span><?= htmlspecialchars($apt['user_phone']) ?></span>
+                            </div>
+                            <?php endif; ?>
+                            <?php if (!empty($apt['user_email'])): ?>
+                            <div class="info-item">
+                                <i class="fas fa-envelope text-info"></i>
+                                <span><?= htmlspecialchars($apt['user_email']) ?></span>
+                            </div>
                             <?php endif; ?>
                         </div>
                         <span class="status-badge cancelled">Cancelled</span>
@@ -599,8 +738,6 @@ $totalRevenue = array_sum(array_column($completed, 'service_price'));
         <?php endif; ?>
     </div>
 </div>
-
-
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
@@ -621,45 +758,58 @@ $totalRevenue = array_sum(array_column($completed, 'service_price'));
         });
     });
 
-    // Auto-refresh every 2 minutes to check for new appointments
-    let autoRefreshEnabled = true;
-    
-    // Show notification if there are pending requests
-    <?php if (count($pending) > 0): ?>
-        if (Notification.permission === "granted") {
-            // Show notification
-        } else if (Notification.permission !== "denied") {
-            Notification.requestPermission();
-        }
-    <?php endif; ?>
-
-    // Confirmation dialogs for better UX
-    document.querySelectorAll('form').forEach(form => {
-        const action = form.querySelector('input[name="action"]')?.value;
-        
-        if (action === 'complete') {
-            form.addEventListener('submit', function(e) {
-                if (!confirm('Mark this appointment as completed?')) {
-                    e.preventDefault();
-                }
-            });
-        }
-    });
-
     // Add visual feedback on button clicks
     document.querySelectorAll('button[type="submit"]').forEach(btn => {
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', function(e) {
+            // Don't disable if confirmation is needed and user cancels
+            const form = this.closest('form');
+            const action = form.querySelector('input[name="action"]')?.value;
+            
+            // Handle confirm dialogs
+            if (action === 'reject' && this.hasAttribute('onclick')) {
+                if (!confirm('Are you sure you want to reject this request?')) {
+                    e.preventDefault();
+                    return;
+                }
+            }
+            
+            if (action === 'complete') {
+                if (!confirm('Mark this appointment as completed?')) {
+                    e.preventDefault();
+                    return;
+                }
+            }
+            
+            // Disable button and show loading state
             this.disabled = true;
             const originalText = this.innerHTML;
             this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Processing...';
             
-            // Re-enable after 3 seconds as fallback
+            // Submit the form
             setTimeout(() => {
-                this.disabled = false;
-                this.innerHTML = originalText;
-            }, 3000);
+                form.submit();
+            }, 100);
         });
     });
+
+    // Auto-dismiss alerts after 5 seconds
+    setTimeout(() => {
+        const alerts = document.querySelectorAll('.alert');
+        alerts.forEach(alert => {
+            const bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+            bsAlert.close();
+        });
+    }, 5000);
+
+    // Optional: Browser notification for pending requests
+    <?php if (count($pending) > 0): ?>
+        if (Notification.permission === "default") {
+            Notification.requestPermission();
+        } else if (Notification.permission === "granted") {
+            // You can show a notification here if needed
+            // new Notification('Salonora', { body: 'You have <?= count($pending) ?> pending appointment requests!' });
+        }
+    <?php endif; ?>
 </script>
 
 </body>
