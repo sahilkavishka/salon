@@ -1,4 +1,4 @@
-<?php
+<?php 
 // public/user/profile.php
 
 session_start();
@@ -19,7 +19,9 @@ $stmt = $pdo->prepare('SELECT id, username AS name, email, phone, profile_pictur
 $stmt->execute([$id]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-if (!$user) die('User not found.');
+if (!$user) {
+    die('User not found.');
+}
 
 // Get stats
 $stmt = $pdo->prepare('SELECT COUNT(*) FROM appointments WHERE user_id = ?');
@@ -38,9 +40,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
     $location = trim($_POST['location'] ?? '');
-    $profilePicturePath = $user['profile_picture'];
+    $profilePicturePath = $user['profile_picture']; // keep old if not changed
 
-    if ($name === '') $errors[] = 'Name is required.';
+    if ($name === '') {
+        $errors[] = 'Name is required.';
+    }
+
     if ($phone !== '' && !preg_match('/^[0-9+\-\s]+$/', $phone)) {
         $errors[] = 'Phone number format is invalid.';
     }
@@ -48,28 +53,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Handle profile picture upload
     if (!empty($_FILES['profile_picture']['name'])) {
 
-        $allowed = ['image/jpeg', 'image/png'];
+        $allowed = ['image/jpeg', 'image/png', 'image/jpg'];
         $fileType = $_FILES['profile_picture']['type'];
         $fileSize = $_FILES['profile_picture']['size'];
+        $fileTmp  = $_FILES['profile_picture']['tmp_name'];
+        $fileErr  = $_FILES['profile_picture']['error'];
 
-        if (!in_array($fileType, $allowed)) {
-            $errors[] = "Only JPG and PNG images allowed.";
-        }
+        if ($fileErr !== UPLOAD_ERR_OK) {
+            $errors[] = "Error uploading profile image.";
+        } else {
+            if (!in_array($fileType, $allowed)) {
+                $errors[] = "Only JPG and PNG images allowed.";
+            }
 
-        if ($fileSize > 2 * 1024 * 1024) {
-            $errors[] = "Image must be below 2MB.";
-        }
+            if ($fileSize > 2 * 1024 * 1024) {
+                $errors[] = "Image must be below 2MB.";
+            }
 
-        if (empty($errors)) {
-            $ext = pathinfo($_FILES['profile_picture']['name'], PATHINFO_EXTENSION);
-            $fileName = "profile_" . time() . "_" . rand(1000, 9999) . "." . $ext;
+            if (empty($errors)) {
+                $ext = strtolower(pathinfo($_FILES['profile_picture']['name'], PATHINFO_EXTENSION));
+                $fileName = "profile_" . time() . "_" . rand(1000, 9999) . "." . $ext;
 
-            $uploadPath = __DIR__ . '/../../uploads/profile/' . $fileName;
+                // uploads/profile inside public/
+                $uploadDir = __DIR__ . '/../uploads/profile/';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
 
-            if (move_uploaded_file($_FILES['profile_picture']['tmp_name'], $uploadPath)) {
-                $profilePicturePath = "uploads/profile/" . $fileName;
-            } else {
-                $errors[] = "Failed to upload profile image.";
+                $uploadPath = $uploadDir . $fileName;
+
+                if (move_uploaded_file($fileTmp, $uploadPath)) {
+                    // store path relative to public/
+                    $profilePicturePath = "uploads/profile/" . $fileName;
+                    chmod($uploadPath, 0644);
+                } else {
+                    $errors[] = "Failed to upload profile image.";
+                }
             }
         }
     }
@@ -132,8 +151,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="profile-header">
 
         <div class="profile-avatar">
-            <?php if ($user['profile_picture']): ?>
-                <img src="../../<?= htmlspecialchars($user['profile_picture']) ?>" alt="Profile" class="img-fluid rounded-circle" 
+            <?php if (!empty($user['profile_picture'])): ?>
+                <img src="../<?= htmlspecialchars($user['profile_picture']) ?>" 
+                     alt="Profile" 
+                     class="img-fluid rounded-circle" 
                      style="width:120px;height:120px;object-fit:cover;">
             <?php else: ?>
                 <?= strtoupper(substr($user['name'], 0, 1)) ?>
@@ -188,10 +209,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </h3>
 
         <label class="form-label"><i class="fas fa-user"></i> Full Name</label>
-        <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($user['name']) ?>" required>
+        <input type="text" name="name" class="form-control" 
+               value="<?= htmlspecialchars($user['name']) ?>" required>
 
         <label class="form-label"><i class="fas fa-phone"></i> Phone Number</label>
-        <input type="text" name="phone" class="form-control" value="<?= htmlspecialchars($user['phone']) ?>">
+        <input type="text" name="phone" class="form-control" 
+               value="<?= htmlspecialchars($user['phone']) ?>">
 
         <label class="form-label"><i class="fas fa-map-marker-alt"></i> Location</label>
         <select name="location" class="form-control" required>
@@ -207,13 +230,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             foreach ($cities as $city):
                 $selected = ($user['location'] === $city) ? "selected" : "";
-                echo "<option value='$city' $selected>$city</option>";
+                echo "<option value='".htmlspecialchars($city)."' $selected>".htmlspecialchars($city)."</option>";
             endforeach;
             ?>
         </select>
 
         <label class="form-label"><i class="fas fa-image"></i> Profile Picture</label>
-        <input type="file" name="profile_picture" class="form-control">
+        <input type="file" name="profile_picture" class="form-control" 
+               accept="image/jpeg,image/png,image/jpg">
 
         <div class="text-center mt-3">
           <button type="submit" class="btn-save">

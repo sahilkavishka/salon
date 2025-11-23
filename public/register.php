@@ -28,19 +28,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $location = trim($_POST['location'] ?? '');
     $profilePicturePath = null;
 
-    // Enhanced Validations
+    // Role (user / owner)
+    $role = $_POST['role'] ?? 'user';
+    $allowedRoles = ['user', 'owner'];
+    if (!in_array($role, $allowedRoles, true)) {
+        $errors[] = "Invalid role selected.";
+    }
+
+    // Validations
     if ($username === '' || strlen($username) < 2) {
         $errors[] = "Full Name must be at least 2 characters.";
     }
     if (strlen($username) > 100) {
         $errors[] = "Full Name is too long.";
     }
-    
+
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = "Invalid email address.";
     }
-    
-    // Stronger password requirements
+
     if (strlen($password) < 8) {
         $errors[] = "Password must be at least 8 characters.";
     }
@@ -56,17 +62,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!preg_match('/[0-9]/', $password)) {
         $errors[] = "Password must contain at least one number.";
     }
-    
+
     if ($location === '') {
         $errors[] = "Location is required.";
     }
 
-    // Phone validation (optional but if provided, validate)
     if (!empty($phone) && !preg_match('/^[0-9\+\-\(\)\s]{7,20}$/', $phone)) {
         $errors[] = "Invalid phone number format.";
     }
 
-    // Check for duplicate email - use generic message to prevent enumeration
+    // Check duplicate email
     if (empty($errors)) {
         $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
         $stmt->execute([$email]);
@@ -75,57 +80,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Secure file upload handling
+    // Profile picture upload
     if (!empty($_FILES['profile_picture']['name']) && empty($errors)) {
         $file = $_FILES['profile_picture'];
-        
-        // Check for upload errors
+
         if ($file['error'] !== UPLOAD_ERR_OK) {
             $errors[] = "File upload failed.";
         } else {
-            // Validate file size
             if ($file['size'] > 2 * 1024 * 1024) {
                 $errors[] = "Profile picture must be less than 2MB.";
             }
-            
-            // Verify actual file type (not just MIME type)
+
             $finfo = finfo_open(FILEINFO_MIME_TYPE);
             $mimeType = finfo_file($finfo, $file['tmp_name']);
             finfo_close($finfo);
-            
+
             $allowedMimes = ['image/jpeg', 'image/png', 'image/jpg'];
             if (!in_array($mimeType, $allowedMimes)) {
                 $errors[] = "Only JPG and PNG images are allowed.";
             }
-            
-            // Verify image integrity
+
             $imageInfo = getimagesize($file['tmp_name']);
             if ($imageInfo === false) {
                 $errors[] = "Invalid image file.";
             }
-            
+
             if (empty($errors)) {
-                // Generate secure random filename
                 $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
                 $fileName = bin2hex(random_bytes(16)) . '.' . $ext;
-                
-                // Ensure upload directory exists and is secure
-                $uploadDir = __DIR__ . '/../../uploads/profile/';
+
+                // IMPORTANT: uploads/profile inside public
+                $uploadDir = __DIR__ . '/uploads/profile/';
                 if (!is_dir($uploadDir)) {
                     mkdir($uploadDir, 0755, true);
                 }
-                
-                // Add .htaccess to prevent PHP execution in upload directory
+
                 $htaccessPath = $uploadDir . '.htaccess';
                 if (!file_exists($htaccessPath)) {
                     file_put_contents($htaccessPath, "php_flag engine off\nOptions -Indexes");
                 }
-                
+
                 $uploadPath = $uploadDir . $fileName;
-                
+
                 if (move_uploaded_file($file['tmp_name'], $uploadPath)) {
+                    // This is the web path (relative to public)
                     $profilePicturePath = "uploads/profile/" . $fileName;
-                    // Set proper permissions
                     chmod($uploadPath, 0644);
                 } else {
                     $errors[] = "Failed to upload profile picture.";
@@ -140,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("
                 INSERT INTO users (username, email, password, phone, profile_picture, location, role, created_at) 
-                VALUES (?, ?, ?, ?, ?, ?, 'user', NOW())
+                VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
             ");
             $stmt->execute([
                 $username,
@@ -148,17 +147,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $hashedPassword,
                 $phone,
                 $profilePicturePath,
-                $location
+                $location,
+                $role
             ]);
-            
+
             $success = "Registration successful! You can now log in.";
-            
-            // Clear form data on success
+
             $_POST = [];
-            
-            // Regenerate CSRF token
             $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-            
+
         } catch (PDOException $e) {
             error_log("Registration error: " . $e->getMessage());
             $errors[] = "Registration failed. Please try again later.";
@@ -166,13 +163,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="X-UA-Compatible" content="IE=edge">
 <title>Register - Salonora</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -201,7 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 body {display:flex; align-items:center; justify-content:center; min-height:100vh; position:relative; overflow-x:hidden; padding:20px;}
 .card {position:relative; z-index:1; background:#fff; width:100%; max-width:420px; padding:2rem; border-radius:12px; box-shadow:0 8px 20px rgba(0,0,0,0.1); transition:0.3s;}
 .card:hover {box-shadow:0 12px 25px rgba(0,0,0,0.15);}
-h2 {text-align:center; margin-bottom:1.5rem; color:#fff; text-shadow:0 2px 4px rgba(0,0,0,0.2);}
+h2 {text-align:center; margin-bottom:1.5rem; color:black; text-shadow:0 2px 4px rgba(0,0,0,0.2);}
 .alert {border-radius:8px; padding:0.8rem; margin-bottom:1rem; font-size:0.9rem;}
 .alert-danger {background:#ffe6e6; color:#d9534f; border-left:4px solid #d9534f;}
 .alert-success {background:#e6ffed; color:#28a745; border-left:4px solid #28a745;}
@@ -241,19 +236,19 @@ button:active {transform:translateY(0);}
 
 <form method="POST" enctype="multipart/form-data" id="registerForm">
     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
-    
+
     <div class="form-group">
         <label>Full Name <span class="required">*</span></label>
         <input type="text" name="username" maxlength="100" 
                value="<?= htmlspecialchars($_POST['username'] ?? '') ?>" required>
     </div>
-    
+
     <div class="form-group">
         <label>Email <span class="required">*</span></label>
         <input type="email" name="email" maxlength="150"
                value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" required>
     </div>
-    
+
     <div class="form-group">
         <label>Password <span class="required">*</span></label>
         <div class="password-wrapper">
@@ -262,13 +257,13 @@ button:active {transform:translateY(0);}
         </div>
         <div id="strengthMessage"></div>
     </div>
-    
+
     <div class="form-group">
         <label>Phone</label>
         <input type="tel" name="phone" placeholder="+94 XX XXX XXXX"
                value="<?= htmlspecialchars($_POST['phone'] ?? '') ?>">
     </div>
-    
+
     <div class="form-group">
         <label>Location <span class="required">*</span></label>
         <select name="location" required>
@@ -286,14 +281,22 @@ button:active {transform:translateY(0);}
             <?php endforeach; ?>
         </select>
     </div>
-    
+
+    <div class="form-group">
+        <label>Role <span class="required">*</span></label>
+        <select name="role" required>
+            <option value="user"  <?= (($_POST['role'] ?? '') === 'user')  ? 'selected' : '' ?>>User</option>
+            <option value="owner" <?= (($_POST['role'] ?? '') === 'owner') ? 'selected' : '' ?>>Salon Owner</option>
+        </select>
+    </div>
+
     <div class="form-group">
         <label>Profile Picture</label>
         <input type="file" name="profile_picture" accept="image/jpeg,image/png,image/jpg" 
                onchange="previewProfile(this)">
         <img id="profilePreview" src="#" alt="Preview">
     </div>
-    
+
     <button type="submit">Register</button>
     <a href="login.php" class="login-link">Already have an account? Login</a>
 </form>
@@ -320,14 +323,14 @@ passwordField.addEventListener('input', function() {
     let strength = "Weak";
     let color = "#d9534f";
     let score = 0;
-    
+
     if (val.length >= 8) score++;
     if (val.length >= 12) score++;
     if (/[A-Z]/.test(val)) score++;
     if (/[a-z]/.test(val)) score++;
     if (/[0-9]/.test(val)) score++;
     if (/[^A-Za-z0-9]/.test(val)) score++;
-    
+
     if (score >= 5) {
         strength = "Strong";
         color = "#28a745";
@@ -335,7 +338,7 @@ passwordField.addEventListener('input', function() {
         strength = "Medium";
         color = "#ff9800";
     }
-    
+
     strengthMessage.textContent = val.length > 0 ? "Strength: " + strength : "";
     strengthMessage.style.color = color;
 });
@@ -343,17 +346,15 @@ passwordField.addEventListener('input', function() {
 function previewProfile(input) {
     const preview = document.getElementById('profilePreview');
     const file = input.files[0];
-    
+
     if (file) {
-        // Validate file size client-side
         if (file.size > 2 * 1024 * 1024) {
             alert('File size must be less than 2MB');
             input.value = '';
             preview.style.display = 'none';
             return;
         }
-        
-        // Validate file type
+
         const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
         if (!allowedTypes.includes(file.type)) {
             alert('Only JPG and PNG images are allowed');
@@ -361,7 +362,7 @@ function previewProfile(input) {
             preview.style.display = 'none';
             return;
         }
-        
+
         const reader = new FileReader();
         reader.onload = function(e) {
             preview.src = e.target.result;
@@ -371,16 +372,15 @@ function previewProfile(input) {
     }
 }
 
-// Form validation before submit
 document.getElementById('registerForm').addEventListener('submit', function(e) {
     const password = document.getElementById('password').value;
-    
+
     if (password.length < 8) {
         e.preventDefault();
         alert('Password must be at least 8 characters long');
         return false;
     }
-    
+
     if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
         e.preventDefault();
         alert('Password must contain uppercase, lowercase, and numbers');

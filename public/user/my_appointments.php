@@ -287,13 +287,13 @@ body {
 }
 .nav-pills .nav-link {
     color: #666;
-    background: white;
+    background: #e91e63;
     margin: 0 0.25rem;
     border-radius: 50px;
     transition: 0.3s;
 }
 .nav-pills .nav-link:hover {
-    background: #f0f0f0;
+    background: #bb1591ff;
 }
 .nav-pills .nav-link.active {
     background: linear-gradient(135deg, #e91e63, #9c27b0);
@@ -314,9 +314,11 @@ body {
 }
 .empty-state i {
     font-size: 4rem;
-    color: #ddd;
+    color: #c20784ff;
     margin-bottom: 1rem;
 }
+
+
 </style>
 </head>
 
