@@ -33,7 +33,9 @@ if (!isset($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 $nonce = bin2hex(random_bytes(16));
-header("Content-Security-Policy: script-src 'nonce-{$nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; connect-src 'self';");
+
+// CSP: allow only scripts with this nonce + CDNs (no inline onclick)
+header("Content-Security-Policy: script-src 'self' 'nonce-{$nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; connect-src 'self';");
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -427,10 +429,11 @@ body {
                 <p class="mb-0 mt-2" style="opacity: 0.9;">Manage and track all your salon appointments</p>
             </div>
             <div class="mt-3 mt-md-0">
-                <button class="btn btn-light me-2" onclick="window.location.href='dashboard.php'">
+                <!-- NO inline JS here -->
+                <button class="btn btn-light me-2" id="backBtn">
                     <i class="fas fa-arrow-left me-1"></i>Back
                 </button>
-                <button class="btn btn-light" onclick="fetchAppointments(true)">
+                <button class="btn btn-light" id="refreshBtn">
                     <i class="fas fa-sync-alt me-1"></i>Refresh
                 </button>
             </div>
@@ -508,6 +511,25 @@ body {
 <script nonce="<?= $nonce ?>">
 const csrfToken = <?= json_encode($_SESSION['csrf_token']) ?>;
 
+// 🔹 Wire up Back and Refresh buttons here
+document.addEventListener('DOMContentLoaded', () => {
+    const backBtn = document.getElementById('backBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            // 🔴 CHANGE THIS PATH IF NEEDED
+            window.location.href = 'dashboard.php';
+        });
+    }
+
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            fetchAppointments(true);
+        });
+    }
+});
+
 // Utility function to escape HTML
 function escapeHtml(text) {
     const div = document.createElement('div');
@@ -573,6 +595,7 @@ async function fetchAppointments(showMessage = false) {
     try {
         if (showMessage) toggleLoading(true);
         
+        // 🔴 Ensure path is correct: this assumes fetch_appointments.php is in same folder
         const res = await fetch('fetch_appointments.php', {
             headers: {
                 'X-Requested-With': 'XMLHttpRequest'
