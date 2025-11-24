@@ -16,13 +16,16 @@ if (
     $comment = trim($_POST['comment']);
     $errors = [];
 
+    // Enhanced validation
     if ($rating < 1 || $rating > 5) $errors[] = "Please select a valid rating.";
     if ($comment === '') $errors[] = "Review cannot be empty.";
+    if (strlen($comment) < 10) $errors[] = "Review must be at least 10 characters.";
+    if (strlen($comment) > 1000) $errors[] = "Review must not exceed 1000 characters.";
 
-    // Optional: Prevent duplicate reviews per user per salon
-    // $checkStmt = $pdo->prepare("SELECT id FROM reviews WHERE salon_id=? AND user_id=?");
-    // $checkStmt->execute([$salon_id, $user_id]);
-    // if ($checkStmt->fetch()) $errors[] = "You have already reviewed this salon.";
+    // Prevent duplicate reviews per user per salon
+    $checkStmt = $pdo->prepare("SELECT id FROM reviews WHERE salon_id=? AND user_id=?");
+    $checkStmt->execute([$salon_id, $user_id]);
+    if ($checkStmt->fetch()) $errors[] = "You have already reviewed this salon.";
 
     if (empty($errors)) {
         $stmt = $pdo->prepare(
@@ -37,7 +40,7 @@ if (
     exit;
 }
 
-// Fetch all salons with service count
+// Fetch all salons with service count and average rating
 $stmt = $pdo->query("
     SELECT 
         s.id AS salon_id,
@@ -46,14 +49,22 @@ $stmt = $pdo->query("
         s.image,
         s.owner_id,
         u.username AS owner_name,
-        COUNT(sr.id) AS service_count
+        COUNT(DISTINCT sr.id) AS service_count,
+        COALESCE(AVG(r.rating), 0) AS avg_rating,
+        COUNT(DISTINCT r.id) AS review_count
     FROM salons s
     LEFT JOIN users u ON s.owner_id = u.id
     LEFT JOIN services sr ON s.id = sr.salon_id
+    LEFT JOIN reviews r ON s.id = r.salon_id
     GROUP BY s.id
     ORDER BY s.name ASC
 ");
 $salons = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Calculate overall stats
+$total_salons = count($salons);
+$avg_rating_all = $total_salons > 0 ? array_sum(array_column($salons, 'avg_rating')) / $total_salons : 0;
+$total_services = array_sum(array_column($salons, 'service_count'));
 
 // Determine logged-in user
 $logged_user_id = $_SESSION['id'] ?? 0;
@@ -68,18 +79,535 @@ $logged_user_role = $_SESSION['role'] ?? '';
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="../assets/css/salon_view.css">
+  <style>
+    :root {
+      --primary-pink: #ff6b9d;
+      --primary-purple: #8b5cf6;
+      --dark-purple: #6b21a8;
+      --light-pink: #fce7f3;
+      --gradient-primary: linear-gradient(135deg, #ff6b9d 0%, #8b5cf6 100%);
+      --gradient-secondary: linear-gradient(135deg, #fce7f3 0%, #ede9fe 100%);
+      --shadow-sm: 0 2px 8px rgba(139, 92, 246, 0.1);
+      --shadow-md: 0 4px 16px rgba(139, 92, 246, 0.15);
+      --shadow-lg: 0 8px 32px rgba(139, 92, 246, 0.2);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(to bottom, #fef3f8, #ffffff);
+      color: #333;
+      min-height: 100vh;
+    }
+
+    /* Page Header */
+    .page-header {
+      background: var(--gradient-primary);
+      color: white;
+      padding: 4rem 0 3rem;
+      margin-bottom: 3rem;
+      position: relative;
+      overflow: hidden;
+      margin-top: 50px;
+    }
+
+    .page-header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="rgba(255,255,255,0.1)" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,138.7C960,139,1056,117,1152,106.7C1248,96,1344,96,1392,96L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') bottom center no-repeat;
+      background-size: cover;
+      opacity: 0.3;
+    }
+
+    .page-header-content {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+    }
+
+    .page-title {
+      font-size: 3rem;
+      font-weight: 800;
+      margin-bottom: 1rem;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+      animation: fadeInDown 0.8s ease;
+    }
+
+    .page-subtitle {
+      font-size: 1.25rem;
+      font-weight: 300;
+      opacity: 0.95;
+      animation: fadeInUp 0.8s ease 0.2s both;
+    }
+
+    /* Stats Bar */
+    .stats-bar {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      background: white;
+      border-radius: 20px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: var(--shadow-md);
+      animation: fadeInUp 0.8s ease 0.4s both;
+    }
+
+    .stat-item {
+      text-align: center;
+      flex: 1;
+      padding: 0 1rem;
+      border-right: 2px solid var(--light-pink);
+    }
+
+    .stat-item:last-child {
+      border-right: none;
+    }
+
+    .stat-number {
+      display: block;
+      font-size: 2.2rem;     
+      font-weight: 700;
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .stat-label {
+      display: block;
+      font-size: 2.9rem;
+      color: #666;
+      margin-top: 0.5rem;
+    }
+
+    /* Filter Bar */
+    .filter-bar {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 15px;
+      margin-bottom: 2rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .search-box {
+      position: relative;
+    }
+
+    .search-box i {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--primary-purple);
+      font-size: 1.1rem;
+    }
+
+    .search-box input {
+      padding-left: 3rem;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      transition: all 0.3s ease;
+    }
+
+    .search-box input:focus {
+      border-color: var(--primary-purple);
+      box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+      outline: none;
+    }
+
+    .form-select {
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 0.75rem 1rem;
+      transition: all 0.3s ease;
+    }
+
+    .form-select:focus {
+      border-color: var(--primary-pink);
+      box-shadow: 0 0 0 4px rgba(255, 107, 157, 0.1);
+      outline: none;
+    }
+
+    /* Salon Card */
+    .salon-card {
+      background: white;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .salon-card:hover {
+      transform: translateY(-8px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .salon-img-wrapper {
+      position: relative;
+      overflow: hidden;
+      padding-top: 66.67%;
+      background: var(--gradient-secondary);
+    }
+
+    .salon-img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.6s ease;
+    }
+
+    .salon-card:hover .salon-img {
+      transform: scale(1.1);
+    }
+
+    .salon-badge {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: var(--gradient-primary);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 50px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      box-shadow: var(--shadow-md);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.05);
+      }
+    }
+
+    .salon-card-body {
+      padding: 1.5rem;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .salon-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--dark-purple);
+      margin-bottom: 1rem;
+    }
+
+    .salon-info {
+      margin-bottom: 1.5rem;
+      flex-grow: 1;
+    }
+
+    .info-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      color: #666;
+      font-size: 0.9rem;
+    }
+
+    .info-row i {
+      width: 20px;
+      color: var(--primary-pink);
+      margin-right: 0.75rem;
+    }
+
+    .rating-display {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .stars {
+      color: #fbbf24;
+      font-size: 1rem;
+    }
+
+    .rating-text {
+      color: #666;
+      font-size: 0.85rem;
+    }
+
+    /* Buttons */
+    .salon-actions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border-radius: 12px;
+      padding: 0.75rem 1.25rem;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      border: none;
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      text-decoration: none;
+      flex: 1;
+      min-width: fit-content;
+    }
+
+    .btn-view {
+      background: var(--gradient-secondary);
+      color: var(--dark-purple);
+      border: 2px solid var(--primary-purple);
+    }
+
+    .btn-view:hover {
+      background: var(--gradient-primary);
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .btn-primary {
+      background: var(--gradient-primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      opacity: 0.9;
+    }
+
+    .btn-review {
+      background: white;
+      color: var(--primary-pink);
+      border: 2px solid var(--primary-pink);
+    }
+
+    .btn-review:hover {
+      background: var(--primary-pink);
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    /* Modal */
+    .modal-content {
+      border-radius: 20px;
+      border: none;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      background: var(--gradient-primary);
+      color: white;
+      border: none;
+      padding: 1.5rem;
+    }
+
+    .modal-title {
+      font-weight: 700;
+      font-size: 1.5rem;
+    }
+
+    .modal-body {
+      padding: 2rem;
+    }
+
+    .form-label {
+      font-weight: 600;
+      color: var(--dark-purple);
+      margin-bottom: 0.5rem;
+    }
+
+    .form-control, .form-select {
+      border-radius: 12px;
+      border: 2px solid #e5e7eb;
+      padding: 0.75rem 1rem;
+    }
+
+    .form-control:focus, .form-select:focus {
+      border-color: var(--primary-purple);
+      box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+    }
+
+    .modal-footer {
+      border: none;
+      padding: 1.5rem 2rem;
+      background: var(--gradient-secondary);
+    }
+
+    .btn-modal-secondary {
+      background: white;
+      color: #666;
+      border: 2px solid #e5e7eb;
+    }
+
+    .btn-modal-primary {
+      background: var(--gradient-primary);
+      color: white;
+    }
+
+    /* Alerts */
+    .alert {
+      border-radius: 12px;
+      border: none;
+      padding: 1rem 1.5rem;
+      margin-bottom: 1.5rem;
+      animation: slideInDown 0.5s ease;
+    }
+
+    .alert-success {
+      background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+      color: #065f46;
+    }
+
+    .alert-danger {
+      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+      color: #991b1b;
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      animation: fadeIn 0.8s ease;
+    }
+
+    .empty-state i {
+      font-size: 5rem;
+      color: var(--primary-purple);
+      opacity: 0.3;
+      margin-bottom: 1.5rem;
+    }
+
+    .empty-state h4 {
+      color: var(--dark-purple);
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .empty-state p {
+      color: #666;
+    }
+
+    /* Animations */
+    @keyframes fadeInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideInDown {
+      from {
+        transform: translateY(-100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .page-title {
+        font-size: 2rem;
+      }
+
+      .page-subtitle {
+        font-size: 1rem;
+      }
+
+      .stats-bar {
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      .stat-item {
+        border-right: none;
+        border-bottom: 2px solid var(--light-pink);
+        padding-bottom: 1rem;
+      }
+
+      .stat-item:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+
+      .salon-actions {
+        flex-direction: column;
+      }
+
+      .btn {
+        width: 100%;
+      }
+    }
+
+    /* Loading Animation */
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
   <?php include __DIR__ . '/../header.php'; ?>
-
-
 </head>
 <body>
-  
-
   <div class="page-header">
     <div class="container">
       <div class="page-header-content">
-        <h1 class="page-title">Discover Amazing Salons</h1>
+        <h1 class="page-title">✨ Discover Amazing Salons</h1>
         <p class="page-subtitle">Browse through our curated collection of premium beauty destinations</p>
       </div>
     </div>
@@ -104,16 +632,16 @@ $logged_user_role = $_SESSION['role'] ?? '';
 
     <div class="stats-bar">
       <div class="stat-item">
-        <span class="stat-number"><?= count($salons) ?></span>
+        <span class="stat-number"><?= $total_salons ?></span>
         <span class="stat-label">Total Salons</span>
       </div>
       <div class="stat-item">
-        <span class="stat-number">4.8</span>
+        <span class="stat-number"><?= number_format($avg_rating_all, 1) ?></span>
         <span class="stat-label">Average Rating</span>
       </div>
       <div class="stat-item">
-        <span class="stat-number">10k+</span>
-        <span class="stat-label">Happy Clients</span>
+        <span class="stat-number"><?= $total_services ?>+</span>
+        <span class="stat-label">Total Services</span>
       </div>
     </div>
 
@@ -128,6 +656,7 @@ $logged_user_role = $_SESSION['role'] ?? '';
         <div class="col-md-4">
           <select id="sortSelect" class="form-select">
             <option value="name">Sort by Name</option>
+            <option value="rating">Sort by Rating</option>
             <option value="services">Sort by Services</option>
             <option value="location">Sort by Location</option>
           </select>
@@ -146,12 +675,17 @@ $logged_user_role = $_SESSION['role'] ?? '';
         <?php foreach ($salons as $salon):
           $can_interact = in_array($logged_user_role, ['user', 'customer']) && $logged_user_id != $salon['owner_id'];
           $image_path = '../../' . ($salon['image'] ?: 'assets/img/default_salon.jpg');
+          $avg_rating = number_format($salon['avg_rating'], 1);
+          $stars_full = floor($salon['avg_rating']);
+          $stars_half = ($salon['avg_rating'] - $stars_full) >= 0.5 ? 1 : 0;
+          $stars_empty = 5 - $stars_full - $stars_half;
         ?>
           <div class="col-lg-4 col-md-6 salon-item"
                data-name="<?= strtolower(htmlspecialchars($salon['name'])) ?>"
                data-location="<?= strtolower(htmlspecialchars($salon['address'])) ?>"
                data-owner="<?= strtolower(htmlspecialchars($salon['owner_name'])) ?>"
-               data-services="<?= $salon['service_count'] ?>">
+               data-services="<?= $salon['service_count'] ?>"
+               data-rating="<?= $salon['avg_rating'] ?>">
             <div class="salon-card">
               <div class="salon-img-wrapper">
                 <img src="<?= htmlspecialchars($image_path) ?>" class="salon-img" alt="<?= htmlspecialchars($salon['name']) ?>">
@@ -173,15 +707,23 @@ $logged_user_role = $_SESSION['role'] ?? '';
                   </div>
                   <div class="info-row">
                     <i class="fas fa-star"></i>
-                    <span>Rating: <strong>4.8/5</strong></span>
+                    <div class="rating-display">
+                      <span class="stars">
+                        <?php for($i = 0; $i < $stars_full; $i++) echo '★'; ?>
+                        <?php if($stars_half) echo '⯨'; ?>
+                        <?php for($i = 0; $i < $stars_empty; $i++) echo '☆'; ?>
+                      </span>
+                      <span class="rating-text"><?= $avg_rating ?> (<?= $salon['review_count'] ?> reviews)</span>
+                    </div>
                   </div>
                 </div>
                 <div class="salon-actions">
                   <a href="salon_details.php?id=<?= $salon['salon_id'] ?>" class="btn btn-view">
                     <i class="fas fa-eye"></i> View Details
                   </a>
-                  <a href="book_appointment.php?salon_id=<?= $salon['salon_id']; ?>" class="btn btn-primary">book appoinment</a>
-
+                  <a href="book_appointment.php?salon_id=<?= $salon['salon_id']; ?>" class="btn btn-primary">
+                    <i class="fas fa-calendar-check"></i> Book Now
+                  </a>
                   <button class="btn btn-review"
                           data-bs-toggle="modal"
                           data-bs-target="#reviewModal"
@@ -201,21 +743,21 @@ $logged_user_role = $_SESSION['role'] ?? '';
   <!-- Review Modal -->
   <div class="modal fade" id="reviewModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-      <form method="post" action="salon_view.php" class="modal-content">
+      <form method="post" action="salon_view.php" class="modal-content" id="reviewForm">
         <div class="modal-header">
           <h5 class="modal-title">
             <i class="fas fa-star me-2"></i>Write a Review
           </h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
           <input type="hidden" name="salon_id" id="reviewSalonId">
           <div class="mb-3">
-            <label class="form-label">Salon</label>
+            <label class="form-label"><i class="fas fa-store me-2"></i>Salon</label>
             <input type="text" id="reviewSalonName" class="form-control" readonly>
           </div>
           <div class="mb-3">
-            <label class="form-label">Rating</label>
+            <label class="form-label"><i class="fas fa-star me-2"></i>Rating</label>
             <select name="rating" class="form-select" required>
               <option value="">Select Rating</option>
               <option value="5">★★★★★ Excellent</option>
@@ -226,12 +768,15 @@ $logged_user_role = $_SESSION['role'] ?? '';
             </select>
           </div>
           <div class="mb-3">
-            <label class="form-label">Your Review</label>
-            <textarea name="comment" class="form-control" rows="4" placeholder="Share your experience..." required></textarea>
+            <label class="form-label"><i class="fas fa-comment me-2"></i>Your Review</label>
+            <textarea name="comment" class="form-control" rows="4" placeholder="Share your experience... (minimum 10 characters)" required minlength="10" maxlength="1000"></textarea>
+            <small class="text-muted">Min 10 characters, Max 1000 characters</small>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-modal-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-modal-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times me-2"></i>Cancel
+          </button>
           <button type="submit" class="btn btn-modal-primary">
             <i class="fas fa-paper-plane me-2"></i>Submit Review
           </button>
@@ -239,34 +784,61 @@ $logged_user_role = $_SESSION['role'] ?? '';
       </form>
     </div>
   </div>
-    <?php include __DIR__ . '/../footer.php'; ?>
 
+  <?php include __DIR__ . '/../footer.php'; ?>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // Search functionality
+    // Search functionality with debouncing
     const searchInput = document.getElementById('searchInput');
     const salonItems = document.querySelectorAll('.salon-item');
+    let searchTimeout;
+
     searchInput.addEventListener('input', function() {
+      clearTimeout(searchTimeout);
       const searchTerm = this.value.toLowerCase();
-      salonItems.forEach(item => {
-        const name = item.dataset.name;
-        const location = item.dataset.location;
-        const owner = item.dataset.owner;
-        if (name.includes(searchTerm) || location.includes(searchTerm) || owner.includes(searchTerm)) {
-          item.style.display = 'block';
-        } else {
-          item.style.display = 'none';
+      
+      searchTimeout = setTimeout(() => {
+        let visibleCount = 0;
+        salonItems.forEach(item => {
+          const name = item.dataset.name;
+          const location = item.dataset.location;
+          const owner = item.dataset.owner;
+          if (name.includes(searchTerm) || location.includes(searchTerm) || owner.includes(searchTerm)) {
+            item.style.display = 'block';
+            visibleCount++;
+          } else {
+            item.style.display = 'none';
+          }
+        });
+
+        // Show no results message
+        const existingMsg = document.querySelector('.no-results-msg');
+        if (existingMsg) existingMsg.remove();
+        
+        if (visibleCount === 0) {
+          const noResults = document.createElement('div');
+          noResults.className = 'col-12 no-results-msg';
+          noResults.innerHTML = `
+            <div class="empty-state">
+              <i class="fas fa-search"></i>
+              <h4>No Salons Found</h4>
+              <p>Try adjusting your search terms</p>
+            </div>
+          `;
+          document.getElementById('salonsGrid').appendChild(noResults);
         }
-      });
+      }, 300);
     });
 
     // Sort functionality
     const sortSelect = document.getElementById('sortSelect');
     const salonsGrid = document.getElementById('salonsGrid');
+    
     sortSelect.addEventListener('change', function() {
       const sortBy = this.value;
       const items = Array.from(salonItems);
+      
       items.sort((a, b) => {
         if (sortBy === 'name') {
           return a.dataset.name.localeCompare(b.dataset.name);
@@ -274,8 +846,11 @@ $logged_user_role = $_SESSION['role'] ?? '';
           return parseInt(b.dataset.services) - parseInt(a.dataset.services);
         } else if (sortBy === 'location') {
           return a.dataset.location.localeCompare(b.dataset.location);
+        } else if (sortBy === 'rating') {
+          return parseFloat(b.dataset.rating) - parseFloat(a.dataset.rating);
         }
       });
+      
       items.forEach(item => salonsGrid.appendChild(item));
     });
 
@@ -287,6 +862,62 @@ $logged_user_role = $_SESSION['role'] ?? '';
       const salonName = button.getAttribute('data-name');
       document.getElementById('reviewSalonId').value = salonId;
       document.getElementById('reviewSalonName').value = salonName;
+    });
+
+    // Form validation
+    const reviewForm = document.getElementById('reviewForm');
+    reviewForm.addEventListener('submit', function(e) {
+      const comment = this.querySelector('textarea[name="comment"]').value;
+      const rating = this.querySelector('select[name="rating"]').value;
+      
+      if (!rating) {
+        e.preventDefault();
+        alert('Please select a rating');
+        return;
+      }
+      
+      if (comment.length < 10) {
+        e.preventDefault();
+        alert('Review must be at least 10 characters long');
+        return;
+      }
+      
+      if (comment.length > 1000) {
+        e.preventDefault();
+        alert('Review must not exceed 1000 characters');
+        return;
+      }
+    });
+
+    // Auto-dismiss alerts after 5 seconds
+    const alerts = document.querySelectorAll('.alert');
+    alerts.forEach(alert => {
+      setTimeout(() => {
+        const bsAlert = new bootstrap.Alert(alert);
+        bsAlert.close();
+      }, 5000);
+    });
+
+    // Animate cards on scroll
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry, index) => {
+        if (entry.isIntersecting) {
+          setTimeout(() => {
+            entry.target.style.animation = 'fadeInUp 0.6s ease forwards';
+          }, index * 100);
+          observer.unobserve(entry.target);
+        }
+      });
+    }, observerOptions);
+
+    salonItems.forEach(item => {
+      item.style.opacity = '0';
+      observer.observe(item);
     });
   </script>
 </body>

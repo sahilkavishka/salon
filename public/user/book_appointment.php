@@ -14,7 +14,7 @@ $salon_id = intval($_GET['salon_id']);
 $user_id = $_SESSION['id'];
 
 // Fetch salon details
-$stmt = $pdo->prepare("SELECT id, name, opening_time, closing_time, slot_duration FROM salons WHERE id=?");
+$stmt = $pdo->prepare("SELECT id, name, address, opening_time, closing_time, slot_duration FROM salons WHERE id=?");
 $stmt->execute([$salon_id]);
 $salon = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -25,7 +25,7 @@ if (!$salon) {
 }
 
 // Fetch services
-$serviceStmt = $pdo->prepare("SELECT id, name, price, duration FROM services WHERE salon_id=? ORDER BY name ASC");
+$serviceStmt = $pdo->prepare("SELECT id, name, price, duration, description FROM services WHERE salon_id=? ORDER BY price ASC");
 $serviceStmt->execute([$salon_id]);
 $services = $serviceStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -36,6 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $service_id = intval($_POST['service_id']);
     $appointment_date = $_POST['appointment_date'] ?? '';
     $appointment_time = $_POST['appointment_time'] ?? '';
+    $notes = trim($_POST['notes'] ?? '');
 
     if ($service_id <= 0) $errors[] = "Please select a service.";
     if ($appointment_date == "") $errors[] = "Please select a date.";
@@ -60,8 +61,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         $stmt = $pdo->prepare("
-            INSERT INTO appointments (salon_id, user_id, service_id, appointment_date, appointment_time, status, created_at)
-            VALUES (?, ?, ?, ?, ?, 'pending', NOW())
+            INSERT INTO appointments (salon_id, user_id, service_id, appointment_date, appointment_time, notes, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW())
         ");
 
         $stmt->execute([
@@ -69,10 +70,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user_id,
             $service_id,
             $appointment_date,
-            $appointment_time
+            $appointment_time,
+            $notes
         ]);
 
-        $_SESSION['success_message'] = "Appointment booked successfully!";
+        $_SESSION['success_message'] = "Appointment booked successfully! We'll send you a confirmation soon.";
         header("Location: my_appointments.php");
         exit;
     }
@@ -85,247 +87,596 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Book Appointment - <?= htmlspecialchars($salon['name']) ?></title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
+:root {
+    --primary-pink: #ff6b9d;
+    --primary-purple: #8b5cf6;
+    --dark-purple: #6b21a8;
+    --light-pink: #fce7f3;
+    --gradient-primary:  linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);
+    --gradient-secondary: linear-gradient(135deg, #fce7f3 0%, #ede9fe 100%);
+    --shadow-sm: 0 2px 8px rgba(139, 92, 246, 0.1);
+    --shadow-md: 0 4px 16px rgba(139, 92, 246, 0.15);
+    --shadow-lg: 0 8px 32px rgba(139, 92, 246, 0.2);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
 body {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(to bottom, #eba0c27c, #f8f0fc9d);
     min-height: 100vh;
     padding: 20px 0;
 }
 
+.page-header {
+    background: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);
+    color: white;
+    padding: 4rem 0;
+    margin-bottom: 2rem;
+    border-radius: 0 0 30px 30px;
+    box-shadow: var(--shadow-lg);
+    margin-top: -50px;
+}
+
+.page-header h2 {
+    font-weight: 800;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+    
+}
+
+.page-header p {
+    opacity: 0.95;
+    font-size: 1.1rem;
+}
+
+.booking-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
 .booking-card {
-    border-radius: 15px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-}
-
-.card-header {
-    border-radius: 15px 15px 0 0 !important;
-    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-}
-
-.salon-info {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 10px;
-    margin-bottom: 20px;
-    border-left: 4px solid #667eea;
-}
-
-.salon-info i {
-    color: #667eea;
-    margin-right: 8px;
-}
-
-.info-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 8px;
-}
-
-.info-row:last-child {
-    margin-bottom: 0;
-}
-
-.service-card {
-    border: 2px solid #e9ecef;
-    border-radius: 10px;
-    padding: 15px;
-    margin-bottom: 10px;
-    cursor: pointer;
-    transition: all 0.3s;
     background: white;
+    border-radius: 25px;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    margin-bottom: 2rem;
 }
 
-.service-card:hover {
-    border-color: #667eea;
-    background: #f8f9ff;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+.card-header-custom {
+    background: var(--gradient-primary);
+    color: white;
+    padding: 1.5rem 2rem;
+    border: none;
 }
 
-.service-card.selected {
-    border-color: #667eea;
-    background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+.card-header-custom h5 {
+    font-weight: 700;
+    margin: 0;
+    font-size: 1.3rem;
 }
 
-.service-card input[type="radio"] {
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
-    accent-color: #667eea;
+.card-body-custom {
+    padding: 2rem;
 }
 
-.date-selector {
-    position: relative;
+/* Salon Info Card */
+.salon-info-card {
+    background: var(--gradient-secondary);
+    border-radius: 20px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    border-left: 5px solid var(--primary-purple);
 }
 
-.date-selector input {
-    padding-right: 45px;
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
 }
 
-.calendar-icon {
-    position: absolute;
-    right: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #667eea;
-    pointer-events: none;
+.info-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.info-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-purple);
     font-size: 1.2rem;
 }
 
-.slot-box {
-    padding: 12px 20px;
-    border-radius: 10px;
-    border: 2px solid #667eea;
-    cursor: pointer;
-    margin: 8px;
-    display: inline-block;
-    transition: all 0.3s;
-    font-weight: 500;
-    background: white;
-    min-width: 120px;
+.info-text {
+    flex: 1;
+}
+
+.info-label {
+    font-size: 0.85rem;
+    color: #666;
+    display: block;
+}
+
+.info-value {
+    font-weight: 600;
+    color: var(--dark-purple);
+    font-size: 1rem;
+}
+
+/* Step Progress */
+.step-progress {
+    display: flex;
+    justify-content: space-between;
+    margin: 2rem 0 3rem;
+    position: relative;
+    padding: 0 1rem;
+}
+
+.step-progress::before {
+    content: '';
+    position: absolute;
+    top: 30px;
+    left: 15%;
+    right: 15%;
+    height: 3px;
+    background: #e5e7eb;
+    z-index: 0;
+}
+
+.progress-line {
+    position: absolute;
+    top: 30px;
+    left: 15%;
+    height: 3px;
+    background: var(--gradient-primary);
+    z-index: 1;
+    transition: width 0.5s ease;
+    width: 0%;
+}
+
+.step-item {
+    flex: 1;
     text-align: center;
+    position: relative;
+    z-index: 2;
+}
+
+.step-circle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 0.75rem;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #9ca3af;
+    transition: all 0.3s ease;
     position: relative;
 }
 
-.slot-box i {
+.step-item.active .step-circle {
+    border-color: var(--primary-purple);
+    background: var(--gradient-primary);
+    color: white;
+    box-shadow: 0 0 0 8px rgba(139, 92, 246, 0.1);
+    transform: scale(1.1);
+}
+
+.step-item.completed .step-circle {
+    border-color: #10b981;
+    background: #10b981;
+    color: white;
+}
+
+.step-circle i {
+    font-size: 1.5rem;
+}
+
+.step-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #9ca3af;
+    transition: color 0.3s ease;
+}
+
+.step-item.active .step-label {
+    color: var(--primary-purple);
+}
+
+.step-item.completed .step-label {
+    color: #10b981;
+}
+
+/* Service Selection */
+.services-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.service-card {
+    border: 3px solid #e5e7eb;
+    border-radius: 20px;
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: white;
+    position: relative;
+    overflow: hidden;
+}
+
+.service-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    background: var(--gradient-primary);
+    transform: scaleX(0);
+    transition: transform 0.3s ease;
+}
+
+.service-card:hover {
+    border-color: var(--primary-purple);
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-md);
+}
+
+.service-card:hover::before {
+    transform: scaleX(1);
+}
+
+.service-card.selected {
+    border-color: var(--primary-purple);
+    background: var(--gradient-secondary);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-5px);
+}
+
+.service-card.selected::before {
+    transform: scaleX(1);
+}
+
+.service-radio {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 25px;
+    height: 25px;
+    accent-color: var(--primary-purple);
+    cursor: pointer;
+}
+
+.service-name {
+    font-weight: 700;
+    color: var(--dark-purple);
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+    padding-right: 2rem;
+}
+
+.service-description {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 1rem;
+    line-height: 1.5;
+}
+
+.service-details {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 2px dashed #e5e7eb;
+}
+
+.service-duration {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #666;
     font-size: 0.9rem;
 }
 
-.slot-box:hover:not(.booked) {
-    background: #667eea;
+.service-price {
+    font-weight: 800;
+    color: var(--primary-pink);
+    font-size: 1.3rem;
+}
+
+/* Date Picker */
+.date-picker-wrapper {
+    position: relative;
+    margin-top: 1rem;
+}
+
+.date-input {
+    width: 100%;
+    padding: 1rem 1rem 1rem 3.5rem;
+    border: 3px solid #e5e7eb;
+    border-radius: 15px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--dark-purple);
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.date-input:focus {
+    outline: none;
+    border-color: var(--primary-purple);
+    box-shadow: 0 0 0 5px rgba(139, 92, 246, 0.1);
+}
+
+.date-icon {
+    position: absolute;
+    left: 1.25rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--primary-purple);
+    font-size: 1.3rem;
+    pointer-events: none;
+}
+
+/* Time Slots */
+.slots-container {
+    margin-top: 1.5rem;
+}
+
+.time-period {
+    margin-bottom: 2rem;
+}
+
+.period-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.period-icon {
+    width: 45px;
+    height: 45px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+}
+
+.morning .period-icon {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    color: #92400e;
+}
+
+.afternoon .period-icon {
+    background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+    color: #9a3412;
+}
+
+.evening .period-icon {
+    background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%);
+    color: #5b21b6;
+}
+
+.period-title {
+    font-weight: 700;
+    color: var(--dark-purple);
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+.period-time {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.slots-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 0.75rem;
+}
+
+.slot-btn {
+    padding: 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    background: white;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    position: relative;
+}
+
+.slot-btn:hover:not(.booked):not(.disabled) {
+    border-color: var(--primary-purple);
+    background: var(--gradient-secondary);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-sm);
+}
+
+.slot-btn.selected {
+    border-color: var(--primary-purple);
+    background: var(--gradient-primary);
     color: white;
-    transform: translateY(-3px);
-    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
-}
-
-.slot-box.selected {
-    background: #667eea;
-    color: #fff;
-    border-color: #5568d3;
-    box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+    box-shadow: var(--shadow-md);
     transform: translateY(-3px);
 }
 
-.slot-box.booked {
-    background: #f8d7da;
-    border-color: #f5c2c7;
-    color: #842029;
+.slot-btn.booked {
+    background: #fee2e2;
+    border-color: #fecaca;
+    color: #991b1b;
     cursor: not-allowed;
     opacity: 0.7;
 }
 
-.slot-box.booked:hover {
-    transform: none;
-    box-shadow: none;
+.slot-btn.disabled {
+    background: #f3f4f6;
+    color: #9ca3af;
+    cursor: not-allowed;
+    opacity: 0.5;
 }
 
-#slotsArea {
-    display: flex;
-    flex-wrap: wrap;
-    min-height: 100px;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 10px;
-    border: 2px dashed #dee2e6;
+.slot-time {
+    font-size: 1rem;
+    font-weight: 700;
 }
 
-#loadingSlots {
-    display: none;
-    text-align: center;
-    padding: 30px;
-}
-
-.spinner-border {
-    color: #667eea;
-}
-
-.step-indicator {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 30px;
-    position: relative;
-}
-
-.step-indicator::before {
-    content: '';
-    position: absolute;
-    top: 17px;
-    left: 12.5%;
-    right: 12.5%;
-    height: 2px;
-    background: #e9ecef;
-    z-index: 0;
-}
-
-.step {
-    flex: 1;
-    text-align: center;
-    position: relative;
-    z-index: 1;
-}
-
-.step-number {
-    width: 35px;
-    height: 35px;
-    border-radius: 50%;
-    background: #e9ecef;
-    color: #6c757d;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    margin-bottom: 8px;
-    transition: all 0.3s;
-    border: 3px solid white;
-}
-
-.step.active .step-number {
-    background: #667eea;
-    color: white;
-    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2);
-}
-
-.step.completed .step-number {
-    background: #28a745;
-    color: white;
-}
-
-.step.completed .step-number i {
-    display: block;
-}
-
-.step-label {
-    font-size: 0.85rem;
-    color: #6c757d;
+.slot-status {
+    font-size: 0.75rem;
     font-weight: 500;
 }
 
-.step.active .step-label {
-    color: #667eea;
-    font-weight: 600;
+.slot-btn.booked .slot-status::before {
+    content: '✕ ';
 }
 
-.booking-summary {
-    background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-    padding: 20px;
-    border-radius: 10px;
-    margin-top: 20px;
-    border: 2px solid #667eea;
+.slot-btn.selected .slot-status::before {
+    content: '✓ ';
+}
+
+/* Loading State */
+.loading-container {
+    text-align: center;
+    padding: 3rem;
     display: none;
+}
+
+.loading-container.show {
+    display: block;
+}
+
+.spinner {
+    width: 60px;
+    height: 60px;
+    border: 5px solid #f3f4f6;
+    border-top-color: var(--primary-purple);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #9ca3af;
+}
+
+.empty-state-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-state-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+}
+
+.empty-state-text {
+    color: #9ca3af;
+}
+
+/* Legend */
+.slots-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    justify-content: center;
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: #f9fafb;
+    border-radius: 12px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.legend-box {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: 2px solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.legend-box.available {
+    background: white;
+    border-color: #e5e7eb;
+}
+
+.legend-box.selected {
+    background: var(--gradient-primary);
+    border-color: var(--primary-purple);
+    color: white;
+}
+
+.legend-box.booked {
+    background: #fee2e2;
+    border-color: #fecaca;
+    color: #991b1b;
+}
+
+/* Booking Summary */
+.booking-summary {
+    background:  linear-gradient(135deg, #ec337170 0%, #9b27b077 100%);;
+    border-radius: 20px;
+    padding: 2rem;
+    margin-top: 2rem;
+    border: 3px solid var(--primary-purple);
+    display: none;
+    animation: slideIn 0.5s ease-out;
 }
 
 .booking-summary.show {
     display: block;
-    animation: slideIn 0.3s ease-out;
 }
 
 @keyframes slideIn {
     from {
         opacity: 0;
-        transform: translateY(-10px);
+        transform: translateY(-20px);
     }
     to {
         opacity: 1;
@@ -333,333 +684,555 @@ body {
     }
 }
 
+.summary-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px dashed var(--primary-purple);
+}
+
+.summary-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    background: var(--gradient-primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.summary-title {
+    font-weight: 800;
+    color: var(--dark-purple);
+    font-size: 1.3rem;
+    margin: 0;
+}
+
+.summary-grid {
+    display: grid;
+    gap: 1rem;
+}
+
 .summary-item {
     display: flex;
     justify-content: space-between;
-    padding: 10px 0;
-    border-bottom: 1px solid #dee2e6;
+    align-items: center;
+    padding: 1rem;
+    background: white;
+    border-radius: 12px;
 }
 
-.summary-item:last-child {
-    border-bottom: none;
-    font-weight: bold;
+.summary-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #666;
+    font-weight: 500;
+}
+
+.summary-label i {
+    color: var(--primary-purple);
+}
+
+.summary-value {
+    font-weight: 700;
+    color: var(--dark-purple);
+    text-align: right;
+}
+
+.summary-total {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    margin-top: 1rem;
+    border: 2px solid var(--primary-purple);
+}
+
+.summary-total .summary-label {
     font-size: 1.1rem;
-    color: #667eea;
-    margin-top: 5px;
+    font-weight: 700;
 }
 
+.summary-total .summary-value {
+    font-size: 1.8rem;
+    color: var(--primary-pink);
+}
+
+/* Notes */
+.notes-textarea {
+    width: 100%;
+    padding: 1rem;
+    border: 3px solid #e5e7eb;
+    border-radius: 15px;
+    resize: vertical;
+    min-height: 100px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    font-family: 'Poppins', sans-serif;
+}
+
+.notes-textarea:focus {
+    outline: none;
+    border-color: var(--primary-purple);
+    box-shadow: 0 0 0 5px rgba(139, 92, 246, 0.1);
+}
+
+/* Buttons */
 .btn-book {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    width: 100%;
+    padding: 1.25rem;
+    background: var(--gradient-primary);
     border: none;
-    padding: 15px;
-    font-size: 1.1rem;
-    font-weight: 600;
-    transition: all 0.3s;
+    border-radius: 15px;
+    color: white;
+    font-size: 1.2rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow-md);
 }
 
 .btn-book:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
 }
 
 .btn-book:disabled {
-    background: #6c757d;
+    background: #9ca3af;
     cursor: not-allowed;
     opacity: 0.6;
-}
-
-.alert {
-    border-radius: 10px;
-    border: none;
-}
-
-.empty-state {
-    text-align: center;
-    padding: 40px 20px;
-    color: #6c757d;
-}
-
-.empty-state i {
-    font-size: 3rem;
-    margin-bottom: 15px;
-    opacity: 0.5;
-}
-
-.slots-legend {
-    display: flex;
-    gap: 20px;
-    justify-content: center;
-    margin-top: 10px;
-    font-size: 0.85rem;
-}
-
-.legend-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.legend-box {
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
-    border: 2px solid;
-}
-
-.legend-box.available {
-    background: white;
-    border-color: #667eea;
-}
-
-.legend-box.booked {
-    background: #f8d7da;
-    border-color: #f5c2c7;
-}
-
-.legend-box.selected {
-    background: #667eea;
-    border-color: #5568d3;
+    transform: none;
 }
 
 .back-link {
-    color: white;
-    text-decoration: none;
-    transition: all 0.3s;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 0.5rem;
+    color: var(--primary-purple);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
 }
 
 .back-link:hover {
-    color: #fff;
-    gap: 12px;
+    gap: 0.75rem;
+    color: var(--dark-purple);
+}
+
+/* Alerts */
+.alert {
+    border-radius: 15px;
+    border: none;
+    padding: 1rem 1.5rem;
+    margin-bottom: 1.5rem;
+    animation: slideDown 0.5s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.alert-danger {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    color: #991b1b;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .services-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .slots-grid {
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    }
+    
+    .step-progress {
+        padding: 0;
+    }
+    
+    .step-circle {
+        width: 50px;
+        height: 50px;
+        font-size: 1rem;
+    }
+    
+    .step-label {
+        font-size: 0.75rem;
+    }
+}
+
+/* Pulse animation for important elements */
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+.pulse {
+    animation: pulse 2s infinite;
 }
 </style>
 </head>
 <body>
 
-<div class="container mt-4" style="max-width:750px;">
-    <div class="card booking-card shadow-lg">
-        <div class="card-header text-white p-4">
-            <h4 class="mb-1"><i class="bi bi-calendar-check"></i> Book Appointment</h4>
-            <small><i class="bi bi-shop"></i> <?= htmlspecialchars($salon['name']) ?></small>
-        </div>
+<div class="page-header">
+    <div class="container text-center">
+        <h2><i class="fas fa-calendar-check"></i> Book Your Appointment</h2>
+        <p><?= htmlspecialchars($salon['name']) ?></p>
+    </div>
+</div>
 
-        <div class="card-body p-4">
-
-            <!-- Salon Information -->
-            <div class="salon-info">
-                <h6 class="fw-bold mb-3"><i class="bi bi-info-circle"></i> Salon Information</h6>
-                <div class="info-row">
-                    <span><i class="bi bi-clock"></i> <strong>Operating Hours:</strong></span>
-                    <span>
+<div class="container booking-container">
+    <!-- Salon Information -->
+    <div class="salon-info-card">
+        <h5 class="mb-3"><i class="fas fa-info-circle me-2"></i>Salon Information</h5>
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-icon">
+                    <i class="fas fa-map-marker-alt"></i>
+                </div>
+                <div class="info-text">
+                    <span class="info-label">Location</span>
+                    <span class="info-value"><?= htmlspecialchars($salon['address']) ?></span>
+                </div>
+            </div>
+            <div class="info-item">
+                <div class="info-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="info-text">
+                    <span class="info-label">Operating Hours</span>
+                    <span class="info-value">
                         <?= date('g:i A', strtotime($salon['opening_time'])) ?> - 
                         <?= date('g:i A', strtotime($salon['closing_time'])) ?>
                     </span>
                 </div>
-                <div class="info-row">
-                    <span><i class="bi bi-hourglass-split"></i> <strong>Time Slot Duration:</strong></span>
-                    <span><?= $salon['slot_duration'] ?> minutes</span>
+            </div>
+            <div class="info-item">
+                <div class="info-icon">
+                    <i class="fas fa-hourglass-split"></i>
                 </div>
-                <div class="info-row">
-                    <span><i class="bi bi-calendar-range"></i> <strong>Booking Period:</strong></span>
-                    <span>Up to 30 days in advance</span>
+                <div class="info-text">
+                    <span class="info-label">Slot Duration</span>
+                    <span class="info-value"><?= $salon['slot_duration'] ?> minutes</span>
                 </div>
             </div>
-
-            <!-- Step Indicator -->
-            <div class="step-indicator">
-                <div class="step active" id="step1">
-                    <div class="step-number">1</div>
-                    <div class="step-label">Service</div>
-                </div>
-                <div class="step" id="step2">
-                    <div class="step-number">2</div>
-                    <div class="step-label">Date</div>
-                </div>
-                <div class="step" id="step3">
-                    <div class="step-number">3</div>
-                    <div class="step-label">Time</div>
-                </div>
-                <div class="step" id="step4">
-                    <div class="step-number">4</div>
-                    <div class="step-label">Confirm</div>
-                </div>
-            </div>
-
-            <?php if ($errors): ?>
-                <div class="alert alert-danger d-flex align-items-start">
-                    <i class="bi bi-exclamation-triangle me-2 mt-1"></i>
-                    <div>
-                        <strong>Please fix the following errors:</strong>
-                        <ul class="mb-0 mt-2">
-                            <?php foreach ($errors as $e): ?>
-                                <li><?= htmlspecialchars($e) ?></li>
-                            <?php endforeach; ?>
-                        </ul>
-                    </div>
-                </div>
-            <?php endif; ?>
-
-            <form method="POST" id="bookingForm">
-
-                <!-- Step 1: Select Service -->
-                <div class="mb-4">
-                    <label class="form-label fw-bold">
-                        <i class="bi bi-scissors"></i> Step 1: Select Service
-                        <span class="text-danger">*</span>
-                    </label>
-                    
-                    <?php if (empty($services)): ?>
-                        <div class="empty-state">
-                            <i class="bi bi-inbox"></i>
-                            <p>No services are currently available at this salon.</p>
-                        </div>
-                    <?php else: ?>
-                        <div id="serviceCards">
-                            <?php foreach ($services as $s): ?>
-                                <div class="service-card" data-service-id="<?= $s['id'] ?>">
-                                    <div class="d-flex align-items-center">
-                                        <input type="radio" 
-                                               name="service_id" 
-                                               value="<?= $s['id'] ?>" 
-                                               id="service_<?= $s['id'] ?>" 
-                                               data-price="<?= $s['price'] ?>"
-                                               data-duration="<?= $s['duration'] ?>"
-                                               data-name="<?= htmlspecialchars($s['name']) ?>"
-                                               required>
-                                        <label class="ms-3 mb-0 flex-grow-1 w-100" for="service_<?= $s['id'] ?>" style="cursor: pointer;">
-                                            <div class="d-flex justify-content-between align-items-center">
-                                                <div>
-                                                    <strong class="d-block"><?= htmlspecialchars($s['name']) ?></strong>
-                                                    <small class="text-muted">
-                                                        <i class="bi bi-clock"></i> <?= $s['duration'] ?> minutes
-                                                    </small>
-                                                </div>
-                                                <div class="text-end">
-                                                    <strong class="text-primary fs-5">Rs <?= number_format($s['price'], 2) ?></strong>
-                                                </div>
-                                            </div>
-                                        </label>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-                </div>
-
-                <!-- Step 2: Select Date -->
-                <div class="mb-4">
-                    <label class="form-label fw-bold">
-                        <i class="bi bi-calendar3"></i> Step 2: Select Appointment Date
-                        <span class="text-danger">*</span>
-                    </label>
-                    <div class="date-selector">
-                        <input type="date" 
-                               name="appointment_date" 
-                               id="datePicker"
-                               class="form-control form-control-lg" 
-                               min="<?= date("Y-m-d") ?>" 
-                               max="<?= date("Y-m-d", strtotime("+30 days")) ?>"
-                               required>
-                        <i class="bi bi-calendar-event calendar-icon"></i>
-                    </div>
-                    <small class="text-muted">
-                        <i class="bi bi-info-circle"></i> Select a date to view available time slots
-                    </small>
-                </div>
-
-                <!-- Step 3: Select Time Slot -->
-                <div class="mb-4">
-                    <label class="form-label fw-bold">
-                        <i class="bi bi-clock-history"></i> Step 3: Choose Available Time Slot
-                        <span class="text-danger">*</span>
-                    </label>
-
-                    <div id="loadingSlots">
-                        <div class="spinner-border" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <p class="mt-2 mb-0">Loading available time slots...</p>
-                    </div>
-
-                    <div id="slotsArea">
-                        <div class="empty-state">
-                            <i class="bi bi-clock"></i>
-                            <p class="mb-0">Please select a date above to view available time slots</p>
-                        </div>
-                    </div>
-
-                    <div class="slots-legend">
-                        <div class="legend-item">
-                            <div class="legend-box available"></div>
-                            <span>Available</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-box booked"></div>
-                            <span>Booked</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-box selected"></div>
-                            <span>Selected</span>
-                        </div>
-                    </div>
-
-                    <input type="hidden" name="appointment_time" id="selectedTime" required>
-                </div>
-
-                <!-- Booking Summary -->
-                <div class="booking-summary" id="bookingSummary">
-                    <h6 class="fw-bold mb-3">
-                        <i class="bi bi-receipt"></i> Step 4: Booking Summary
-                    </h6>
-                    <div class="summary-item">
-                        <span><i class="bi bi-scissors"></i> Service:</span>
-                        <span id="summaryService" class="fw-bold">-</span>
-                    </div>
-                    <div class="summary-item">
-                        <span><i class="bi bi-calendar3"></i> Date:</span>
-                        <span id="summaryDate" class="fw-bold">-</span>
-                    </div>
-                    <div class="summary-item">
-                        <span><i class="bi bi-clock"></i> Time:</span>
-                        <span id="summaryTime" class="fw-bold">-</span>
-                    </div>
-                    <div class="summary-item">
-                        <span><i class="bi bi-hourglass-split"></i> Duration:</span>
-                        <span id="summaryDuration" class="fw-bold">-</span>
-                    </div>
-                    <div class="summary-item">
-                        <span><i class="bi bi-currency-rupee"></i> Total Amount:</span>
-                        <span id="summaryPrice" class="text-primary">-</span>
-                    </div>
-                </div>
-
-                <button type="submit" class="btn btn-primary btn-book w-100 mt-4" id="submitBtn" disabled>
-                    <i class="bi bi-check-circle"></i> Confirm Booking
-                </button>
-
-            </form>
-
         </div>
     </div>
 
-    <div class="text-center mt-3">
+    <!-- Step Progress -->
+    <div class="step-progress">
+        <div class="progress-line" id="progressLine"></div>
+        <div class="step-item active" id="step1">
+            <div class="step-circle">
+                <i class="fas fa-cut"></i>
+            </div>
+            <div class="step-label">Choose Service</div>
+        </div>
+        <div class="step-item" id="step2">
+            <div class="step-circle">
+                <i class="fas fa-calendar-alt"></i>
+            </div>
+            <div class="step-label">Pick Date</div>
+        </div>
+        <div class="step-item" id="step3">
+            <div class="step-circle">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="step-label">Select Time</div>
+        </div>
+        <div class="step-item" id="step4">
+            <div class="step-circle">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="step-label">Confirm</div>
+        </div>
+    </div>
+
+    <?php if ($errors): ?>
+        <div class="alert alert-danger">
+            <div class="d-flex align-items-start">
+                <i class="fas fa-exclamation-triangle me-3 mt-1" style="font-size: 1.5rem;"></i>
+                <div>
+                    <strong>Please fix the following errors:</strong>
+                    <ul class="mb-0 mt-2">
+                        <?php foreach ($errors as $e): ?>
+                            <li><?= htmlspecialchars($e) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <form method="POST" id="bookingForm">
+
+        <!-- Step 1: Select Service -->
+        <div class="booking-card">
+            <div class="card-header-custom">
+                <h5><i class="fas fa-cut me-2"></i>Step 1: Select Your Service</h5>
+            </div>
+            <div class="card-body-custom">
+                <?php if (empty($services)): ?>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <i class="fas fa-inbox"></i>
+                        </div>
+                        <div class="empty-state-title">No Services Available</div>
+                        <div class="empty-state-text">This salon doesn't have any services listed at the moment.</div>
+                    </div>
+                <?php else: ?>
+                    <div class="services-grid">
+                        <?php foreach ($services as $s): ?>
+                            <label for="service_<?= $s['id'] ?>" class="service-card" data-service-id="<?= $s['id'] ?>">
+                                <input type="radio" 
+                                       name="service_id" 
+                                       value="<?= $s['id'] ?>" 
+                                       id="service_<?= $s['id'] ?>"
+                                       class="service-radio"
+                                       data-price="<?= $s['price'] ?>"
+                                       data-duration="<?= $s['duration'] ?>"
+                                       data-name="<?= htmlspecialchars($s['name']) ?>"
+                                       required>
+                                <div class="service-name"><?= htmlspecialchars($s['name']) ?></div>
+                                <?php if (!empty($s['description'])): ?>
+                                    <div class="service-description"><?= htmlspecialchars($s['description']) ?></div>
+                                <?php endif; ?>
+                                <div class="service-details">
+                                    <div class="service-duration">
+                                        <i class="fas fa-clock"></i>
+                                        <span><?= $s['duration'] ?> min</span>
+                                    </div>
+                                    <div class="service-price">Rs <?= number_format($s['price'], 2) ?></div>
+                                </div>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Step 2: Select Date -->
+        <div class="booking-card">
+            <div class="card-header-custom">
+                <h5><i class="fas fa-calendar-alt me-2"></i>Step 2: Choose Your Preferred Date</h5>
+            </div>
+            <div class="card-body-custom">
+                <div class="date-picker-wrapper">
+                    <i class="fas fa-calendar-event date-icon"></i>
+                    <input type="date" 
+                           name="appointment_date" 
+                           id="datePicker"
+                           class="date-input" 
+                           min="<?= date("Y-m-d") ?>" 
+                           max="<?= date("Y-m-d", strtotime("+30 days")) ?>"
+                           required>
+                </div>
+                <small class="text-muted d-block mt-2">
+                    <i class="fas fa-info-circle"></i> You can book appointments up to 30 days in advance
+                </small>
+            </div>
+        </div>
+
+        <!-- Step 3: Select Time Slot -->
+        <div class="booking-card">
+            <div class="card-header-custom">
+                <h5><i class="fas fa-clock me-2"></i>Step 3: Select Your Time Slot</h5>
+            </div>
+            <div class="card-body-custom">
+                <div class="loading-container" id="loadingSlots">
+                    <div class="spinner"></div>
+                    <p class="mb-0 text-muted">Loading available time slots...</p>
+                </div>
+
+                <div class="slots-container" id="slotsContainer" style="display: none;">
+                    <div class="time-period morning">
+                        <div class="period-header">
+                            <div class="period-icon">
+                                <i class="fas fa-sun"></i>
+                            </div>
+                            <div>
+                                <div class="period-title">Morning</div>
+                                <div class="period-time">6:00 AM - 12:00 PM</div>
+                            </div>
+                        </div>
+                        <div class="slots-grid" id="morningSlots"></div>
+                    </div>
+
+                    <div class="time-period afternoon">
+                        <div class="period-header">
+                            <div class="period-icon">
+                                <i class="fas fa-cloud-sun"></i>
+                            </div>
+                            <div>
+                                <div class="period-title">Afternoon</div>
+                                <div class="period-time">12:00 PM - 5:00 PM</div>
+                            </div>
+                        </div>
+                        <div class="slots-grid" id="afternoonSlots"></div>
+                    </div>
+
+                    <div class="time-period evening">
+                        <div class="period-header">
+                            <div class="period-icon">
+                                <i class="fas fa-moon"></i>
+                            </div>
+                            <div>
+                                <div class="period-title">Evening</div>
+                                <div class="period-time">5:00 PM - 11:00 PM</div>
+                            </div>
+                        </div>
+                        <div class="slots-grid" id="eveningSlots"></div>
+                    </div>
+                </div>
+
+                <div class="empty-state" id="emptySlots">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="empty-state-title">Select a Date First</div>
+                    <div class="empty-state-text">Choose a date above to view available time slots</div>
+                </div>
+
+                <div class="slots-legend">
+                    <div class="legend-item">
+                        <div class="legend-box available">
+                            <i class="fas fa-check" style="font-size: 0.75rem; color: #10b981;"></i>
+                        </div>
+                        <span>Available</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-box selected">
+                            <i class="fas fa-check" style="font-size: 0.75rem;"></i>
+                        </div>
+                        <span>Selected</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-box booked">
+                            <i class="fas fa-times" style="font-size: 0.75rem;"></i>
+                        </div>
+                        <span>Booked</span>
+                    </div>
+                </div>
+
+                <input type="hidden" name="appointment_time" id="selectedTime" required>
+            </div>
+        </div>
+
+        <!-- Additional Notes -->
+        <div class="booking-card">
+            <div class="card-header-custom">
+                <h5><i class="fas fa-sticky-note me-2"></i>Additional Notes (Optional)</h5>
+            </div>
+            <div class="card-body-custom">
+                <textarea name="notes" 
+                          id="notes" 
+                          class="notes-textarea" 
+                          placeholder="Any special requests or requirements? (e.g., allergies, preferred stylist, etc.)"
+                          maxlength="500"></textarea>
+                <small class="text-muted">
+                    <i class="fas fa-info-circle"></i> Maximum 500 characters
+                </small>
+            </div>
+        </div>
+
+        <!-- Booking Summary -->
+        <div class="booking-summary" id="bookingSummary">
+            <div class="summary-header">
+                <div class="summary-icon">
+                    <i class="fas fa-receipt"></i>
+                </div>
+                <h5 class="summary-title">Booking Summary</h5>
+            </div>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <div class="summary-label">
+                        <i class="fas fa-cut"></i>
+                        <span>Service</span>
+                    </div>
+                    <div class="summary-value" id="summaryService">-</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Date</span>
+                    </div>
+                    <div class="summary-value" id="summaryDate">-</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">
+                        <i class="fas fa-clock"></i>
+                        <span>Time</span>
+                    </div>
+                    <div class="summary-value" id="summaryTime">-</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">
+                        <i class="fas fa-hourglass-split"></i>
+                        <span>Duration</span>
+                    </div>
+                    <div class="summary-value" id="summaryDuration">-</div>
+                </div>
+            </div>
+            <div class="summary-total">
+                <div class="summary-item">
+                    <div class="summary-label">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <span>Total Amount</span>
+                    </div>
+                    <div class="summary-value" id="summaryPrice">-</div>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-book" id="submitBtn" disabled>
+            <i class="fas fa-check-circle"></i>
+            <span>Confirm Booking</span>
+        </button>
+
+    </form>
+
+    <div class="text-center mt-4 mb-5">
         <a href="salon_view.php" class="back-link">
-            <i class="bi bi-arrow-left"></i> Back to Salons
+            <i class="fas fa-arrow-left"></i>
+            <span>Back to Salons</span>
         </a>
     </div>
 </div>
 
-
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 let selectedService = null;
 let selectedDate = null;
 let selectedTime = null;
 
-// Handle service selection
+// Service Selection
 document.querySelectorAll('.service-card').forEach(card => {
-    card.addEventListener('click', function() {
+    card.addEventListener('click', function(e) {
+        if (e.target.type === 'radio') return;
+        
         const radio = this.querySelector('input[type="radio"]');
         radio.checked = true;
         
@@ -673,130 +1246,179 @@ document.querySelectorAll('.service-card').forEach(card => {
             duration: radio.dataset.duration
         };
         
-        updateSteps();
+        updateProgress();
         updateSummary();
     });
 });
 
-// Handle date selection
+// Date Selection
 document.getElementById('datePicker').addEventListener('change', function() {
     selectedDate = this.value;
     selectedTime = null;
+    document.getElementById('selectedTime').value = '';
     
-    let slotArea = document.getElementById('slotsArea');
-    let loading = document.getElementById('loadingSlots');
-    let hiddenInput = document.getElementById('selectedTime');
-
-    slotArea.innerHTML = "";
-    hiddenInput.value = "";
-
     if (!selectedDate) return;
-
-    loading.style.display = "block";
-
+    
+    document.getElementById('emptySlots').style.display = 'none';
+    document.getElementById('slotsContainer').style.display = 'none';
+    document.getElementById('loadingSlots').classList.add('show');
+    
     fetch(`fetch_slots.php?salon_id=<?= $salon_id ?>&date=${selectedDate}`)
         .then(res => res.json())
         .then(data => {
-            loading.style.display = "none";
-            slotArea.innerHTML = "";
-
-            if (!data || data.length === 0) {
-                slotArea.innerHTML = `
-                    <div class="empty-state">
-                        <i class="bi bi-calendar-x"></i>
-                        <p class="text-danger mb-1">No available time slots for this date</p>
-                        <small class="text-muted">Please select another date or contact the salon</small>
-                    </div>
-                `;
-                return;
-            }
-
-            // Check if data is array of objects or array of strings
-            let slots = data;
-            if (typeof data[0] === 'string') {
-                // Old format: array of time strings
-                slots = data.map(time => ({ time: time, booked: false }));
-            }
-
-            slots.forEach(slot => {
-                let div = document.createElement("div");
-                div.className = "slot-box";
-                
-                if (slot.booked) {
-                    div.classList.add("booked");
-                    div.innerHTML = `
-                        <i class="bi bi-x-circle"></i> ${slot.time}
-                        <br><small>Booked</small>
-                    `;
-                } else {
-                    div.innerHTML = `<i class="bi bi-clock"></i> ${slot.time}`;
-                    div.addEventListener("click", function() {
-                        document.querySelectorAll(".slot-box:not(.booked)").forEach(x => x.classList.remove("selected"));
-                        this.classList.add("selected");
-                        hiddenInput.value = slot.time;
-                        selectedTime = slot.time;
-                        updateSteps();
-                        updateSummary();
-                    });
-                }
-
-                slotArea.appendChild(div);
-            });
-
-            // Show available count
-            const availableCount = slots.filter(s => !s.booked).length;
-            const totalCount = slots.length;
-            
-            if (availableCount > 0) {
-                const countInfo = document.createElement("div");
-                countInfo.className = "w-100 text-center mt-2";
-                countInfo.innerHTML = `<small class="text-muted"><i class="bi bi-info-circle"></i> ${availableCount} of ${totalCount} slots available</small>`;
-                slotArea.appendChild(countInfo);
-            }
+            document.getElementById('loadingSlots').classList.remove('show');
+            displaySlots(data);
+            updateProgress();
+            updateSummary();
         })
         .catch(err => {
-            loading.style.display = "none";
-            slotArea.innerHTML = `
-                <div class="empty-state">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    <p class="text-danger mb-1">Error loading time slots</p>
-                    <small class="text-muted">Please try again or refresh the page</small>
+            document.getElementById('loadingSlots').classList.remove('show');
+            document.getElementById('emptySlots').style.display = 'block';
+            document.getElementById('emptySlots').innerHTML = `
+                <div class="empty-state-icon text-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
                 </div>
+                <div class="empty-state-title">Error Loading Slots</div>
+                <div class="empty-state-text">Please try again or refresh the page</div>
             `;
-            console.error('Error fetching slots:', err);
+            console.error('Error:', err);
         });
-    
-    updateSteps();
-    updateSummary();
 });
 
-function updateSteps() {
-    // Reset all steps
-    document.querySelectorAll('.step').forEach(step => {
-        step.classList.remove('active', 'completed');
+function displaySlots(data) {
+    const morningSlots = document.getElementById('morningSlots');
+    const afternoonSlots = document.getElementById('afternoonSlots');
+    const eveningSlots = document.getElementById('eveningSlots');
+    
+    morningSlots.innerHTML = '';
+    afternoonSlots.innerHTML = '';
+    eveningSlots.innerHTML = '';
+    
+    if (!data || data.length === 0) {
+        document.getElementById('emptySlots').style.display = 'block';
+        document.getElementById('emptySlots').innerHTML = `
+            <div class="empty-state-icon text-warning">
+                <i class="fas fa-calendar-times"></i>
+            </div>
+            <div class="empty-state-title">No Slots Available</div>
+            <div class="empty-state-text">All time slots are booked for this date. Please try another date.</div>
+        `;
+        return;
+    }
+    
+    document.getElementById('slotsContainer').style.display = 'block';
+    
+    let slots = data;
+    if (typeof data[0] === 'string') {
+        slots = data.map(time => ({ time: time, booked: false }));
+    }
+    
+    let morningCount = 0, afternoonCount = 0, eveningCount = 0;
+    
+    slots.forEach(slot => {
+        const hour = parseInt(slot.time.split(':')[0]);
+        const period = slot.time.includes('PM') ? 'PM' : 'AM';
+        const hour24 = period === 'PM' && hour !== 12 ? hour + 12 : (period === 'AM' && hour === 12 ? 0 : hour);
+        
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'slot-btn';
+        
+        if (slot.booked) {
+            btn.classList.add('booked');
+            btn.innerHTML = `
+                <span class="slot-time">${slot.time}</span>
+                <span class="slot-status">Booked</span>
+            `;
+            btn.disabled = true;
+        } else {
+            btn.innerHTML = `
+                <span class="slot-time">${slot.time}</span>
+                <span class="slot-status">Available</span>
+            `;
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.slot-btn:not(.booked)').forEach(b => {
+                    b.classList.remove('selected');
+                    b.querySelector('.slot-status').textContent = 'Available';
+                });
+                this.classList.add('selected');
+                this.querySelector('.slot-status').textContent = 'Selected';
+                document.getElementById('selectedTime').value = slot.time;
+                selectedTime = slot.time;
+                updateProgress();
+                updateSummary();
+            });
+        }
+        
+        if (hour24 < 12) {
+            morningSlots.appendChild(btn);
+            morningCount++;
+        } else if (hour24 < 17) {
+            afternoonSlots.appendChild(btn);
+            afternoonCount++;
+        } else {
+            eveningSlots.appendChild(btn);
+            eveningCount++;
+        }
     });
     
-    // Step 1
+    // Hide empty periods
+    document.querySelector('.morning').style.display = morningCount > 0 ? 'block' : 'none';
+    document.querySelector('.afternoon').style.display = afternoonCount > 0 ? 'block' : 'none';
+    document.querySelector('.evening').style.display = eveningCount > 0 ? 'block' : 'none';
+    
+    // Show total available count
+    const availableCount = slots.filter(s => !s.booked).length;
+    if (availableCount === 0) {
+        document.getElementById('slotsContainer').style.display = 'none';
+        document.getElementById('emptySlots').style.display = 'block';
+    }
+}
+
+function updateProgress() {
+    const steps = ['step1', 'step2', 'step3', 'step4'];
+    let activeStep = 0;
+    
+    // Reset all steps
+    steps.forEach((step, index) => {
+        const el = document.getElementById(step);
+        el.classList.remove('active', 'completed');
+        
+        if (index === 0) {
+            el.classList.add('active');
+        }
+    });
+    
+    // Step 1 - Service
     if (selectedService) {
+        document.getElementById('step1').classList.remove('active');
         document.getElementById('step1').classList.add('completed');
         document.getElementById('step2').classList.add('active');
-    } else {
-        document.getElementById('step1').classList.add('active');
+        activeStep = 1;
     }
     
-    // Step 2
+    // Step 2 - Date
     if (selectedDate) {
+        document.getElementById('step2').classList.remove('active');
         document.getElementById('step2').classList.add('completed');
         document.getElementById('step3').classList.add('active');
+        activeStep = 2;
     }
     
-    // Step 3
+    // Step 3 - Time
     if (selectedTime) {
+        document.getElementById('step3').classList.remove('active');
         document.getElementById('step3').classList.add('completed');
         document.getElementById('step4').classList.add('active');
+        activeStep = 3;
     }
     
-    // Enable submit button only when all steps are complete
+    // Update progress line
+    const progressLine = document.getElementById('progressLine');
+    const progressPercent = (activeStep / 3) * 75; // 75% max (from 15% to 90%)
+    progressLine.style.width = progressPercent + '%';
+    
+    // Enable submit button
     document.getElementById('submitBtn').disabled = !(selectedService && selectedDate && selectedTime);
 }
 
@@ -809,38 +1431,37 @@ function updateSummary() {
         document.getElementById('summaryService').textContent = selectedService.name;
         
         const dateObj = new Date(selectedDate + 'T00:00:00');
-        document.getElementById('summaryDate').textContent = dateObj.toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        document.getElementById('summaryDate').textContent = dateObj.toLocaleDateString('en-US', options);
         
         document.getElementById('summaryTime').textContent = selectedTime;
         document.getElementById('summaryDuration').textContent = selectedService.duration + ' minutes';
-        document.getElementById('summaryPrice').textContent = 'Rs ' + parseFloat(selectedService.price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        document.getElementById('summaryPrice').textContent = 'Rs ' + parseFloat(selectedService.price).toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
     } else {
         summary.classList.remove('show');
     }
 }
 
-// Form validation before submission
+// Form validation
 document.getElementById('bookingForm').addEventListener('submit', function(e) {
     if (!selectedService || !selectedDate || !selectedTime) {
         e.preventDefault();
-        alert('Please complete all booking steps:\n1. Select a service\n2. Choose a date\n3. Pick a time slot');
+        alert('Please complete all steps before booking:\n\n✓ Select a service\n✓ Choose a date\n✓ Pick a time slot');
         return false;
     }
 });
 
-// Initialize: if services exist, trigger click on first service card
-window.addEventListener('DOMContentLoaded', function() {
-    const firstService = document.querySelector('.service-card');
-    if (firstService) {
-        // Auto-select first service for better UX
-        // firstService.click();
-    }
-});
+// Auto-dismiss any alert messages after 5 seconds
+setTimeout(() => {
+    const alerts = document.querySelectorAll('.alert');
+    alerts.forEach(alert => {
+        alert.style.animation = 'slideUp 0.5s ease forwards';
+        setTimeout(() => alert.remove(), 500);
+    });
+}, 5000);
 </script>
 
 </body>
