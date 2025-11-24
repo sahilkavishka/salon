@@ -72,14 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   
 </head>
 <body>
-  <!-- Navbar -->
-  <nav class="navbar navbar-expand-lg">
-    <div class="container">
-      <a class="navbar-brand" href="../../index.php">
-        <i class="fas fa-spa"></i> Salonora
-      </a>
-    </div>
-  </nav>
+  
 
   <!-- Page Header -->
   <div class="page-header">

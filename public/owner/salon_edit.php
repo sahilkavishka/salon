@@ -1,4 +1,4 @@
-<?php
+<?php 
 session_start();
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../auth_check.php';
@@ -27,14 +27,62 @@ if (!$salon) {
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $name = trim($_POST['name'] ?? '');
-    $address = trim($_POST['address'] ?? '');
+    // Basic fields
+    $name          = trim($_POST['name'] ?? '');
+    $address       = trim($_POST['address'] ?? '');
+    $opening_time  = $_POST['opening_time'] ?? '';
+    $closing_time  = $_POST['closing_time'] ?? '';
+    $slot_duration = $_POST['slot_duration'] ?? '';
+
+    // New extra fields (same as salon_add)
+    $phone        = trim($_POST['phone'] ?? '');
+    $email        = trim($_POST['email'] ?? '');
+    $description  = trim($_POST['description'] ?? '');
+    $website      = trim($_POST['website'] ?? '');
+    $facebook     = trim($_POST['facebook'] ?? '');
+    $instagram    = trim($_POST['instagram'] ?? '');
+    $parking_available     = isset($_POST['parking_available']) ? 1 : 0;
+    $wheelchair_accessible = isset($_POST['wheelchair_accessible']) ? 1 : 0;
+    $wifi_available        = isset($_POST['wifi_available']) ? 1 : 0;
+    $air_conditioned       = isset($_POST['air_conditioned']) ? 1 : 0;
+
+    // (Optional) If you want to allow editing location as well:
+    $lat = $_POST['lat'] ?? $salon['lat'];
+    $lng = $_POST['lng'] ?? $salon['lng'];
+
     $imagePath = $salon['image'];
 
+    // Validation
     if ($name === '') $errors[] = "Salon name is required.";
     if ($address === '') $errors[] = "Salon address is required.";
+    if ($opening_time === '') $errors[] = "Opening time is required.";
+    if ($closing_time === '') $errors[] = "Closing time is required.";
+    if ($slot_duration === '' || $slot_duration <= 0) $errors[] = "Slot duration must be positive.";
 
-    // handle image upload
+    // Phone validation
+    if ($phone && !preg_match('/^[\d\s\+\-\(\)]+$/', $phone)) {
+        $errors[] = 'Invalid phone number format.';
+    }
+
+    // Email validation
+    if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'Invalid email address.';
+    }
+
+    // URL validation
+    if ($website && !filter_var($website, FILTER_VALIDATE_URL)) {
+        $errors[] = 'Invalid website URL.';
+    }
+
+    if ($facebook && !filter_var($facebook, FILTER_VALIDATE_URL)) {
+        $errors[] = 'Invalid Facebook URL.';
+    }
+
+    if ($instagram && !filter_var($instagram, FILTER_VALIDATE_URL)) {
+        $errors[] = 'Invalid Instagram URL.';
+    }
+
+    // handle image upload (same logic as before)
     if (!empty($_FILES['image']['name']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
         $allowed = ['jpg','jpeg','png','gif','webp'];
         $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
@@ -64,8 +112,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (empty($errors)) {
-        $stmt = $pdo->prepare("UPDATE salons SET name=?, address=?, image=? WHERE id=? AND owner_id=?");
-        $stmt->execute([$name, $address, $imagePath, $salon_id, $owner_id]);
+        // UPDATE with all new columns
+        $stmt = $pdo->prepare("
+            UPDATE salons 
+            SET 
+                name = ?, 
+                address = ?, 
+                image = ?, 
+                opening_time = ?, 
+                closing_time = ?, 
+                slot_duration = ?,
+                phone = ?,
+                email = ?,
+                description = ?,
+                website = ?,
+                facebook = ?,
+                instagram = ?,
+                parking_available = ?,
+                wheelchair_accessible = ?,
+                wifi_available = ?,
+                air_conditioned = ?,
+                lat = ?,
+                lng = ?
+            WHERE id = ? AND owner_id = ?
+        ");
+        $stmt->execute([
+            $name,
+            $address,
+            $imagePath,
+            $opening_time,
+            $closing_time,
+            $slot_duration,
+            $phone,
+            $email,
+            $description,
+            $website,
+            $facebook,
+            $instagram,
+            $parking_available,
+            $wheelchair_accessible,
+            $wifi_available,
+            $air_conditioned,
+            $lat,
+            $lng,
+            $salon_id,
+            $owner_id
+        ]);
+
         $_SESSION['flash_success'] = 'Salon updated successfully.';
         header('Location: dashboard.php');
         exit;
@@ -87,9 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-        <link rel="stylesheet" href="../assets/css/salon_edit.css">
-   
-  
+  <link rel="stylesheet" href="../assets/css/salon_edit.css">
 </head>
 <body>
  
@@ -138,6 +229,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <i class="fas fa-map-marker-alt"></i>
             <span id="previewAddress"><?= htmlspecialchars($salon['address']) ?></span>
           </p>
+          <?php if (!empty($salon['phone'])): ?>
+            <p id="previewPhone">
+              <i class="fas fa-phone"></i>
+              <span><?= htmlspecialchars($salon['phone']) ?></span>
+            </p>
+          <?php else: ?>
+            <p id="previewPhone" style="display:none;">
+              <i class="fas fa-phone"></i>
+              <span></span>
+            </p>
+          <?php endif; ?>
+
+          <?php if (!empty($salon['email'])): ?>
+            <p id="previewEmail">
+              <i class="fas fa-envelope"></i>
+              <span><?= htmlspecialchars($salon['email']) ?></span>
+            </p>
+          <?php else: ?>
+            <p id="previewEmail" style="display:none;">
+              <i class="fas fa-envelope"></i>
+              <span></span>
+            </p>
+          <?php endif; ?>
+
+          <p id="previewDesc" class="mt-2" style="<?= !empty($salon['description']) ? '' : 'display:none;' ?>">
+            <?= htmlspecialchars($salon['description'] ?? '') ?>
+          </p>
         </div>
       </div>
 
@@ -158,9 +276,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             required
             maxlength="100"
             placeholder="e.g., Elegant Beauty Salon">
-          <div class="form-hint">
-            <i class="fas fa-info-circle"></i>
-            Choose a memorable name for your salon
+        </div>
+
+        <!-- Phone + Email -->
+        <div class="row">
+          <div class="col-md-6 form-group">
+            <label class="form-label">
+              <i class="fas fa-phone"></i> Phone
+            </label>
+            <input 
+              type="tel" 
+              name="phone" 
+              id="salonPhone"
+              class="form-control"
+              value="<?= htmlspecialchars($salon['phone'] ?? '') ?>"
+              placeholder="e.g., +94 77 123 4567">
+          </div>
+          <div class="col-md-6 form-group">
+            <label class="form-label">
+              <i class="fas fa-envelope"></i> Email
+            </label>
+            <input 
+              type="email" 
+              name="email" 
+              id="salonEmail"
+              class="form-control"
+              value="<?= htmlspecialchars($salon['email'] ?? '') ?>"
+              placeholder="e.g., info@yoursalon.com">
           </div>
         </div>
 
@@ -180,9 +322,90 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             required
             maxlength="200"
             placeholder="e.g., 123 Main Street, Colombo 07">
-          <div class="form-hint">
-            <i class="fas fa-info-circle"></i>
-            Provide your complete salon address
+        </div>
+
+        <!-- Website / Social -->
+        <div class="row">
+          <div class="col-md-4 form-group">
+            <label class="form-label"><i class="fas fa-globe"></i> Website</label>
+            <input 
+              type="url" 
+              name="website" 
+              class="form-control"
+              value="<?= htmlspecialchars($salon['website'] ?? '') ?>"
+              placeholder="https://www.yoursalon.com">
+          </div>
+          <div class="col-md-4 form-group">
+            <label class="form-label"><i class="fab fa-facebook"></i> Facebook</label>
+            <input 
+              type="url" 
+              name="facebook" 
+              class="form-control"
+              value="<?= htmlspecialchars($salon['facebook'] ?? '') ?>"
+              placeholder="https://facebook.com/yoursalon">
+          </div>
+          <div class="col-md-4 form-group">
+            <label class="form-label"><i class="fab fa-instagram"></i> Instagram</label>
+            <input 
+              type="url" 
+              name="instagram" 
+              class="form-control"
+              value="<?= htmlspecialchars($salon['instagram'] ?? '') ?>"
+              placeholder="https://instagram.com/yoursalon">
+          </div>
+        </div>
+
+        <!-- Description -->
+        <div class="form-group">
+          <label class="form-label">
+            <i class="fas fa-align-left"></i> Description
+          </label>
+          <textarea 
+            name="description" 
+            id="salonDesc"
+            class="form-control"
+            rows="4"
+            maxlength="500"
+            placeholder="Tell customers about your salon..."><?= htmlspecialchars($salon['description'] ?? '') ?></textarea>
+        </div>
+
+        <!-- Amenities -->
+        <div class="row mt-3 mb-3">
+          <div class="col-md-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="parking_available" id="parking"
+                     <?= !empty($salon['parking_available']) ? 'checked' : '' ?>>
+              <label class="form-check-label" for="parking">
+                <i class="fas fa-parking"></i> Parking Available
+              </label>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="wheelchair_accessible" id="wheelchair"
+                     <?= !empty($salon['wheelchair_accessible']) ? 'checked' : '' ?>>
+              <label class="form-check-label" for="wheelchair">
+                <i class="fas fa-wheelchair"></i> Wheelchair Accessible
+              </label>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="wifi_available" id="wifi"
+                     <?= !empty($salon['wifi_available']) ? 'checked' : '' ?>>
+              <label class="form-check-label" for="wifi">
+                <i class="fas fa-wifi"></i> Free WiFi
+              </label>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="air_conditioned" id="ac"
+                     <?= !empty($salon['air_conditioned']) ? 'checked' : '' ?>>
+              <label class="form-check-label" for="ac">
+                <i class="fas fa-snowflake"></i> Air Conditioned
+              </label>
+            </div>
           </div>
         </div>
 
@@ -231,24 +454,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
           </div>
         </div>
+
+        <!-- Opening/Closing Time + Slot Duration -->
         <div class="mb-3">
-    <label class="form-label">Opening Time</label>
-    <input type="time" name="opening_time" class="form-control"
-           value="<?= htmlspecialchars($salon['opening_time']) ?>" required>
-</div>
+            <label class="form-label">Opening Time</label>
+            <input type="time" name="opening_time" class="form-control"
+                   value="<?= htmlspecialchars($salon['opening_time']) ?>" required>
+        </div>
 
-<div class="mb-3">
-    <label class="form-label">Closing Time</label>
-    <input type="time" name="closing_time" class="form-control"
-           value="<?= htmlspecialchars($salon['closing_time']) ?>" required>
-</div>
+        <div class="mb-3">
+            <label class="form-label">Closing Time</label>
+            <input type="time" name="closing_time" class="form-control"
+                   value="<?= htmlspecialchars($salon['closing_time']) ?>" required>
+        </div>
 
-<div class="mb-3">
-    <label class="form-label">Slot Duration (Minutes)</label>
-    <input type="number" name="slot_duration" class="form-control" min="5"
-           value="<?= htmlspecialchars($salon['slot_duration']) ?>" required>
-</div>
+        <div class="mb-3">
+            <label class="form-label">Slot Duration (Minutes)</label>
+            <input type="number" name="slot_duration" class="form-control" min="5"
+                   value="<?= htmlspecialchars($salon['slot_duration']) ?>" required>
+        </div>
 
+        <!-- (Optional) Hidden lat/lng if not editing map -->
+        <input type="hidden" name="lat" value="<?= htmlspecialchars($salon['lat']) ?>">
+        <input type="hidden" name="lng" value="<?= htmlspecialchars($salon['lng']) ?>">
 
         <!-- Form Actions -->
         <div class="form-actions">
@@ -269,11 +497,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // Live preview update
-    const salonName = document.getElementById('salonName');
-    const salonAddress = document.getElementById('salonAddress');
+    // Live preview update (same logic, extended for phone/email/desc)
+    const salonName   = document.getElementById('salonName');
+    const salonAddress= document.getElementById('salonAddress');
+    const salonPhone  = document.getElementById('salonPhone');
+    const salonEmail  = document.getElementById('salonEmail');
+    const salonDesc   = document.getElementById('salonDesc');
     const previewName = document.getElementById('previewName');
     const previewAddress = document.getElementById('previewAddress');
+    const previewPhone   = document.getElementById('previewPhone');
+    const previewEmail   = document.getElementById('previewEmail');
+    const previewDesc    = document.getElementById('previewDesc');
 
     salonName.addEventListener('input', function() {
       previewName.textContent = this.value || 'Salon Name';
@@ -283,7 +517,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       previewAddress.textContent = this.value || 'Salon Address';
     });
 
-    // Image preview
+    salonPhone.addEventListener('input', function() {
+      if (this.value) {
+        previewPhone.style.display = 'block';
+        previewPhone.querySelector('span').textContent = this.value;
+      } else {
+        previewPhone.style.display = 'none';
+      }
+    });
+
+    salonEmail.addEventListener('input', function() {
+      if (this.value) {
+        previewEmail.style.display = 'block';
+        previewEmail.querySelector('span').textContent = this.value;
+      } else {
+        previewEmail.style.display = 'none';
+      }
+    });
+
+    salonDesc.addEventListener('input', function() {
+      if (this.value) {
+        previewDesc.style.display = 'block';
+        previewDesc.textContent = this.value;
+      } else {
+        previewDesc.style.display = 'none';
+      }
+    });
+
+    // Image preview (same as before)
     const imageInput = document.getElementById('imageInput');
     const fileNameDisplay = document.getElementById('fileNameDisplay');
     const currentImage = document.getElementById('currentImage');
@@ -293,11 +554,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       const file = e.target.files[0];
       
       if (file) {
-        // Show file name
         fileNameDisplay.textContent = file.name;
         fileNameDisplay.classList.add('show');
 
-        // Preview image
         const reader = new FileReader();
         reader.onload = function(e) {
           if (currentImage) {
@@ -310,7 +569,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
     });
 
-    // Form submission with loading state
+    // Form submission loading
     const form = document.getElementById('salonForm');
     const submitBtn = document.getElementById('submitBtn');
 
@@ -328,20 +587,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setTimeout(() => alert.remove(), 500);
       });
     }, 5000);
-
-    // Input validation feedback
-    const inputs = document.querySelectorAll('.form-control');
-    inputs.forEach(input => {
-      input.addEventListener('invalid', function() {
-        this.style.borderColor = '#e74c3c';
-      });
-      
-      input.addEventListener('input', function() {
-        if (this.validity.valid) {
-          this.style.borderColor = '#e9ecef';
-        }
-      });
-    });
   </script>
 </body>
 </html>
