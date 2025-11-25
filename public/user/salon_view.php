@@ -28,11 +28,15 @@ if (
     if ($checkStmt->fetch()) $errors[] = "You have already reviewed this salon.";
 
     if (empty($errors)) {
-        $stmt = $pdo->prepare(
-            "INSERT INTO reviews (salon_id, user_id, rating, comment, created_at) VALUES (?, ?, ?, ?, NOW())"
-        );
-        $stmt->execute([$salon_id, $user_id, $rating, $comment]);
-        $_SESSION['success_message'] = "Review submitted successfully!";
+        try {
+            $stmt = $pdo->prepare(
+                "INSERT INTO reviews (salon_id, user_id, rating, comment, created_at) VALUES (?, ?, ?, ?, NOW())"
+            );
+            $stmt->execute([$salon_id, $user_id, $rating, $comment]);
+            $_SESSION['success_message'] = "Review submitted successfully!";
+        } catch (PDOException $e) {
+            $_SESSION['error_message'] = "Failed to submit review. Please try again.";
+        }
     } else {
         $_SESSION['error_message'] = implode(" ", $errors);
     }
@@ -40,8 +44,18 @@ if (
     exit;
 }
 
-// Fetch all salons with service count and average rating
-$stmt = $pdo->query("
+// Pagination setup
+$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$per_page = 9;
+$offset = ($page - 1) * $per_page;
+
+// Fetch total count
+$countStmt = $pdo->query("SELECT COUNT(*) FROM salons");
+$total_salons = $countStmt->fetchColumn();
+$total_pages = ceil($total_salons / $per_page);
+
+// Fetch salons with pagination
+$stmt = $pdo->prepare("
     SELECT 
         s.id AS salon_id,
         s.name,
@@ -58,13 +72,24 @@ $stmt = $pdo->query("
     LEFT JOIN reviews r ON s.id = r.salon_id
     GROUP BY s.id
     ORDER BY s.name ASC
+    LIMIT :limit OFFSET :offset
 ");
+$stmt->bindValue(':limit', $per_page, PDO::PARAM_INT);
+$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+$stmt->execute();
 $salons = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Calculate overall stats
-$total_salons = count($salons);
-$avg_rating_all = $total_salons > 0 ? array_sum(array_column($salons, 'avg_rating')) / $total_salons : 0;
-$total_services = array_sum(array_column($salons, 'service_count'));
+// Calculate overall stats (from all salons)
+$statsStmt = $pdo->query("
+    SELECT 
+        COUNT(DISTINCT s.id) as total_salons,
+        COALESCE(AVG(r.rating), 0) as avg_rating,
+        COUNT(DISTINCT sr.id) as total_services
+    FROM salons s
+    LEFT JOIN reviews r ON s.id = r.salon_id
+    LEFT JOIN services sr ON s.id = sr.salon_id
+");
+$stats = $statsStmt->fetch(PDO::FETCH_ASSOC);
 
 // Determine logged-in user
 $logged_user_id = $_SESSION['id'] ?? 0;
@@ -76,6 +101,7 @@ $logged_user_role = $_SESSION['role'] ?? '';
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>All Salons - Salonora</title>
+  <meta name="description" content="Discover premium beauty salons and book appointments online">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -149,12 +175,12 @@ $logged_user_role = $_SESSION['role'] ?? '';
       animation: fadeInUp 0.8s ease 0.2s both;
     }
 
-      /* Stats Bar */
+    /* Stats Bar */
     .stats-bar {
       display: flex;
       justify-content: space-around;
       align-items: center;
-      background:var(--dark-purple);
+      background: var(--dark-purple);
       border-radius: 20px;
       padding: 2rem;
       margin-bottom: 2rem;
@@ -166,7 +192,7 @@ $logged_user_role = $_SESSION['role'] ?? '';
       text-align: center;
       flex: 1;
       padding: 0 1rem;
-      border-right: 2px solid var(--light-pink);
+      border-right: 2px solid rgba(255, 255, 255, 0.2);
     }
 
     .stat-item:last-child {
@@ -184,7 +210,7 @@ $logged_user_role = $_SESSION['role'] ?? '';
     .stat-label {
       display: block;
       font-size: 1rem;
-      color: #df0b80ff;
+      color: #fce7f3;
       font-weight: 500;
     }
 
@@ -234,6 +260,31 @@ $logged_user_role = $_SESSION['role'] ?? '';
       border-color: var(--primary-pink);
       box-shadow: 0 0 0 4px rgba(255, 107, 157, 0.1);
       outline: none;
+    }
+
+    /* View Toggle */
+    .view-toggle {
+      display: flex;
+      gap: 0.5rem;
+      background: #f3f4f6;
+      padding: 0.25rem;
+      border-radius: 10px;
+    }
+
+    .view-btn {
+      padding: 0.5rem 1rem;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      color: #666;
+    }
+
+    .view-btn.active {
+      background: white;
+      color: var(--primary-purple);
+      box-shadow: var(--shadow-sm);
     }
 
     /* Salon Card */
@@ -346,6 +397,27 @@ $logged_user_role = $_SESSION['role'] ?? '';
       font-size: 0.85rem;
     }
 
+    /* List View */
+    .list-view .salon-card {
+      flex-direction: row;
+      height: auto;
+    }
+
+    .list-view .salon-img-wrapper {
+      width: 250px;
+      padding-top: 0;
+      height: auto;
+      min-height: 200px;
+    }
+
+    .list-view .salon-card-body {
+      flex: 1;
+    }
+
+    .list-view .salon-actions {
+      flex-direction: row;
+    }
+
     /* Buttons */
     .salon-actions {
       display: flex;
@@ -404,6 +476,49 @@ $logged_user_role = $_SESSION['role'] ?? '';
       color: white;
       transform: translateY(-2px);
       box-shadow: var(--shadow-md);
+    }
+
+    /* Pagination */
+    .pagination-wrapper {
+      display: flex;
+      justify-content: center;
+      margin-top: 3rem;
+    }
+
+    .pagination {
+      display: flex;
+      gap: 0.5rem;
+      list-style: none;
+    }
+
+    .page-link {
+      padding: 0.75rem 1.25rem;
+      border-radius: 10px;
+      background: white;
+      color: var(--primary-purple);
+      border: 2px solid #e5e7eb;
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    .page-link:hover {
+      background: var(--gradient-primary);
+      color: white;
+      border-color: transparent;
+      transform: translateY(-2px);
+    }
+
+    .page-item.active .page-link {
+      background: var(--gradient-primary);
+      color: white;
+      border-color: transparent;
+    }
+
+    .page-item.disabled .page-link {
+      opacity: 0.5;
+      cursor: not-allowed;
+      pointer-events: none;
     }
 
     /* Modal */
@@ -506,6 +621,25 @@ $logged_user_role = $_SESSION['role'] ?? '';
       color: #666;
     }
 
+    /* Loading Skeleton */
+    .skeleton {
+      animation: skeleton-loading 1s linear infinite alternate;
+    }
+
+    @keyframes skeleton-loading {
+      0% {
+        background-color: hsl(200, 20%, 80%);
+      }
+      100% {
+        background-color: hsl(200, 20%, 95%);
+      }
+    }
+
+    .skeleton-card {
+      height: 400px;
+      border-radius: 20px;
+    }
+
     /* Animations */
     @keyframes fadeInDown {
       from {
@@ -566,7 +700,7 @@ $logged_user_role = $_SESSION['role'] ?? '';
 
       .stat-item {
         border-right: none;
-        border-bottom: 2px solid var(--light-pink);
+        border-bottom: 2px solid rgba(255, 255, 255, 0.2);
         padding-bottom: 1rem;
       }
 
@@ -582,21 +716,63 @@ $logged_user_role = $_SESSION['role'] ?? '';
       .btn {
         width: 100%;
       }
+
+      .list-view .salon-card {
+        flex-direction: column;
+      }
+
+      .list-view .salon-img-wrapper {
+        width: 100%;
+        padding-top: 66.67%;
+      }
     }
 
-    /* Loading Animation */
-    .loading {
-      display: inline-block;
-      width: 20px;
-      height: 20px;
-      border: 3px solid rgba(255,255,255,.3);
-      border-radius: 50%;
-      border-top-color: white;
-      animation: spin 1s ease-in-out infinite;
+    /* Character counter */
+    .char-counter {
+      font-size: 0.875rem;
+      color: #666;
+      text-align: right;
+      margin-top: 0.25rem;
     }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    .char-counter.warning {
+      color: #f59e0b;
+    }
+
+    .char-counter.danger {
+      color: #ef4444;
+    }
+
+    /* Filter chips */
+    .filter-chips {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+
+    .filter-chip {
+      padding: 0.5rem 1rem;
+      background: var(--gradient-secondary);
+      border-radius: 50px;
+      font-size: 0.875rem;
+      color: var(--dark-purple);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: 2px solid transparent;
+    }
+
+    .filter-chip:hover {
+      border-color: var(--primary-purple);
+      transform: translateY(-2px);
+    }
+
+    .filter-chip.active {
+      background: var(--gradient-primary);
+      color: white;
     }
   </style>
   <?php include __DIR__ . '/../header.php'; ?>
@@ -613,55 +789,78 @@ $logged_user_role = $_SESSION['role'] ?? '';
 
   <div class="container pb-5">
     <?php if (isset($_SESSION['success_message'])): ?>
-      <div class="alert alert-success alert-dismissible fade show">
+      <div class="alert alert-success alert-dismissible fade show" role="alert">
         <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($_SESSION['success_message']) ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       </div>
       <?php unset($_SESSION['success_message']); ?>
     <?php endif; ?>
 
     <?php if (isset($_SESSION['error_message'])): ?>
-      <div class="alert alert-danger alert-dismissible fade show">
+      <div class="alert alert-danger alert-dismissible fade show" role="alert">
         <i class="fas fa-exclamation-circle me-2"></i><?= htmlspecialchars($_SESSION['error_message']) ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       </div>
       <?php unset($_SESSION['error_message']); ?>
     <?php endif; ?>
 
     <div class="stats-bar">
-     
       <div class="stat-item">
-        <span class="stat-number"><?= $total_salons ?></span>
+        <span class="stat-number"><?= $stats['total_salons'] ?></span>
         <span class="stat-label">Total Salons</span>
       </div>
-      
       <div class="stat-item">
-        <span class="stat-number"><?= number_format($avg_rating_all, 1) ?></span>
+        <span class="stat-number"><?= number_format($stats['avg_rating'], 1) ?></span>
         <span class="stat-label">Average Rating</span>
       </div>
       <div class="stat-item">
-        <span class="stat-number"><?= $total_services ?>+</span>
+        <span class="stat-number"><?= $stats['total_services'] ?>+</span>
         <span class="stat-label">Total Services</span>
       </div>
-      
     </div>
 
     <div class="filter-bar">
       <div class="row align-items-center">
-        <div class="col-md-8 mb-3 mb-md-0">
+        <div class="col-md-6 mb-3 mb-md-0">
           <div class="search-box">
             <i class="fas fa-search"></i>
-            <input type="text" id="searchInput" placeholder="Search salons by name, location, or owner..." class="form-control">
+            <input type="text" id="searchInput" placeholder="Search salons by name, location, or owner..." class="form-control" aria-label="Search salons">
           </div>
         </div>
-        <div class="col-md-4">
-          <select id="sortSelect" class="form-select">
+        <div class="col-md-3 mb-3 mb-md-0">
+          <select id="sortSelect" class="form-select" aria-label="Sort salons">
             <option value="name">Sort by Name</option>
             <option value="rating">Sort by Rating</option>
             <option value="services">Sort by Services</option>
             <option value="location">Sort by Location</option>
           </select>
         </div>
+        <div class="col-md-3">
+          <div class="view-toggle">
+            <button class="view-btn active" data-view="grid" aria-label="Grid view">
+              <i class="fas fa-th"></i>
+            </button>
+            <button class="view-btn" data-view="list" aria-label="List view">
+              <i class="fas fa-list"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Filter Chips -->
+      <div class="filter-chips">
+        <span class="filter-chip" data-filter="all">
+          <i class="fas fa-globe"></i> All Salons
+        </span>
+        <span class="filter-chip" data-filter="top-rated">
+          <i class="fas fa-star"></i> Top Rated (4+)
+        </span>
+        <span class="filter-chip" data-filter="most-services">
+          <i class="fas fa-concierge-bell"></i> Most Services (5+)
+        </span>
+        <span class="filter-chip" data-filter="most-reviewed">
+          <i class="fas fa-comments"></i> Most Reviewed
+        </span>
       </div>
     </div>
 
@@ -686,10 +885,11 @@ $logged_user_role = $_SESSION['role'] ?? '';
                data-location="<?= strtolower(htmlspecialchars($salon['address'])) ?>"
                data-owner="<?= strtolower(htmlspecialchars($salon['owner_name'])) ?>"
                data-services="<?= $salon['service_count'] ?>"
-               data-rating="<?= $salon['avg_rating'] ?>">
+               data-rating="<?= $salon['avg_rating'] ?>"
+               data-reviews="<?= $salon['review_count'] ?>">
             <div class="salon-card">
               <div class="salon-img-wrapper">
-                <img src="<?= htmlspecialchars($image_path) ?>" class="salon-img" alt="<?= htmlspecialchars($salon['name']) ?>">
+                <img src="<?= htmlspecialchars($image_path) ?>" class="salon-img" alt="<?= htmlspecialchars($salon['name']) ?>" loading="lazy">
                 <div class="salon-badge">
                   <i class="fas fa-concierge-bell me-1"></i>
                   <?= $salon['service_count'] ?> Services
@@ -738,18 +938,69 @@ $logged_user_role = $_SESSION['role'] ?? '';
           </div>
         <?php endforeach; ?>
       </div>
+
+      <!-- Pagination -->
+      <?php if ($total_pages > 1): ?>
+        <div class="pagination-wrapper">
+          <ul class="pagination">
+            <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+              <a class="page-link" href="?page=<?= $page - 1 ?>" aria-label="Previous">
+                <i class="fas fa-chevron-left"></i>
+              </a>
+            </li>
+            
+            <?php
+            $start = max(1, $page - 2);
+            $end = min($total_pages, $page + 2);
+            
+            if ($start > 1): ?>
+              <li class="page-item">
+                <a class="page-link" href="?page=1">1</a>
+              </li>
+              <?php if ($start > 2): ?>
+                <li class="page-item disabled">
+                  <span class="page-link">...</span>
+                </li>
+              <?php endif; ?>
+            <?php endif; ?>
+            
+            <?php for ($i = $start; $i <= $end; $i++): ?>
+              <li class="page-item <?= $i == $page ? 'active' : '' ?>">
+                <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
+              </li>
+            <?php endfor; ?>
+            
+            <?php if ($end < $total_pages): ?>
+              <?php if ($end < $total_pages - 1): ?>
+                <li class="page-item disabled">
+                  <span class="page-link">...</span>
+                </li>
+              <?php endif; ?>
+              <li class="page-item">
+                <a class="page-link" href="?page=<?= $total_pages ?>"><?= $total_pages ?></a>
+              </li>
+            <?php endif; ?>
+            
+            <li class="page-item <?= $page >= $total_pages ? 'disabled' : '' ?>">
+              <a class="page-link" href="?page=<?= $page + 1 ?>" aria-label="Next">
+                <i class="fas fa-chevron-right"></i>
+              </a>
+            </li>
+          </ul>
+        </div>
+      <?php endif; ?>
     <?php endif; ?>
   </div>
 
   <!-- Review Modal -->
-  <div class="modal fade" id="reviewModal" tabindex="-1">
+  <div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <form method="post" action="salon_view.php" class="modal-content" id="reviewForm">
         <div class="modal-header">
-          <h5 class="modal-title">
+          <h5 class="modal-title" id="reviewModalLabel">
             <i class="fas fa-star me-2"></i>Write a Review
           </h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
           <input type="hidden" name="salon_id" id="reviewSalonId">
@@ -770,8 +1021,10 @@ $logged_user_role = $_SESSION['role'] ?? '';
           </div>
           <div class="mb-3">
             <label class="form-label"><i class="fas fa-comment me-2"></i>Your Review</label>
-            <textarea name="comment" class="form-control" rows="4" placeholder="Share your experience... (minimum 10 characters)" required minlength="10" maxlength="1000"></textarea>
-            <small class="text-muted">Min 10 characters, Max 1000 characters</small>
+            <textarea name="comment" id="reviewComment" class="form-control" rows="4" placeholder="Share your experience... (minimum 10 characters)" required minlength="10" maxlength="1000"></textarea>
+            <div class="char-counter">
+              <span id="charCount">0</span> / 1000 characters
+            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -793,6 +1046,7 @@ $logged_user_role = $_SESSION['role'] ?? '';
     // Search functionality with debouncing
     const searchInput = document.getElementById('searchInput');
     const salonItems = document.querySelectorAll('.salon-item');
+    const salonsGrid = document.getElementById('salonsGrid');
     let searchTimeout;
 
     searchInput.addEventListener('input', function() {
@@ -800,41 +1054,12 @@ $logged_user_role = $_SESSION['role'] ?? '';
       const searchTerm = this.value.toLowerCase();
       
       searchTimeout = setTimeout(() => {
-        let visibleCount = 0;
-        salonItems.forEach(item => {
-          const name = item.dataset.name;
-          const location = item.dataset.location;
-          const owner = item.dataset.owner;
-          if (name.includes(searchTerm) || location.includes(searchTerm) || owner.includes(searchTerm)) {
-            item.style.display = 'block';
-            visibleCount++;
-          } else {
-            item.style.display = 'none';
-          }
-        });
-
-        // Show no results message
-        const existingMsg = document.querySelector('.no-results-msg');
-        if (existingMsg) existingMsg.remove();
-        
-        if (visibleCount === 0) {
-          const noResults = document.createElement('div');
-          noResults.className = 'col-12 no-results-msg';
-          noResults.innerHTML = `
-            <div class="empty-state">
-              <i class="fas fa-search"></i>
-              <h4>No Salons Found</h4>
-              <p>Try adjusting your search terms</p>
-            </div>
-          `;
-          document.getElementById('salonsGrid').appendChild(noResults);
-        }
+        filterSalons();
       }, 300);
     });
 
     // Sort functionality
     const sortSelect = document.getElementById('sortSelect');
-    const salonsGrid = document.getElementById('salonsGrid');
     
     sortSelect.addEventListener('change', function() {
       const sortBy = this.value;
@@ -855,20 +1080,134 @@ $logged_user_role = $_SESSION['role'] ?? '';
       items.forEach(item => salonsGrid.appendChild(item));
     });
 
+    // View toggle
+    const viewBtns = document.querySelectorAll('.view-btn');
+    const gridContainer = document.getElementById('salonsGrid');
+
+    viewBtns.forEach(btn => {
+      btn.addEventListener('click', function() {
+        viewBtns.forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        const view = this.dataset.view;
+        if (view === 'list') {
+          gridContainer.classList.add('list-view');
+          salonItems.forEach(item => {
+            item.classList.remove('col-lg-4', 'col-md-6');
+            item.classList.add('col-12');
+          });
+        } else {
+          gridContainer.classList.remove('list-view');
+          salonItems.forEach(item => {
+            item.classList.remove('col-12');
+            item.classList.add('col-lg-4', 'col-md-6');
+          });
+        }
+      });
+    });
+
+    // Filter chips
+    const filterChips = document.querySelectorAll('.filter-chip');
+    let activeFilter = 'all';
+
+    filterChips.forEach(chip => {
+      chip.addEventListener('click', function() {
+        filterChips.forEach(c => c.classList.remove('active'));
+        this.classList.add('active');
+        activeFilter = this.dataset.filter;
+        filterSalons();
+      });
+    });
+
+    function filterSalons() {
+      const searchTerm = searchInput.value.toLowerCase();
+      let visibleCount = 0;
+
+      salonItems.forEach(item => {
+        const name = item.dataset.name;
+        const location = item.dataset.location;
+        const owner = item.dataset.owner;
+        const rating = parseFloat(item.dataset.rating);
+        const services = parseInt(item.dataset.services);
+        const reviews = parseInt(item.dataset.reviews);
+
+        // Search filter
+        const matchesSearch = searchTerm === '' || 
+          name.includes(searchTerm) || 
+          location.includes(searchTerm) || 
+          owner.includes(searchTerm);
+
+        // Quick filter
+        let matchesFilter = true;
+        if (activeFilter === 'top-rated') {
+          matchesFilter = rating >= 4;
+        } else if (activeFilter === 'most-services') {
+          matchesFilter = services >= 5;
+        } else if (activeFilter === 'most-reviewed') {
+          matchesFilter = reviews >= 5;
+        }
+
+        if (matchesSearch && matchesFilter) {
+          item.style.display = 'block';
+          visibleCount++;
+        } else {
+          item.style.display = 'none';
+        }
+      });
+
+      // Show no results message
+      const existingMsg = document.querySelector('.no-results-msg');
+      if (existingMsg) existingMsg.remove();
+      
+      if (visibleCount === 0) {
+        const noResults = document.createElement('div');
+        noResults.className = 'col-12 no-results-msg';
+        noResults.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-search"></i>
+            <h4>No Salons Found</h4>
+            <p>Try adjusting your search terms or filters</p>
+          </div>
+        `;
+        salonsGrid.appendChild(noResults);
+      }
+    }
+
     // Review Modal
     const reviewModal = document.getElementById('reviewModal');
+    const reviewComment = document.getElementById('reviewComment');
+    const charCount = document.getElementById('charCount');
+
     reviewModal.addEventListener('show.bs.modal', function (event) {
       const button = event.relatedTarget;
       const salonId = button.getAttribute('data-salon');
       const salonName = button.getAttribute('data-name');
       document.getElementById('reviewSalonId').value = salonId;
       document.getElementById('reviewSalonName').value = salonName;
+      reviewComment.value = '';
+      charCount.textContent = '0';
+      charCount.parentElement.classList.remove('warning', 'danger');
+    });
+
+    // Character counter
+    reviewComment.addEventListener('input', function() {
+      const length = this.value.length;
+      charCount.textContent = length;
+      
+      const counter = charCount.parentElement;
+      counter.classList.remove('warning', 'danger');
+      
+      if (length > 900) {
+        counter.classList.add('danger');
+      } else if (length > 750) {
+        counter.classList.add('warning');
+      }
     });
 
     // Form validation
     const reviewForm = document.getElementById('reviewForm');
     reviewForm.addEventListener('submit', function(e) {
-      const comment = this.querySelector('textarea[name="comment"]').value;
+      const comment = reviewComment.value;
       const rating = this.querySelector('select[name="rating"]').value;
       
       if (!rating) {
@@ -919,6 +1258,21 @@ $logged_user_role = $_SESSION['role'] ?? '';
     salonItems.forEach(item => {
       item.style.opacity = '0';
       observer.observe(item);
+    });
+
+    // Preserve scroll position on page reload
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    
+    const scrollPos = sessionStorage.getItem('scrollPos');
+    if (scrollPos) {
+      window.scrollTo(0, parseInt(scrollPos));
+      sessionStorage.removeItem('scrollPos');
+    }
+
+    window.addEventListener('beforeunload', () => {
+      sessionStorage.setItem('scrollPos', window.scrollY);
     });
   </script>
 </body>
