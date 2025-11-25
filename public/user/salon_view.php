@@ -149,12 +149,12 @@ $logged_user_role = $_SESSION['role'] ?? '';
       animation: fadeInUp 0.8s ease 0.2s both;
     }
 
-    /* Stats Bar */
+      /* Stats Bar */
     .stats-bar {
       display: flex;
       justify-content: space-around;
       align-items: center;
-      background: white;
+      background:var(--dark-purple);
       border-radius: 20px;
       padding: 2rem;
       margin-bottom: 2rem;
@@ -175,19 +175,17 @@ $logged_user_role = $_SESSION['role'] ?? '';
 
     .stat-number {
       display: block;
-      font-size: 2.2rem;     
-      font-weight: 700;
-      background: var(--gradient-primary);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      font-size: 3.5rem;
+      font-weight: 800;
+      color: var(--primary-pink);
+      margin-bottom: 0.5rem;
     }
 
     .stat-label {
       display: block;
-      font-size: 2.9rem;
-      color: #666;
-      margin-top: 0.5rem;
+      font-size: 1rem;
+      color: #df0b80ff;
+      font-weight: 500;
     }
 
     /* Filter Bar */
@@ -631,10 +629,12 @@ $logged_user_role = $_SESSION['role'] ?? '';
     <?php endif; ?>
 
     <div class="stats-bar">
+     
       <div class="stat-item">
         <span class="stat-number"><?= $total_salons ?></span>
         <span class="stat-label">Total Salons</span>
       </div>
+      
       <div class="stat-item">
         <span class="stat-number"><?= number_format($avg_rating_all, 1) ?></span>
         <span class="stat-label">Average Rating</span>
@@ -643,6 +643,7 @@ $logged_user_role = $_SESSION['role'] ?? '';
         <span class="stat-number"><?= $total_services ?>+</span>
         <span class="stat-label">Total Services</span>
       </div>
+      
     </div>
 
     <div class="filter-bar">
