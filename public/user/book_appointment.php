@@ -13,8 +13,17 @@ if (!isset($_GET['salon_id']) || !is_numeric($_GET['salon_id'])) {
 $salon_id = intval($_GET['salon_id']);
 $user_id = $_SESSION['id'];
 
-// Fetch salon details
-$stmt = $pdo->prepare("SELECT id, name, address, opening_time, closing_time, slot_duration FROM salons WHERE id=?");
+// Fetch salon details with additional info
+$stmt = $pdo->prepare("
+    SELECT s.id, s.name, s.address, s.opening_time, s.closing_time, s.slot_duration, s.phone, s.email,
+           COUNT(DISTINCT a.id) as total_bookings,
+           AVG(r.rating) as avg_rating
+    FROM salons s
+    LEFT JOIN appointments a ON s.id = a.salon_id AND a.status = 'completed'
+    LEFT JOIN reviews r ON s.id = r.salon_id
+    WHERE s.id = ?
+    GROUP BY s.id
+");
 $stmt->execute([$salon_id]);
 $salon = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -24,32 +33,88 @@ if (!$salon) {
     exit;
 }
 
-// Fetch services
-$serviceStmt = $pdo->prepare("SELECT id, name, price, duration, description FROM services WHERE salon_id=? ORDER BY price ASC");
+// Check if salon is open today
+$current_day = date('l');
+$is_open_today = true; // You might want to check against salon's operating days
+
+// Fetch services with categories
+$serviceStmt = $pdo->prepare("
+    SELECT id, name, price, duration, description, category 
+    FROM services 
+    WHERE salon_id = ? AND is_active = 1
+    ORDER BY category ASC, price ASC
+");
 $serviceStmt->execute([$salon_id]);
 $services = $serviceStmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Group services by category
+$grouped_services = [];
+foreach ($services as $service) {
+    $category = $service['category'] ?? 'General';
+    $grouped_services[$category][] = $service;
+}
+
+// Check for existing pending appointments
+$existingStmt = $pdo->prepare("
+    SELECT COUNT(*) as pending_count 
+    FROM appointments 
+    WHERE user_id = ? AND salon_id = ? AND status = 'pending'
+");
+$existingStmt->execute([$user_id, $salon_id]);
+$existing = $existingStmt->fetch(PDO::FETCH_ASSOC);
+$has_pending = $existing['pending_count'] > 0;
+
 // Submit booking
 $errors = [];
+$success = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $service_id = intval($_POST['service_id']);
+    // CSRF Token Validation
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        $errors[] = "Invalid security token. Please refresh and try again.";
+    }
+
+    $service_id = intval($_POST['service_id'] ?? 0);
     $appointment_date = $_POST['appointment_date'] ?? '';
     $appointment_time = $_POST['appointment_time'] ?? '';
     $notes = trim($_POST['notes'] ?? '');
 
+    // Validation
     if ($service_id <= 0) $errors[] = "Please select a service.";
     if ($appointment_date == "") $errors[] = "Please select a date.";
     if ($appointment_time == "") $errors[] = "Please select a time slot.";
 
-    if ($appointment_date < date("Y-m-d")) $errors[] = "Cannot book appointments for past dates.";
+    // Date validation
+    $today = date("Y-m-d");
+    $max_date = date("Y-m-d", strtotime("+30 days"));
+    
+    if ($appointment_date < $today) {
+        $errors[] = "Cannot book appointments for past dates.";
+    }
+    
+    if ($appointment_date > $max_date) {
+        $errors[] = "Cannot book appointments more than 30 days in advance.";
+    }
+
+    // Check if date is weekend (if salon is closed on weekends)
+    $day_of_week = date('N', strtotime($appointment_date));
+    // Add your weekend check logic here if needed
+
+    // Verify service belongs to salon
+    if (empty($errors)) {
+        $serviceCheck = $pdo->prepare("SELECT id FROM services WHERE id = ? AND salon_id = ? AND is_active = 1");
+        $serviceCheck->execute([$service_id, $salon_id]);
+        if (!$serviceCheck->fetch()) {
+            $errors[] = "Invalid service selected.";
+        }
+    }
 
     // Verify slot is still available
     if (empty($errors)) {
         $checkStmt = $pdo->prepare("
             SELECT COUNT(*) as count FROM appointments 
-            WHERE salon_id=? AND appointment_date=? AND appointment_time=? 
-            AND status != 'cancelled'
+            WHERE salon_id = ? AND appointment_date = ? AND appointment_time = ? 
+            AND status NOT IN ('cancelled', 'rejected')
         ");
         $checkStmt->execute([$salon_id, $appointment_date, $appointment_time]);
         $existing = $checkStmt->fetch(PDO::FETCH_ASSOC);
@@ -59,25 +124,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Check if time is within salon operating hours
     if (empty($errors)) {
-        $stmt = $pdo->prepare("
-            INSERT INTO appointments (salon_id, user_id, service_id, appointment_date, appointment_time, notes, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW())
-        ");
-
-        $stmt->execute([
-            $salon_id,
-            $user_id,
-            $service_id,
-            $appointment_date,
-            $appointment_time,
-            $notes
-        ]);
-
-        $_SESSION['success_message'] = "Appointment booked successfully! We'll send you a confirmation soon.";
-        header("Location: my_appointments.php");
-        exit;
+        $time_24h = date('H:i:s', strtotime($appointment_time));
+        if ($time_24h < $salon['opening_time'] || $time_24h >= $salon['closing_time']) {
+            $errors[] = "Selected time is outside salon operating hours.";
+        }
     }
+
+    // Prevent double booking by same user
+    if (empty($errors)) {
+        $doubleBookCheck = $pdo->prepare("
+            SELECT COUNT(*) as count FROM appointments 
+            WHERE user_id = ? AND appointment_date = ? AND appointment_time = ?
+            AND status NOT IN ('cancelled', 'rejected')
+        ");
+        $doubleBookCheck->execute([$user_id, $appointment_date, $appointment_time]);
+        $doubleBook = $doubleBookCheck->fetch(PDO::FETCH_ASSOC);
+        
+        if ($doubleBook['count'] > 0) {
+            $errors[] = "You already have an appointment at this time.";
+        }
+    }
+
+    // Sanitize notes
+    $notes = htmlspecialchars($notes, ENT_QUOTES, 'UTF-8');
+    if (strlen($notes) > 500) {
+        $notes = substr($notes, 0, 500);
+    }
+
+    if (empty($errors)) {
+        try {
+            $pdo->beginTransaction();
+
+            // Insert appointment
+            $insertStmt = $pdo->prepare("
+                INSERT INTO appointments 
+                (salon_id, user_id, service_id, appointment_date, appointment_time, notes, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())
+            ");
+
+            $insertStmt->execute([
+                $salon_id,
+                $user_id,
+                $service_id,
+                $appointment_date,
+                $appointment_time,
+                $notes
+            ]);
+
+            $appointment_id = $pdo->lastInsertId();
+
+            // Log the appointment creation
+            $logStmt = $pdo->prepare("
+                INSERT INTO appointment_log 
+                (appointment_id, old_status, new_status, changed_by, action_type, changed_at)
+                VALUES (?, NULL, 'pending', ?, 'created', NOW())
+            ");
+            $logStmt->execute([$appointment_id, $user_id]);
+
+            // Optional: Send notification email/SMS
+            // sendBookingConfirmation($user_id, $appointment_id);
+
+            $pdo->commit();
+
+            $_SESSION['success_message'] = "🎉 Appointment booked successfully! Booking ID: #" . $appointment_id . ". We'll send you a confirmation soon.";
+            header("Location: my_appointments.php");
+            exit;
+
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            error_log("Booking error: " . $e->getMessage());
+            $errors[] = "An error occurred while processing your booking. Please try again.";
+        }
+    }
+}
+
+// Generate CSRF token
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 ?>
 <!DOCTYPE html>
@@ -95,7 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     --primary-purple: #8b5cf6;
     --dark-purple: #6b21a8;
     --light-pink: #fce7f3;
-    --gradient-primary:  linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);
+    --gradient-primary: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);
     --gradient-secondary: linear-gradient(135deg, #fce7f3 0%, #ede9fe 100%);
     --shadow-sm: 0 2px 8px rgba(139, 92, 246, 0.1);
     --shadow-md: 0 4px 16px rgba(139, 92, 246, 0.15);
@@ -116,24 +241,50 @@ body {
 }
 
 .page-header {
-    background: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);
+    background: var(--gradient-primary);
     color: white;
-    padding: 4rem 0;
+    padding: 3rem 0 4rem;
     margin-bottom: 2rem;
     border-radius: 0 0 30px 30px;
     box-shadow: var(--shadow-lg);
-    margin-top: -50px;
+    margin-top: -20px;
+    position: relative;
+    overflow: hidden;
+}
+
+.page-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('data:image/svg+xml,<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="2" fill="white" opacity="0.1"/></svg>');
+    opacity: 0.3;
 }
 
 .page-header h2 {
     font-weight: 800;
     text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-    
+    position: relative;
+    z-index: 1;
 }
 
 .page-header p {
     opacity: 0.95;
     font-size: 1.1rem;
+    position: relative;
+    z-index: 1;
+}
+
+.salon-rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255,255,255,0.2);
+    padding: 0.5rem 1rem;
+    border-radius: 50px;
+    margin-top: 0.5rem;
 }
 
 .booking-container {
@@ -147,6 +298,11 @@ body {
     box-shadow: var(--shadow-lg);
     overflow: hidden;
     margin-bottom: 2rem;
+    transition: transform 0.3s ease;
+}
+
+.booking-card:hover {
+    transform: translateY(-5px);
 }
 
 .card-header-custom {
@@ -154,6 +310,9 @@ body {
     color: white;
     padding: 1.5rem 2rem;
     border: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .card-header-custom h5 {
@@ -162,8 +321,33 @@ body {
     font-size: 1.3rem;
 }
 
+.step-badge {
+    background: rgba(255,255,255,0.3);
+    padding: 0.25rem 0.75rem;
+    border-radius: 50px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
 .card-body-custom {
     padding: 2rem;
+}
+
+/* Alert Banner */
+.alert-banner {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-left: 5px solid #f59e0b;
+    border-radius: 15px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.alert-banner i {
+    font-size: 1.5rem;
+    color: #92400e;
 }
 
 /* Salon Info Card */
@@ -277,6 +461,7 @@ body {
     color: white;
     box-shadow: 0 0 0 8px rgba(139, 92, 246, 0.1);
     transform: scale(1.1);
+    animation: pulse 2s infinite;
 }
 
 .step-item.completed .step-circle {
@@ -304,7 +489,48 @@ body {
     color: #10b981;
 }
 
-/* Service Selection */
+@keyframes pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 8px rgba(139, 92, 246, 0.1);
+    }
+    50% {
+        box-shadow: 0 0 0 12px rgba(139, 92, 246, 0.2);
+    }
+}
+
+/* Service Categories */
+.category-section {
+    margin-bottom: 2rem;
+}
+
+.category-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.category-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--gradient-primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.category-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--dark-purple);
+    margin: 0;
+}
+
+/* Service Cards */
 .services-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -404,6 +630,36 @@ body {
     font-size: 1.3rem;
 }
 
+/* Quick Select Chips */
+.quick-select {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.quick-chip {
+    padding: 0.5rem 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 50px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.quick-chip:hover {
+    border-color: var(--primary-purple);
+    background: var(--gradient-secondary);
+}
+
+.quick-chip.active {
+    border-color: var(--primary-purple);
+    background: var(--gradient-primary);
+    color: white;
+}
+
 /* Date Picker */
 .date-picker-wrapper {
     position: relative;
@@ -436,6 +692,30 @@ body {
     color: var(--primary-purple);
     font-size: 1.3rem;
     pointer-events: none;
+}
+
+/* Calendar shortcuts */
+.calendar-shortcuts {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.shortcut-btn {
+    flex: 1;
+    padding: 0.75rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 10px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.shortcut-btn:hover {
+    border-color: var(--primary-purple);
+    background: var(--gradient-secondary);
 }
 
 /* Time Slots */
@@ -555,14 +835,6 @@ body {
     font-weight: 500;
 }
 
-.slot-btn.booked .slot-status::before {
-    content: '✕ ';
-}
-
-.slot-btn.selected .slot-status::before {
-    content: '✓ ';
-}
-
 /* Loading State */
 .loading-container {
     text-align: center;
@@ -601,66 +873,9 @@ body {
     opacity: 0.5;
 }
 
-.empty-state-title {
-    font-size: 1.3rem;
-    font-weight: 700;
-    color: #6b7280;
-    margin-bottom: 0.5rem;
-}
-
-.empty-state-text {
-    color: #9ca3af;
-}
-
-/* Legend */
-.slots-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1.5rem;
-    justify-content: center;
-    margin-top: 1.5rem;
-    padding: 1rem;
-    background: #f9fafb;
-    border-radius: 12px;
-}
-
-.legend-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.9rem;
-}
-
-.legend-box {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
-    border: 2px solid;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.legend-box.available {
-    background: white;
-    border-color: #e5e7eb;
-}
-
-.legend-box.selected {
-    background: var(--gradient-primary);
-    border-color: var(--primary-purple);
-    color: white;
-}
-
-.legend-box.booked {
-    background: #fee2e2;
-    border-color: #fecaca;
-    color: #991b1b;
-}
-
 /* Booking Summary */
 .booking-summary {
-    background:  linear-gradient(135deg, #ec337170 0%, #9b27b077 100%);;
+    background: linear-gradient(135deg, #ec337170 0%, #9b27b077 100%);
     border-radius: 20px;
     padding: 2rem;
     margin-top: 2rem;
@@ -693,25 +908,6 @@ body {
     border-bottom: 2px dashed var(--primary-purple);
 }
 
-.summary-icon {
-    width: 50px;
-    height: 50px;
-    border-radius: 12px;
-    background: var(--gradient-primary);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-}
-
-.summary-title {
-    font-weight: 800;
-    color: var(--dark-purple);
-    font-size: 1.3rem;
-    margin: 0;
-}
-
 .summary-grid {
     display: grid;
     gap: 1rem;
@@ -726,35 +922,12 @@ body {
     border-radius: 12px;
 }
 
-.summary-label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: #666;
-    font-weight: 500;
-}
-
-.summary-label i {
-    color: var(--primary-purple);
-}
-
-.summary-value {
-    font-weight: 700;
-    color: var(--dark-purple);
-    text-align: right;
-}
-
 .summary-total {
     background: white;
     padding: 1.5rem;
     border-radius: 12px;
     margin-top: 1rem;
     border: 2px solid var(--primary-purple);
-}
-
-.summary-total .summary-label {
-    font-size: 1.1rem;
-    font-weight: 700;
 }
 
 .summary-total .summary-value {
@@ -779,6 +952,287 @@ body {
     outline: none;
     border-color: var(--primary-purple);
     box-shadow: 0 0 0 5px rgba(139, 92, 246, 0.1);
+}
+
+.char-counter {
+    text-align: right;
+    font-size: 0.85rem;
+    color: #9ca3af;
+    margin-top: 0.5rem;
+}
+
+/* View Toggle */
+.view-toggle {
+    display: flex;
+    gap: 0.5rem;
+    background: #f3f4f6;
+    padding: 0.5rem;
+    border-radius: 12px;
+    width: fit-content;
+}
+
+.toggle-btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #6b7280;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.toggle-btn:hover {
+    color: var(--primary-purple);
+}
+
+.toggle-btn.active {
+    background: white;
+    color: var(--primary-purple);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Calendar View */
+.calendar-view {
+    margin-top: 1.5rem;
+}
+
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: var(--gradient-secondary);
+    border-radius: 15px;
+}
+
+.calendar-month {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--dark-purple);
+    margin: 0;
+}
+
+.calendar-nav-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 10px;
+    background: white;
+    color: var(--primary-purple);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-sm);
+}
+
+.calendar-nav-btn:hover {
+    background: var(--primary-purple);
+    color: white;
+    transform: scale(1.1);
+}
+
+.calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.weekday {
+    text-align: center;
+    font-weight: 600;
+    color: #6b7280;
+    padding: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.5rem;
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: white;
+    position: relative;
+    padding: 0.5rem;
+}
+
+.calendar-day:hover:not(.disabled):not(.other-month) {
+    border-color: var(--primary-purple);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-sm);
+}
+
+.calendar-day.disabled {
+    background: #f9fafb;
+    color: #d1d5db;
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.calendar-day.other-month {
+    color: #d1d5db;
+    background: #fafafa;
+}
+
+.calendar-day.today {
+    border-color: var(--primary-purple);
+    font-weight: 700;
+}
+
+.calendar-day.selected {
+    background: var(--gradient-primary);
+    color: white;
+    border-color: var(--primary-purple);
+    transform: scale(1.05);
+    box-shadow: var(--shadow-md);
+}
+
+.calendar-day.has-booking {
+    background: linear-gradient(135deg, #c084fc 0%, #a855f7 100%);
+    color: white;
+    border-color: var(--primary-purple);
+}
+
+.day-number {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.day-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-top: 0.25rem;
+}
+
+.day-indicator.available {
+    background: #10b981;
+}
+
+.day-indicator.limited {
+    background: #fbbf24;
+}
+
+.day-indicator.full {
+    background: #ef4444;
+}
+
+.calendar-day .slot-info {
+    font-size: 0.7rem;
+    margin-top: 0.25rem;
+    opacity: 0.8;
+}
+
+.calendar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    justify-content: center;
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: #f9fafb;
+    border-radius: 12px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: #6b7280;
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+/* Picker View */
+.picker-view {
+    margin-top: 1.5rem;
+}
+
+.date-picker-wrapper {
+    position: relative;
+    margin-top: 1rem;
+}
+
+.date-input {
+    width: 100%;
+    padding: 1rem 1rem 1rem 3.5rem;
+    border: 3px solid #e5e7eb;
+    border-radius: 15px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--dark-purple);
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.date-input:focus {
+    outline: none;
+    border-color: var(--primary-purple);
+    box-shadow: 0 0 0 5px rgba(139, 92, 246, 0.1);
+}
+
+.date-icon {
+    position: absolute;
+    left: 1.25rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--primary-purple);
+    font-size: 1.3rem;
+    pointer-events: none;
+}
+
+/* Calendar shortcuts */
+.calendar-shortcuts {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.shortcut-btn {
+    flex: 1;
+    padding: 0.75rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 10px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.shortcut-btn:hover {
+    border-color: var(--primary-purple);
+    background: var(--gradient-secondary);
+}
+
+.char-counter {
+    text-align: right;
+    font-size: 0.85rem;
+    color: #9ca3af;
+    margin-top: 0.5rem;
 }
 
 /* Buttons */
@@ -808,7 +1262,6 @@ body {
     background: #9ca3af;
     cursor: not-allowed;
     opacity: 0.6;
-    transform: none;
 }
 
 .back-link {
@@ -823,7 +1276,6 @@ body {
 
 .back-link:hover {
     gap: 0.75rem;
-    color: var(--dark-purple);
 }
 
 /* Alerts */
@@ -846,11 +1298,6 @@ body {
     }
 }
 
-.alert-danger {
-    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-    color: #991b1b;
-}
-
 /* Responsive */
 @media (max-width: 768px) {
     .services-grid {
@@ -864,34 +1311,6 @@ body {
     .slots-grid {
         grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
     }
-    
-    .step-progress {
-        padding: 0;
-    }
-    
-    .step-circle {
-        width: 50px;
-        height: 50px;
-        font-size: 1rem;
-    }
-    
-    .step-label {
-        font-size: 0.75rem;
-    }
-}
-
-/* Pulse animation for important elements */
-@keyframes pulse {
-    0%, 100% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.05);
-    }
-}
-
-.pulse {
-    animation: pulse 2s infinite;
 }
 </style>
 </head>
@@ -900,28 +1319,42 @@ body {
 <div class="page-header">
     <div class="container text-center">
         <h2><i class="fas fa-calendar-check"></i> Book Your Appointment</h2>
-        <p><?= htmlspecialchars($salon['name']) ?></p>
+        <p class="mb-2"><?= htmlspecialchars($salon['name']) ?></p>
+        <?php if ($salon['avg_rating']): ?>
+        <div class="salon-rating">
+            <i class="fas fa-star"></i>
+            <span><?= number_format($salon['avg_rating'], 1) ?></span>
+            <span>(<?= $salon['total_bookings'] ?> bookings)</span>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 
 <div class="container booking-container">
+    
+    <?php if ($has_pending): ?>
+    <div class="alert-banner">
+        <i class="fas fa-info-circle"></i>
+        <div>
+            <strong>Notice:</strong> You already have a pending appointment with this salon. 
+            <a href="my_appointments.php" style="color: #92400e; text-decoration: underline;">View Appointments</a>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Salon Information -->
     <div class="salon-info-card">
         <h5 class="mb-3"><i class="fas fa-info-circle me-2"></i>Salon Information</h5>
         <div class="info-grid">
             <div class="info-item">
-                <div class="info-icon">
-                    <i class="fas fa-map-marker-alt"></i>
-                </div>
+                <div class="info-icon"><i class="fas fa-map-marker-alt"></i></div>
                 <div class="info-text">
                     <span class="info-label">Location</span>
                     <span class="info-value"><?= htmlspecialchars($salon['address']) ?></span>
                 </div>
             </div>
             <div class="info-item">
-                <div class="info-icon">
-                    <i class="fas fa-clock"></i>
-                </div>
+                <div class="info-icon"><i class="fas fa-clock"></i></div>
                 <div class="info-text">
                     <span class="info-label">Operating Hours</span>
                     <span class="info-value">
@@ -931,9 +1364,7 @@ body {
                 </div>
             </div>
             <div class="info-item">
-                <div class="info-icon">
-                    <i class="fas fa-hourglass-split"></i>
-                </div>
+                <div class="info-icon"><i class="fas fa-hourglass-split"></i></div>
                 <div class="info-text">
                     <span class="info-label">Slot Duration</span>
                     <span class="info-value"><?= $salon['slot_duration'] ?> minutes</span>
@@ -946,27 +1377,19 @@ body {
     <div class="step-progress">
         <div class="progress-line" id="progressLine"></div>
         <div class="step-item active" id="step1">
-            <div class="step-circle">
-                <i class="fas fa-cut"></i>
-            </div>
+            <div class="step-circle"><i class="fas fa-cut"></i></div>
             <div class="step-label">Choose Service</div>
         </div>
         <div class="step-item" id="step2">
-            <div class="step-circle">
-                <i class="fas fa-calendar-alt"></i>
-            </div>
+            <div class="step-circle"><i class="fas fa-calendar-alt"></i></div>
             <div class="step-label">Pick Date</div>
         </div>
         <div class="step-item" id="step3">
-            <div class="step-circle">
-                <i class="fas fa-clock"></i>
-            </div>
+            <div class="step-circle"><i class="fas fa-clock"></i></div>
             <div class="step-label">Select Time</div>
         </div>
         <div class="step-item" id="step4">
-            <div class="step-circle">
-                <i class="fas fa-check-circle"></i>
-            </div>
+            <div class="step-circle"><i class="fas fa-check-circle"></i></div>
             <div class="step-label">Confirm</div>
         </div>
     </div>
@@ -988,48 +1411,57 @@ body {
     <?php endif; ?>
 
     <form method="POST" id="bookingForm">
+        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
 
         <!-- Step 1: Select Service -->
         <div class="booking-card">
             <div class="card-header-custom">
                 <h5><i class="fas fa-cut me-2"></i>Step 1: Select Your Service</h5>
+                <span class="step-badge">1 of 4</span>
             </div>
             <div class="card-body-custom">
                 <?php if (empty($services)): ?>
                     <div class="empty-state">
-                        <div class="empty-state-icon">
-                            <i class="fas fa-inbox"></i>
-                        </div>
+                        <div class="empty-state-icon"><i class="fas fa-inbox"></i></div>
                         <div class="empty-state-title">No Services Available</div>
-                        <div class="empty-state-text">This salon doesn't have any services listed at the moment.</div>
                     </div>
                 <?php else: ?>
-                    <div class="services-grid">
-                        <?php foreach ($services as $s): ?>
-                            <label for="service_<?= $s['id'] ?>" class="service-card" data-service-id="<?= $s['id'] ?>">
-                                <input type="radio" 
-                                       name="service_id" 
-                                       value="<?= $s['id'] ?>" 
-                                       id="service_<?= $s['id'] ?>"
-                                       class="service-radio"
-                                       data-price="<?= $s['price'] ?>"
-                                       data-duration="<?= $s['duration'] ?>"
-                                       data-name="<?= htmlspecialchars($s['name']) ?>"
-                                       required>
-                                <div class="service-name"><?= htmlspecialchars($s['name']) ?></div>
-                                <?php if (!empty($s['description'])): ?>
-                                    <div class="service-description"><?= htmlspecialchars($s['description']) ?></div>
-                                <?php endif; ?>
-                                <div class="service-details">
-                                    <div class="service-duration">
-                                        <i class="fas fa-clock"></i>
-                                        <span><?= $s['duration'] ?> min</span>
+                    <?php foreach ($grouped_services as $category => $category_services): ?>
+                    <div class="category-section">
+                        <div class="category-header">
+                            <div class="category-icon">
+                                <i class="fas fa-scissors"></i>
+                            </div>
+                            <h6 class="category-title"><?= htmlspecialchars($category) ?></h6>
+                        </div>
+                        <div class="services-grid">
+                            <?php foreach ($category_services as $s): ?>
+                                <label for="service_<?= $s['id'] ?>" class="service-card">
+                                    <input type="radio" 
+                                           name="service_id" 
+                                           value="<?= $s['id'] ?>" 
+                                           id="service_<?= $s['id'] ?>"
+                                           class="service-radio"
+                                           data-price="<?= $s['price'] ?>"
+                                           data-duration="<?= $s['duration'] ?>"
+                                           data-name="<?= htmlspecialchars($s['name']) ?>"
+                                           required>
+                                    <div class="service-name"><?= htmlspecialchars($s['name']) ?></div>
+                                    <?php if (!empty($s['description'])): ?>
+                                        <div class="service-description"><?= htmlspecialchars($s['description']) ?></div>
+                                    <?php endif; ?>
+                                    <div class="service-details">
+                                        <div class="service-duration">
+                                            <i class="fas fa-clock"></i>
+                                            <span><?= $s['duration'] ?> min</span>
+                                        </div>
+                                        <div class="service-price">Rs <?= number_format($s['price'], 2) ?></div>
                                     </div>
-                                    <div class="service-price">Rs <?= number_format($s['price'], 2) ?></div>
-                                </div>
-                            </label>
-                        <?php endforeach; ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
+                    <?php endforeach; ?>
                 <?php endif; ?>
             </div>
         </div>
@@ -1038,28 +1470,100 @@ body {
         <div class="booking-card">
             <div class="card-header-custom">
                 <h5><i class="fas fa-calendar-alt me-2"></i>Step 2: Choose Your Preferred Date</h5>
+                <span class="step-badge">2 of 4</span>
             </div>
             <div class="card-body-custom">
-                <div class="date-picker-wrapper">
-                    <i class="fas fa-calendar-event date-icon"></i>
-                    <input type="date" 
-                           name="appointment_date" 
-                           id="datePicker"
-                           class="date-input" 
-                           min="<?= date("Y-m-d") ?>" 
-                           max="<?= date("Y-m-d", strtotime("+30 days")) ?>"
-                           required>
+                
+                <!-- View Toggle -->
+                <div class="view-toggle mb-3">
+                    <button type="button" class="toggle-btn active" onclick="toggleView('calendar')" id="calendarViewBtn">
+                        <i class="fas fa-calendar"></i> Calendar View
+                    </button>
+                    <button type="button" class="toggle-btn" onclick="toggleView('picker')" id="pickerViewBtn">
+                        <i class="fas fa-list"></i> Date Picker
+                    </button>
                 </div>
-                <small class="text-muted d-block mt-2">
+
+                <!-- Calendar View -->
+                <div id="calendarView" class="calendar-view">
+                    <div class="calendar-header">
+                        <button type="button" class="calendar-nav-btn" onclick="changeMonth(-1)">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <h5 class="calendar-month" id="calendarMonth"></h5>
+                        <button type="button" class="calendar-nav-btn" onclick="changeMonth(1)">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="calendar-weekdays">
+                        <div class="weekday">Sun</div>
+                        <div class="weekday">Mon</div>
+                        <div class="weekday">Tue</div>
+                        <div class="weekday">Wed</div>
+                        <div class="weekday">Thu</div>
+                        <div class="weekday">Fri</div>
+                        <div class="weekday">Sat</div>
+                    </div>
+                    
+                    <div class="calendar-days" id="calendarDays"></div>
+                    
+                    <div class="calendar-legend">
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: #10b981;"></span>
+                            <span>Available</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: #fbbf24;"></span>
+                            <span>Limited Slots</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: #ef4444;"></span>
+                            <span>Fully Booked</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: var(--primary-purple);"></span>
+                            <span>Your Bookings</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Date Picker View (Hidden by default) -->
+                <div id="pickerView" class="picker-view" style="display: none;">
+                    <div class="calendar-shortcuts">
+                        <button type="button" class="shortcut-btn" onclick="setDate(0)">
+                            <i class="fas fa-calendar-day"></i> Today
+                        </button>
+                        <button type="button" class="shortcut-btn" onclick="setDate(1)">
+                            <i class="fas fa-calendar-plus"></i> Tomorrow
+                        </button>
+                        <button type="button" class="shortcut-btn" onclick="setDate(7)">
+                            <i class="fas fa-calendar-week"></i> Next Week
+                        </button>
+                    </div>
+                    <div class="date-picker-wrapper">
+                        <i class="fas fa-calendar-event date-icon"></i>
+                        <input type="date" 
+                               name="appointment_date" 
+                               id="datePicker"
+                               class="date-input" 
+                               min="<?= date("Y-m-d") ?>" 
+                               max="<?= date("Y-m-d", strtotime("+30 days")) ?>"
+                               required>
+                    </div>
+                </div>
+                
+                <small class="text-muted d-block mt-3">
                     <i class="fas fa-info-circle"></i> You can book appointments up to 30 days in advance
                 </small>
             </div>
         </div>
 
-        <!-- Step 3: Select Time Slot -->
+        <!-- Step 3: Select Time -->
         <div class="booking-card">
             <div class="card-header-custom">
                 <h5><i class="fas fa-clock me-2"></i>Step 3: Select Your Time Slot</h5>
+                <span class="step-badge">3 of 4</span>
             </div>
             <div class="card-body-custom">
                 <div class="loading-container" id="loadingSlots">
@@ -1070,9 +1574,7 @@ body {
                 <div class="slots-container" id="slotsContainer" style="display: none;">
                     <div class="time-period morning">
                         <div class="period-header">
-                            <div class="period-icon">
-                                <i class="fas fa-sun"></i>
-                            </div>
+                            <div class="period-icon"><i class="fas fa-sun"></i></div>
                             <div>
                                 <div class="period-title">Morning</div>
                                 <div class="period-time">6:00 AM - 12:00 PM</div>
@@ -1080,12 +1582,9 @@ body {
                         </div>
                         <div class="slots-grid" id="morningSlots"></div>
                     </div>
-
                     <div class="time-period afternoon">
                         <div class="period-header">
-                            <div class="period-icon">
-                                <i class="fas fa-cloud-sun"></i>
-                            </div>
+                            <div class="period-icon"><i class="fas fa-cloud-sun"></i></div>
                             <div>
                                 <div class="period-title">Afternoon</div>
                                 <div class="period-time">12:00 PM - 5:00 PM</div>
@@ -1093,12 +1592,9 @@ body {
                         </div>
                         <div class="slots-grid" id="afternoonSlots"></div>
                     </div>
-
                     <div class="time-period evening">
                         <div class="period-header">
-                            <div class="period-icon">
-                                <i class="fas fa-moon"></i>
-                            </div>
+                            <div class="period-icon"><i class="fas fa-moon"></i></div>
                             <div>
                                 <div class="period-title">Evening</div>
                                 <div class="period-time">5:00 PM - 11:00 PM</div>
@@ -1109,99 +1605,59 @@ body {
                 </div>
 
                 <div class="empty-state" id="emptySlots">
-                    <div class="empty-state-icon">
-                        <i class="fas fa-clock"></i>
-                    </div>
+                    <div class="empty-state-icon"><i class="fas fa-clock"></i></div>
                     <div class="empty-state-title">Select a Date First</div>
-                    <div class="empty-state-text">Choose a date above to view available time slots</div>
-                </div>
-
-                <div class="slots-legend">
-                    <div class="legend-item">
-                        <div class="legend-box available">
-                            <i class="fas fa-check" style="font-size: 0.75rem; color: #10b981;"></i>
-                        </div>
-                        <span>Available</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-box selected">
-                            <i class="fas fa-check" style="font-size: 0.75rem;"></i>
-                        </div>
-                        <span>Selected</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-box booked">
-                            <i class="fas fa-times" style="font-size: 0.75rem;"></i>
-                        </div>
-                        <span>Booked</span>
-                    </div>
                 </div>
 
                 <input type="hidden" name="appointment_time" id="selectedTime" required>
             </div>
         </div>
 
-        <!-- Additional Notes -->
+        <!-- Notes -->
         <div class="booking-card">
             <div class="card-header-custom">
                 <h5><i class="fas fa-sticky-note me-2"></i>Additional Notes (Optional)</h5>
+                <span class="step-badge">4 of 4</span>
             </div>
             <div class="card-body-custom">
                 <textarea name="notes" 
                           id="notes" 
                           class="notes-textarea" 
-                          placeholder="Any special requests or requirements? (e.g., allergies, preferred stylist, etc.)"
+                          placeholder="Any special requests? (e.g., allergies, preferred stylist, etc.)"
                           maxlength="500"></textarea>
-                <small class="text-muted">
-                    <i class="fas fa-info-circle"></i> Maximum 500 characters
-                </small>
+                <div class="char-counter">
+                    <span id="charCount">0</span> / 500 characters
+                </div>
             </div>
         </div>
 
         <!-- Booking Summary -->
         <div class="booking-summary" id="bookingSummary">
             <div class="summary-header">
-                <div class="summary-icon">
-                    <i class="fas fa-receipt"></i>
-                </div>
+                <div class="summary-icon"><i class="fas fa-receipt"></i></div>
                 <h5 class="summary-title">Booking Summary</h5>
             </div>
             <div class="summary-grid">
                 <div class="summary-item">
-                    <div class="summary-label">
-                        <i class="fas fa-cut"></i>
-                        <span>Service</span>
-                    </div>
+                    <div class="summary-label"><i class="fas fa-cut"></i> Service</div>
                     <div class="summary-value" id="summaryService">-</div>
                 </div>
                 <div class="summary-item">
-                    <div class="summary-label">
-                        <i class="fas fa-calendar-alt"></i>
-                        <span>Date</span>
-                    </div>
+                    <div class="summary-label"><i class="fas fa-calendar-alt"></i> Date</div>
                     <div class="summary-value" id="summaryDate">-</div>
                 </div>
                 <div class="summary-item">
-                    <div class="summary-label">
-                        <i class="fas fa-clock"></i>
-                        <span>Time</span>
-                    </div>
+                    <div class="summary-label"><i class="fas fa-clock"></i> Time</div>
                     <div class="summary-value" id="summaryTime">-</div>
                 </div>
                 <div class="summary-item">
-                    <div class="summary-label">
-                        <i class="fas fa-hourglass-split"></i>
-                        <span>Duration</span>
-                    </div>
+                    <div class="summary-label"><i class="fas fa-hourglass-split"></i> Duration</div>
                     <div class="summary-value" id="summaryDuration">-</div>
                 </div>
             </div>
             <div class="summary-total">
                 <div class="summary-item">
-                    <div class="summary-label">
-                        <i class="fas fa-money-bill-wave"></i>
-                        <span>Total Amount</span>
-                    </div>
+                    <div class="summary-label"><i class="fas fa-money-bill-wave"></i> Total Amount</div>
                     <div class="summary-value" id="summaryPrice">-</div>
                 </div>
             </div>
@@ -1216,49 +1672,177 @@ body {
 
     <div class="text-center mt-4 mb-5">
         <a href="salon_view.php" class="back-link">
-            <i class="fas fa-arrow-left"></i>
-            <span>Back to Salons</span>
+            <i class="fas fa-arrow-left"></i> Back to Salons
         </a>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 let selectedService = null;
 let selectedDate = null;
 let selectedTime = null;
+let currentMonth = new Date();
+let userBookings = []; // Will store user's existing bookings
+let salonAvailability = {}; // Will store availability data for each date
 
-// Service Selection
-document.querySelectorAll('.service-card').forEach(card => {
-    card.addEventListener('click', function(e) {
-        if (e.target.type === 'radio') return;
-        
-        const radio = this.querySelector('input[type="radio"]');
-        radio.checked = true;
-        
-        document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
-        this.classList.add('selected');
-        
-        selectedService = {
-            id: radio.value,
-            name: radio.dataset.name,
-            price: radio.dataset.price,
-            duration: radio.dataset.duration
-        };
-        
-        updateProgress();
-        updateSummary();
-    });
+// Initialize calendar on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadUserBookings();
+    renderCalendar();
 });
 
-// Date Selection
-document.getElementById('datePicker').addEventListener('change', function() {
-    selectedDate = this.value;
+// Load user's existing bookings
+function loadUserBookings() {
+    fetch(`get_user_bookings.php?salon_id=<?= $salon_id ?>`)
+        .then(res => res.json())
+        .then(data => {
+            userBookings = data.bookings || [];
+            renderCalendar();
+        })
+        .catch(err => console.error('Error loading bookings:', err));
+}
+
+// Load availability for visible month
+function loadMonthAvailability(year, month) {
+    const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+    const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+    
+    fetch(`get_availability.php?salon_id=<?= $salon_id ?>&start=${startDate}&end=${endDate}`)
+        .then(res => res.json())
+        .then(data => {
+            salonAvailability = data.availability || {};
+            renderCalendar();
+        })
+        .catch(err => console.error('Error loading availability:', err));
+}
+
+// Render calendar
+function renderCalendar() {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    
+    // Update header
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                       'July', 'August', 'September', 'October', 'November', 'December'];
+    document.getElementById('calendarMonth').textContent = `${monthNames[month]} ${year}`;
+    
+    // Load availability data
+    loadMonthAvailability(year, month);
+    
+    // Get first day of month and number of days
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+    
+    const calendarDays = document.getElementById('calendarDays');
+    calendarDays.innerHTML = '';
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() + 30);
+    
+    // Previous month days
+    for (let i = firstDay - 1; i >= 0; i--) {
+        const day = daysInPrevMonth - i;
+        const dayEl = createDayElement(day, true, false);
+        calendarDays.appendChild(dayEl);
+    }
+    
+    // Current month days
+    for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        date.setHours(0, 0, 0, 0);
+        const dateString = date.toISOString().split('T')[0];
+        
+        const isDisabled = date < today || date > maxDate;
+        const isToday = date.getTime() === today.getTime();
+        const isSelected = selectedDate === dateString;
+        const hasBooking = userBookings.some(b => b.appointment_date === dateString);
+        
+        const availability = salonAvailability[dateString];
+        
+        const dayEl = createDayElement(day, false, isDisabled, isToday, isSelected, hasBooking, availability, dateString);
+        calendarDays.appendChild(dayEl);
+    }
+    
+    // Next month days to fill grid
+    const totalCells = calendarDays.children.length;
+    const remainingCells = (totalCells % 7 === 0) ? 0 : 7 - (totalCells % 7);
+    for (let day = 1; day <= remainingCells; day++) {
+        const dayEl = createDayElement(day, true, false);
+        calendarDays.appendChild(dayEl);
+    }
+}
+
+function createDayElement(day, isOtherMonth, isDisabled, isToday = false, isSelected = false, hasBooking = false, availability = null, dateString = '') {
+    const dayEl = document.createElement('div');
+    dayEl.className = 'calendar-day';
+    
+    if (isOtherMonth) {
+        dayEl.classList.add('other-month');
+    }
+    if (isDisabled) {
+        dayEl.classList.add('disabled');
+    }
+    if (isToday) {
+        dayEl.classList.add('today');
+    }
+    if (isSelected) {
+        dayEl.classList.add('selected');
+    }
+    if (hasBooking) {
+        dayEl.classList.add('has-booking');
+    }
+    
+    const dayNumber = document.createElement('div');
+    dayNumber.className = 'day-number';
+    dayNumber.textContent = day;
+    dayEl.appendChild(dayNumber);
+    
+    // Add availability indicator
+    if (!isOtherMonth && !isDisabled && availability) {
+        const indicator = document.createElement('div');
+        indicator.className = 'day-indicator';
+        
+        if (availability.available > 10) {
+            indicator.classList.add('available');
+        } else if (availability.available > 0) {
+            indicator.classList.add('limited');
+        } else {
+            indicator.classList.add('full');
+        }
+        
+        dayEl.appendChild(indicator);
+        
+        // Add slot info
+        if (availability.available > 0) {
+            const slotInfo = document.createElement('div');
+            slotInfo.className = 'slot-info';
+            slotInfo.textContent = `${availability.available} slots`;
+            dayEl.appendChild(slotInfo);
+        }
+    }
+    
+    // Add click handler
+    if (!isOtherMonth && !isDisabled && dateString) {
+        dayEl.style.cursor = 'pointer';
+        dayEl.onclick = () => selectDate(dateString);
+    }
+    
+    return dayEl;
+}
+
+function selectDate(dateString) {
+    selectedDate = dateString;
     selectedTime = null;
     document.getElementById('selectedTime').value = '';
+    document.getElementById('datePicker').value = dateString;
     
-    if (!selectedDate) return;
+    // Update calendar display
+    renderCalendar();
     
+    // Load time slots
     document.getElementById('emptySlots').style.display = 'none';
     document.getElementById('slotsContainer').style.display = 'none';
     document.getElementById('loadingSlots').classList.add('show');
@@ -1274,68 +1858,110 @@ document.getElementById('datePicker').addEventListener('change', function() {
         .catch(err => {
             document.getElementById('loadingSlots').classList.remove('show');
             document.getElementById('emptySlots').style.display = 'block';
-            document.getElementById('emptySlots').innerHTML = `
-                <div class="empty-state-icon text-danger">
-                    <i class="fas fa-exclamation-triangle"></i>
-                </div>
-                <div class="empty-state-title">Error Loading Slots</div>
-                <div class="empty-state-text">Please try again or refresh the page</div>
-            `;
-            console.error('Error:', err);
         });
+}
+
+function changeMonth(delta) {
+    currentMonth.setMonth(currentMonth.getMonth() + delta);
+    
+    // Prevent going back before current month
+    const today = new Date();
+    if (currentMonth < new Date(today.getFullYear(), today.getMonth(), 1)) {
+        currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        return;
+    }
+    
+    // Prevent going forward more than 2 months
+    const maxMonth = new Date();
+    maxMonth.setMonth(maxMonth.getMonth() + 2);
+    if (currentMonth > maxMonth) {
+        currentMonth = maxMonth;
+        return;
+    }
+    
+    renderCalendar();
+}
+
+function toggleView(view) {
+    const calendarView = document.getElementById('calendarView');
+    const pickerView = document.getElementById('pickerView');
+    const calendarBtn = document.getElementById('calendarViewBtn');
+    const pickerBtn = document.getElementById('pickerViewBtn');
+    
+    if (view === 'calendar') {
+        calendarView.style.display = 'block';
+        pickerView.style.display = 'none';
+        calendarBtn.classList.add('active');
+        pickerBtn.classList.remove('active');
+    } else {
+        calendarView.style.display = 'none';
+        pickerView.style.display = 'block';
+        calendarBtn.classList.remove('active');
+        pickerBtn.classList.add('active');
+    }
+}
+
+// Service Selection
+document.querySelectorAll('.service-card').forEach(card => {
+    card.addEventListener('click', function(e) {
+        if (e.target.type === 'radio') return;
+        const radio = this.querySelector('input[type="radio"]');
+        radio.checked = true;
+        document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
+        this.classList.add('selected');
+        selectedService = {
+            id: radio.value,
+            name: radio.dataset.name,
+            price: radio.dataset.price,
+            duration: radio.dataset.duration
+        };
+        updateProgress();
+        updateSummary();
+    });
+});
+
+// Date shortcuts
+function setDate(days) {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    const dateString = date.toISOString().split('T')[0];
+    selectDate(dateString);
+}
+
+// Date Picker (for picker view)
+document.getElementById('datePicker').addEventListener('change', function() {
+    selectDate(this.value);
 });
 
 function displaySlots(data) {
     const morningSlots = document.getElementById('morningSlots');
     const afternoonSlots = document.getElementById('afternoonSlots');
     const eveningSlots = document.getElementById('eveningSlots');
-    
     morningSlots.innerHTML = '';
     afternoonSlots.innerHTML = '';
     eveningSlots.innerHTML = '';
-    
     if (!data || data.length === 0) {
         document.getElementById('emptySlots').style.display = 'block';
-        document.getElementById('emptySlots').innerHTML = `
-            <div class="empty-state-icon text-warning">
-                <i class="fas fa-calendar-times"></i>
-            </div>
-            <div class="empty-state-title">No Slots Available</div>
-            <div class="empty-state-text">All time slots are booked for this date. Please try another date.</div>
-        `;
         return;
     }
-    
     document.getElementById('slotsContainer').style.display = 'block';
-    
     let slots = data;
     if (typeof data[0] === 'string') {
         slots = data.map(time => ({ time: time, booked: false }));
     }
-    
-    let morningCount = 0, afternoonCount = 0, eveningCount = 0;
-    
     slots.forEach(slot => {
         const hour = parseInt(slot.time.split(':')[0]);
         const period = slot.time.includes('PM') ? 'PM' : 'AM';
         const hour24 = period === 'PM' && hour !== 12 ? hour + 12 : (period === 'AM' && hour === 12 ? 0 : hour);
-        
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'slot-btn';
-        
         if (slot.booked) {
             btn.classList.add('booked');
-            btn.innerHTML = `
-                <span class="slot-time">${slot.time}</span>
-                <span class="slot-status">Booked</span>
-            `;
+            btn.innerHTML = `<span class="slot-time">${slot.time}</span><span class="slot-status">Booked</span>`;
             btn.disabled = true;
         } else {
-            btn.innerHTML = `
-                <span class="slot-time">${slot.time}</span>
-                <span class="slot-status">Available</span>
-            `;
+            btn.innerHTML = `<span class="slot-time">${slot.time}</span><span class="slot-status">Available</span>`;
             btn.addEventListener('click', function() {
                 document.querySelectorAll('.slot-btn:not(.booked)').forEach(b => {
                     b.classList.remove('selected');
@@ -1349,91 +1975,56 @@ function displaySlots(data) {
                 updateSummary();
             });
         }
-        
         if (hour24 < 12) {
             morningSlots.appendChild(btn);
-            morningCount++;
         } else if (hour24 < 17) {
             afternoonSlots.appendChild(btn);
-            afternoonCount++;
         } else {
             eveningSlots.appendChild(btn);
-            eveningCount++;
         }
     });
-    
-    // Hide empty periods
-    document.querySelector('.morning').style.display = morningCount > 0 ? 'block' : 'none';
-    document.querySelector('.afternoon').style.display = afternoonCount > 0 ? 'block' : 'none';
-    document.querySelector('.evening').style.display = eveningCount > 0 ? 'block' : 'none';
-    
-    // Show total available count
-    const availableCount = slots.filter(s => !s.booked).length;
-    if (availableCount === 0) {
-        document.getElementById('slotsContainer').style.display = 'none';
-        document.getElementById('emptySlots').style.display = 'block';
-    }
 }
 
 function updateProgress() {
     const steps = ['step1', 'step2', 'step3', 'step4'];
     let activeStep = 0;
-    
-    // Reset all steps
     steps.forEach((step, index) => {
         const el = document.getElementById(step);
         el.classList.remove('active', 'completed');
-        
-        if (index === 0) {
-            el.classList.add('active');
-        }
+        if (index === 0) el.classList.add('active');
     });
-    
-    // Step 1 - Service
     if (selectedService) {
         document.getElementById('step1').classList.remove('active');
         document.getElementById('step1').classList.add('completed');
         document.getElementById('step2').classList.add('active');
         activeStep = 1;
     }
-    
-    // Step 2 - Date
     if (selectedDate) {
         document.getElementById('step2').classList.remove('active');
         document.getElementById('step2').classList.add('completed');
         document.getElementById('step3').classList.add('active');
         activeStep = 2;
     }
-    
-    // Step 3 - Time
     if (selectedTime) {
         document.getElementById('step3').classList.remove('active');
         document.getElementById('step3').classList.add('completed');
         document.getElementById('step4').classList.add('active');
         activeStep = 3;
     }
-    
-    // Update progress line
     const progressLine = document.getElementById('progressLine');
-    const progressPercent = (activeStep / 3) * 75; // 75% max (from 15% to 90%)
+    const progressPercent = (activeStep / 3) * 75;
     progressLine.style.width = progressPercent + '%';
-    
-    // Enable submit button
     document.getElementById('submitBtn').disabled = !(selectedService && selectedDate && selectedTime);
 }
 
 function updateSummary() {
     const summary = document.getElementById('bookingSummary');
-    
     if (selectedService && selectedDate && selectedTime) {
         summary.classList.add('show');
-        
         document.getElementById('summaryService').textContent = selectedService.name;
-        
         const dateObj = new Date(selectedDate + 'T00:00:00');
         const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
         document.getElementById('summaryDate').textContent = dateObj.toLocaleDateString('en-US', options);
-        
         document.getElementById('summaryTime').textContent = selectedTime;
         document.getElementById('summaryDuration').textContent = selectedService.duration + ' minutes';
         document.getElementById('summaryPrice').textContent = 'Rs ' + parseFloat(selectedService.price).toLocaleString('en-US', {
@@ -1445,23 +2036,19 @@ function updateSummary() {
     }
 }
 
+// Character counter
+document.getElementById('notes').addEventListener('input', function() {
+    document.getElementById('charCount').textContent = this.value.length;
+});
+
 // Form validation
 document.getElementById('bookingForm').addEventListener('submit', function(e) {
     if (!selectedService || !selectedDate || !selectedTime) {
         e.preventDefault();
-        alert('Please complete all steps before booking:\n\n✓ Select a service\n✓ Choose a date\n✓ Pick a time slot');
+        alert('Please complete all steps before booking');
         return false;
     }
 });
-
-// Auto-dismiss any alert messages after 5 seconds
-setTimeout(() => {
-    const alerts = document.querySelectorAll('.alert');
-    alerts.forEach(alert => {
-        alert.style.animation = 'slideUp 0.5s ease forwards';
-        setTimeout(() => alert.remove(), 500);
-    });
-}, 5000);
 </script>
 
 </body>
