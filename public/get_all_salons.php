@@ -1,86 +1,119 @@
 <?php
-/**
- * Get All Salons API
- * Returns all active salons for map display
- */
-
-session_start();
-require_once __DIR__ . '/../config.php';
-
+// public/get_all_salons.php
 header('Content-Type: application/json');
-header('Cache-Control: public, max-age=300'); // Cache for 5 minutes
 
-function sendResponse($data, $statusCode = 200) {
-    http_response_code($statusCode);
-    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    exit;
-}
-
-function sendError($message, $statusCode = 400) {
-    sendResponse(['error' => $message], $statusCode);
-}
+require_once __DIR__ . '/../config.php'; // adjust path if needed
+// session_start(); // only if you need session here
 
 try {
-    // Get all active salons with essential information
-    // Adjusted to match your database structure
-    $stmt = $pdo->prepare("
+    /**
+     * Assumptions:
+     * - DB connection variable is $pdo (PDO)
+     *   If you use mysqli ($conn), tell me and I’ll convert it.
+     * - Table: salons
+     *   Columns:
+     *   id, owner_id, name, address, phone, email, description,
+     *   website, facebook, instagram,
+     *   parking_available, wheelchair_accessible, wifi_available, air_conditioned,
+     *   image, lat, lng, opening_time, closing_time, slot_duration
+     *
+     * - Table: reviews
+     *   id, user_id, salon_id, rating, comment, created_at
+     */
+
+    $sql = "
         SELECT 
             s.id,
             s.name,
             s.address,
-            s.city,
-            s.lat,
-            s.lng,
-            s.rating,
             s.phone,
             s.email,
+            s.description,
             s.website,
+            s.facebook,
+            s.instagram,
+            s.parking_available,
+            s.wheelchair_accessible,
+            s.wifi_available,
+            s.air_conditioned,
             s.image,
-            s.opening_hours,
-            s.created_at,
-            COUNT(DISTINCT r.id) as review_count,
-            GROUP_CONCAT(DISTINCT srv.name ORDER BY srv.name SEPARATOR ', ') as services
+            s.lat,
+            s.lng,
+            s.opening_time,
+            s.closing_time,
+            s.slot_duration,
+            COALESCE(AVG(r.rating), 0) AS avg_rating,
+            COUNT(r.id) AS review_count
         FROM salons s
         LEFT JOIN reviews r ON r.salon_id = s.id
-        LEFT JOIN services srv ON srv.salon_id = s.id
-        GROUP BY s.id
-        ORDER BY 
-            s.rating DESC,
-            s.name ASC
-        LIMIT 500
-    ");
-    
-    $stmt->execute();
-    $salons = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Format response
-    $formattedSalons = array_map(function($salon) {
-        return [
-            'id' => (int) $salon['id'],
-            'name' => htmlspecialchars($salon['name'], ENT_QUOTES, 'UTF-8'),
-            'address' => htmlspecialchars($salon['address'], ENT_QUOTES, 'UTF-8'),
-            'city' => htmlspecialchars($salon['city'] ?? '', ENT_QUOTES, 'UTF-8'),
-            'lat' => (float) $salon['lat'],
-            'lng' => (float) $salon['lng'],
-            'rating' => $salon['rating'] ? round((float) $salon['rating'], 1) : null,
-            'phone' => $salon['phone'] ? htmlspecialchars($salon['phone'], ENT_QUOTES, 'UTF-8') : null,
-            'email' => $salon['email'] ? htmlspecialchars($salon['email'], ENT_QUOTES, 'UTF-8') : null,
-            'website' => $salon['website'],
-            'image_url' => $salon['image_url'] ?: 'assets/images/default-salon.jpg',
-            'opening_hours' => $salon['opening_hours'],
-            'is_featured' => (bool) $salon['is_featured'],
-            'review_count' => (int) $salon['review_count'],
-            'services' => $salon['services']
+        GROUP BY 
+            s.id,
+            s.name,
+            s.address,
+            s.phone,
+            s.email,
+            s.description,
+            s.website,
+            s.facebook,
+            s.instagram,
+            s.parking_available,
+            s.wheelchair_accessible,
+            s.wifi_available,
+            s.air_conditioned,
+            s.image,
+            s.lat,
+            s.lng,
+            s.opening_time,
+            s.closing_time,
+            s.slot_duration
+        ORDER BY s.name ASC
+    ";
+
+    $stmt = $pdo->query($sql);
+    $salons = [];
+
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        // Build image URL (adjust path if different)
+        $imageUrl = null;
+        if (!empty($row['image'])) {
+            // if you store full URL in DB, just use $row['image']
+            // if you store only filename, prepend your uploads path:
+            $imageUrl = '/uploads/salons/' . $row['image'];
+        }
+
+        $salons[] = [
+            'id'                   => (int)$row['id'],
+            'name'                 => $row['name'],
+            'address'              => $row['address'],
+            'phone'                => $row['phone'],
+            'email'                => $row['email'],
+            'description'          => $row['description'],
+            'website'              => $row['website'],
+            'facebook'             => $row['facebook'],
+            'instagram'            => $row['instagram'],
+            'parking_available'    => (int)$row['parking_available'],
+            'wheelchair_accessible'=> (int)$row['wheelchair_accessible'],
+            'wifi_available'       => (int)$row['wifi_available'],
+            'air_conditioned'      => (int)$row['air_conditioned'],
+            'image_url'            => $imageUrl,
+            'lat'                  => $row['lat'] !== null ? (float)$row['lat'] : null,
+            'lng'                  => $row['lng'] !== null ? (float)$row['lng'] : null,
+            'opening_time'         => $row['opening_time'],   // "HH:MM:SS"
+            'closing_time'         => $row['closing_time'],   // "HH:MM:SS"
+            'slot_duration'        => (int)$row['slot_duration'],
+            'rating'               => $row['avg_rating'] !== null ? (float)$row['avg_rating'] : null,
+            'review_count'         => (int)$row['review_count'],
+            // services => [] for now (you can fill later if you add services table)
+            'services'             => []
         ];
-    }, $salons);
-    
-    sendResponse($formattedSalons);
-    
-} catch (PDOException $e) {
-    error_log("Get All Salons Error: " . $e->getMessage());
-    sendError('Failed to load salons', 500);
-    
-} catch (Exception $e) {
-    error_log("Get All Salons Error: " . $e->getMessage());
-    sendError('An unexpected error occurred', 500);
+    }
+
+    echo json_encode($salons);
+
+} catch (Throwable $e) {
+    http_response_code(500);
+    echo json_encode([
+        'error' => 'Server error',
+        'details' => $e->getMessage()
+    ]);
 }

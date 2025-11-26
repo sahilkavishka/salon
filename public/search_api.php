@@ -13,67 +13,115 @@ if ($query === '') {
 }
 
 try {
-    // Search salons by name, address, or service
-    // + return full data for frontend
-    $stmt = $pdo->prepare("
+    /**
+     * Search by:
+     *  - salon name
+     *  - address
+     *  - description
+     *  - website/facebook/instagram
+     *  - (optional) services table later
+     */
+
+    $sql = "
         SELECT 
             s.id,
             s.name,
             s.address,
             s.phone,
             s.email,
+            s.description,
+            s.website,
+            s.facebook,
+            s.instagram,
+            s.parking_available,
+            s.wheelchair_accessible,
+            s.wifi_available,
+            s.air_conditioned,
+            s.image,
             s.lat,
             s.lng,
             s.opening_time,
             s.closing_time,
-            s.image AS image_url,
-            s.rating,
-            s.review_count,
-            GROUP_CONCAT(DISTINCT srv.name ORDER BY srv.name SEPARATOR '||') AS services
+            s.slot_duration,
+            COALESCE(AVG(r.rating), 0) AS avg_rating,
+            COUNT(r.id) AS review_count
         FROM salons s
-        LEFT JOIN services srv ON srv.salon_id = s.id
-        WHERE s.name LIKE :q 
-           OR s.address LIKE :q 
-           OR srv.name LIKE :q
+        LEFT JOIN reviews r ON r.salon_id = s.id
+        WHERE 
+            s.name LIKE :q
+            OR s.address LIKE :q
+            OR s.description LIKE :q
+            OR s.website LIKE :q
+            OR s.facebook LIKE :q
+            OR s.instagram LIKE :q
         GROUP BY 
-            s.id, s.name, s.address, s.phone, s.email,
-            s.lat, s.lng, s.opening_time, s.closing_time,
-            s.image, s.rating, s.review_count
-        ORDER BY s.rating DESC, s.name ASC
-        LIMIT 100
-    ");
-    $stmt->execute([':q' => "%{$query}%"]);
+            s.id,
+            s.name,
+            s.address,
+            s.phone,
+            s.email,
+            s.description,
+            s.website,
+            s.facebook,
+            s.instagram,
+            s.parking_available,
+            s.wheelchair_accessible,
+            s.wifi_available,
+            s.air_conditioned,
+            s.image,
+            s.lat,
+            s.lng,
+            s.opening_time,
+            s.closing_time,
+            s.slot_duration
+        ORDER BY avg_rating DESC, s.name ASC
+    ";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([':q' => '%' . $query . '%']);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $results = [];
+
     foreach ($rows as $row) {
-        $services = [];
-        if (!empty($row['services'])) {
-            $services = explode('||', $row['services']);
+        $imageUrl = null;
+        if (!empty($row['image'])) {
+            // adjust if your upload path is different
+            $imageUrl = '/uploads/salons/' . $row['image'];
         }
 
         $results[] = [
-            'id'             => (int)$row['id'],
-            'name'           => $row['name'],
-            'address'        => $row['address'],
-            'phone'          => $row['phone'],
-            'email'          => $row['email'],
-            'lat'            => (float)$row['lat'],
-            'lng'            => (float)$row['lng'],
-            'opening_time'   => $row['opening_time'],
-            'closing_time'   => $row['closing_time'],
-            'image_url'      => $row['image_url'],
-            'rating'         => $row['rating'] !== null ? (float)$row['rating'] : null,
-            'review_count'   => $row['review_count'] !== null ? (int)$row['review_count'] : 0,
-            'services'       => $services,
+            'id'                   => (int)$row['id'],
+            'name'                 => $row['name'],
+            'address'              => $row['address'],
+            'phone'                => $row['phone'],
+            'email'                => $row['email'],
+            'description'          => $row['description'],
+            'website'              => $row['website'],
+            'facebook'             => $row['facebook'],
+            'instagram'            => $row['instagram'],
+            'parking_available'    => (int)$row['parking_available'],
+            'wheelchair_accessible'=> (int)$row['wheelchair_accessible'],
+            'wifi_available'       => (int)$row['wifi_available'],
+            'air_conditioned'      => (int)$row['air_conditioned'],
+            'image_url'            => $imageUrl,
+            'lat'                  => $row['lat'] !== null ? (float)$row['lat'] : null,
+            'lng'                  => $row['lng'] !== null ? (float)$row['lng'] : null,
+            'opening_time'         => $row['opening_time'],
+            'closing_time'         => $row['closing_time'],
+            'slot_duration'        => (int)$row['slot_duration'],
+            'rating'               => $row['avg_rating'] !== null ? (float)$row['avg_rating'] : null,
+            'review_count'         => (int)$row['review_count'],
+            // services array reserved for later
+            'services'             => []
         ];
     }
 
     echo json_encode($results);
 
 } catch (Exception $e) {
-    // For security, don't show internal error message to user
     echo json_encode([
-        'error' => 'An error occurred while searching. Please try again.'
+        'error' => 'Search failed. Please try again.'
+        // 'debug' => $e->getMessage() // enable only for debugging
     ]);
 }
