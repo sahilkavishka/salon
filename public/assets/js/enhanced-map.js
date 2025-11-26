@@ -260,34 +260,56 @@ function updateMapMarkers(salons) {
 }
 
 // Create custom marker based on rating
+// Create custom marker based on rating
 function createMarker(salon) {
     const color = getMarkerColor(salon.rating);
+
+    const ratingText = salon.rating ? salon.rating.toFixed(1) : '';
 
     const icon = L.divIcon({
         className: 'custom-marker',
         html: `
-            <div style="
-                background: ${color};
-                width: 32px;
-                height: 32px;
-                border-radius: 50% 50% 50% 0;
-                border: 3px solid white;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                transform: rotate(-45deg);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                cursor: pointer;
-            ">
+            <div class="marker-wrapper" 
+                 style="
+                    background: ${color};
+                    width: 34px;
+                    height: 34px;
+                    border-radius: 50% 50% 50% 0;
+                    border: 3px solid white;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+                    transform: rotate(-45deg);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    position: relative;
+                    cursor: pointer;
+                 ">
                 <i class="fas fa-cut" style="
                     color: white;
-                    font-size: 12px;
+                    font-size: 13px;
                     transform: rotate(45deg);
                 "></i>
+
+                ${ratingText ? `
+                <div class="marker-rating-badge" style="
+                    position: absolute;
+                    top: -6px;
+                    right: -6px;
+                    transform: rotate(45deg);
+                    background: #111827;
+                    color: #fbbf24;
+                    font-size: 9px;
+                    padding: 1px 4px;
+                    border-radius: 999px;
+                    font-weight: 700;
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+                ">
+                    ★ ${ratingText}
+                </div>` : ''}
             </div>
         `,
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
+        iconSize: [34, 34],
+        iconAnchor: [17, 34],
         popupAnchor: [0, -32]
     });
 
@@ -297,18 +319,19 @@ function createMarker(salon) {
     const popupContent = createPopupContent(salon);
     marker.bindPopup(popupContent, {
         className: 'custom-popup',
-        maxWidth: 300
+        maxWidth: 320
     });
 
-    // Highlight marker on hover
-    marker.on('mouseover', function () {
+    // Hover effects (smooth)
+    marker.on('mouseover', function() {
         const el = this.getElement();
         if (!el) return;
+        el.style.transition = 'transform 0.15s ease, box-shadow 0.15s ease';
         el.style.transform = 'scale(1.2)';
         el.style.zIndex = 1000;
     });
 
-    marker.on('mouseout', function () {
+    marker.on('mouseout', function() {
         const el = this.getElement();
         if (!el) return;
         el.style.transform = 'scale(1)';
@@ -328,19 +351,25 @@ function getMarkerColor(rating) {
 }
 
 // Create popup content
+// Create popup content
 function createPopupContent(salon) {
-    const imageUrl = salon.image_url || 'assets/images/default-salon.jpg';
+    // Build full image path
+    const imageUrl = salon.image_url && salon.image_url.trim() !== '' 
+        ? salon.image_url // e.g., "http://yourdomain.com/uploads/profile/image1.jpg"
+        : 'assets/images/default-salon.jpg'; // fallback if missing
+    
     const rating = salon.rating != null ? salon.rating.toFixed(1) : 'N/A';
     const distance = salon.distance ? formatDistance(salon.distance) : '';
     const salonId = parseInt(salon.id, 10);
 
-    // Correct path to your salon details page
+    // Path to salon details page
     const detailPageUrl = `user/salon_details.php?id=${salonId}`;
 
     return `
         <div class="popup-content">
             <div class="popup-header">
-                <img src="${imageUrl}" alt="${escapeHtml(salon.name || '')}" class="popup-image" onerror="this.src='assets/images/default-salon.jpg'">
+                <img src="${imageUrl}" alt="${escapeHtml(salon.name || '')}" class="popup-image"
+                     onerror="this.src='assets/images/default-salon.jpg'">
                 <div>
                     <div class="popup-title">${escapeHtml(salon.name || '')}</div>
                     <div class="popup-rating">
@@ -379,7 +408,8 @@ function createPopupContent(salon) {
                     View Details
                 </a>
                 ${salon.phone ? `
-                    <a href="tel:${escapeHtml(salon.phone)}" class="popup-btn popup-btn-secondary" title="Call ${escapeHtml(salon.name || '')}">
+                    <a href="tel:${escapeHtml(salon.phone)}" class="popup-btn popup-btn-secondary"
+                       title="Call ${escapeHtml(salon.name || '')}">
                         <i class="fas fa-phone"></i>
                     </a>
                 ` : ''}
@@ -387,6 +417,7 @@ function createPopupContent(salon) {
         </div>
     `;
 }
+
 
 // Search functionality
 function debounceSearch(query) {

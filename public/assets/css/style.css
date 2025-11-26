@@ -792,3 +792,229 @@ html {
     transform: rotate(360deg);
   }
 }
+
+/* User location marker */
+.user-location-marker {
+    position: relative;
+}
+
+.user-location-dot {
+    width: 14px;
+    height: 14px;
+    background: #3b82f6;
+    border-radius: 999px;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.4);
+    position: relative;
+    z-index: 2;
+}
+
+.user-location-pulse {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    transform: translate(-50%, -50%);
+    border: 2px solid rgba(59, 130, 246, 0.5);
+    animation: pulseLocation 1.8s infinite;
+    z-index: 1;
+}
+
+@keyframes pulseLocation {
+    0% {
+        opacity: 0.8;
+        transform: translate(-50%, -50%) scale(0.6);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.4);
+    }
+}
+
+/* Marker rating badge */
+.marker-rating-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    transform: rotate(45deg);
+    background: #111827;
+    color: #fbbf24;
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+}
+
+/* Popup styling */
+.custom-popup .leaflet-popup-content-wrapper {
+    border-radius: 14px;
+    padding: 0;
+    overflow: hidden;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.25);
+    border: 1px solid #e5e7eb;
+}
+
+.custom-popup .leaflet-popup-tip {
+    display: none;
+}
+
+.popup-content {
+    padding: 14px 16px 14px 16px;
+    min-width: 260px;
+}
+
+.popup-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.popup-image {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    object-fit: cover;
+    background: #e5e7eb;
+}
+
+.popup-title {
+    font-weight: 600;
+    color: #111827;
+    font-size: 16px;
+    margin-bottom: 4px;
+}
+
+.popup-rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #d97706;
+    font-size: 13px;
+}
+
+.popup-rating-count {
+    color: #9ca3af;
+    font-size: 12px;
+}
+
+.popup-open-status {
+    font-size: 12px;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.popup-details {
+    font-size: 13px;
+    color: #4b5563;
+    margin-bottom: 8px;
+}
+
+.popup-line {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.popup-line i {
+    width: 14px;
+    margin-top: 2px;
+}
+
+.popup-distance {
+    color: #059669;
+    font-weight: 600;
+}
+
+.popup-facilities {
+    margin-bottom: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.facility-badge {
+    background: #e5e7eb;
+    color: #374151;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-weight: 500;
+}
+
+.popup-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.popup-btn {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.popup-btn-primary {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+}
+
+.popup-btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(79, 70, 229, 0.45);
+    color: #fff;
+}
+
+.popup-btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+    max-width: 48px;
+}
+
+.popup-btn-secondary:hover {
+    background: #e5e7eb;
+}
+
+/* Nicer cluster icons (optional) */
+.marker-cluster-small, 
+.marker-cluster-medium, 
+.marker-cluster-large {
+    background: rgba(99, 102, 241, 0.12);
+    border-radius: 999px;
+}
+
+.marker-cluster-small div, 
+.marker-cluster-medium div, 
+.marker-cluster-large div {
+    background: #4f46e5;
+    color: #fff;
+    border-radius: 999px;
+    border: 2px solid #eef2ff;
+    font-weight: 600;
+}
+
+/* Highlight active search result */
+.search-result-item.active {
+    background: linear-gradient(to right, #e0e7ff, #fff);
+    border-left: 4px solid #6366f1;
+}
+
+/* Small responsiveness tweak */
+@media (max-width: 768px) {
+    .popup-content {
+        min-width: 220px;
+    }
+}
