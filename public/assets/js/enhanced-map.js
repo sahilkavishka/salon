@@ -156,9 +156,10 @@ function applyFilters() {
         }
         
         // Open now filter
-        if (filterOpenNow.checked && !isOpenNow(salon.opening_hours)) {
+        if (filterOpenNow.checked && !isOpenNow(salon.opening_time, salon.closing_time)) {
             return false;
         }
+
         
         return true;
     });
@@ -167,17 +168,28 @@ function applyFilters() {
 }
 
 // Check if salon is open now
-function isOpenNow(openingHours) {
-    if (!openingHours) return true; // Assume open if no hours specified
-    
+function isOpenNow(openingTime, closingTime) {
+    if (!openingTime || !closingTime) return true; // assume open if not set
+
     const now = new Date();
-    const currentDay = now.getDay();
-    const currentTime = now.getHours() * 60 + now.getMinutes();
-    
-    // Parse opening hours (simple format: "Mon-Fri: 9:00-18:00")
-    // This is a simplified check - implement based on your data format
-    return true;
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    // openingTime & closingTime expected as "HH:MM:SS" from MySQL
+    const [oh, om] = openingTime.split(':').map(Number);
+    const [ch, cm] = closingTime.split(':').map(Number);
+
+    const openMinutes = oh * 60 + om;
+    const closeMinutes = ch * 60 + cm;
+
+    // Simple case: open & close on same day
+    if (closeMinutes > openMinutes) {
+        return currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
+    }
+
+    // Overnight case (e.g. 20:00 – 02:00)
+    return currentMinutes >= openMinutes || currentMinutes <= closeMinutes;
 }
+
 
 // Update map markers
 function updateMapMarkers(salons) {
