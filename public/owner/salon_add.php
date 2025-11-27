@@ -203,7 +203,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </style>
 </head>
 <body>
-<?php include __DIR__ . '/../header.php'; ?>
 
 <div class="container py-5">
     <h2 class="mb-4"><i class="fas fa-plus-circle"></i> Add Your Salon</h2>

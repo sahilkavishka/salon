@@ -34,7 +34,7 @@ if (!isset($_SESSION['csrf_token'])) {
 }
 $nonce = bin2hex(random_bytes(16));
 
-// CSP: allow only scripts with this nonce + CDNs (no inline onclick)
+// CSP Header
 header("Content-Security-Policy: script-src 'self' 'nonce-{$nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; connect-src 'self';");
 ?>
 <!DOCTYPE html>
@@ -91,32 +91,6 @@ body {
     color: white;
 }
 
-.btn-outline-pink {
-    border: 2px solid var(--primary-pink);
-    color: var(--primary-pink);
-    background: white;
-    transition: all 0.3s;
-}
-
-.btn-outline-pink:hover {
-    background: var(--primary-pink);
-    color: white;
-    transform: translateY(-2px);
-}
-
-.btn-outline-purple {
-    border: 2px solid var(--primary-purple);
-    color: var(--primary-purple);
-    background: white;
-    transition: all 0.3s;
-}
-
-.btn-outline-purple:hover {
-    background: var(--primary-purple);
-    color: white;
-    transform: translateY(-2px);
-}
-
 .appointment-card { 
     background: white; 
     padding: 1.5rem; 
@@ -147,18 +121,10 @@ body {
     box-shadow: 0 8px 25px rgba(156, 39, 176, 0.15);
 }
 
-.appointment-card.pending { 
-    border-left-color: #ff6b9d;
-}
-.appointment-card.confirmed { 
-    border-left-color: #c2185b;
-}
-.appointment-card.completed { 
-    border-left-color: #7b1fa2;
-}
-.appointment-card.cancelled { 
-    border-left-color: #b39ddb;
-}
+.appointment-card.pending { border-left-color: #ff6b9d; }
+.appointment-card.confirmed { border-left-color: #c2185b; }
+.appointment-card.completed { border-left-color: #7b1fa2; }
+.appointment-card.cancelled { border-left-color: #b39ddb; }
 
 .status-badge { 
     padding: 0.4rem 0.8rem; 
@@ -274,10 +240,6 @@ body {
     box-shadow: 0 4px 10px rgba(156, 39, 176, 0.3);
 }
 
-.nav-tabs .badge {
-    font-weight: 600;
-}
-
 .tab-content {
     background: white;
     padding: 2rem;
@@ -301,17 +263,25 @@ body {
     margin-bottom: 1rem;
 }
 
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 .action-buttons .btn {
     font-size: 0.85rem;
-    padding: 0.4rem 1rem;
+    padding: 0.5rem 1.2rem;
     border-radius: 50px;
     font-weight: 500;
     transition: all 0.3s;
+    border: none;
+    cursor: pointer;
 }
 
 .btn-confirm {
     background: linear-gradient(135deg, #c2185b 0%, #e91e63 100%);
-    border: none;
     color: white;
 }
 
@@ -319,12 +289,10 @@ body {
     background: linear-gradient(135deg, #e91e63 0%, #c2185b 100%);
     transform: translateY(-2px);
     box-shadow: 0 4px 10px rgba(194, 24, 91, 0.3);
-    color: white;
 }
 
 .btn-complete {
     background: linear-gradient(135deg, #7b1fa2 0%, #9c27b0 100%);
-    border: none;
     color: white;
 }
 
@@ -332,12 +300,10 @@ body {
     background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%);
     transform: translateY(-2px);
     box-shadow: 0 4px 10px rgba(123, 31, 162, 0.3);
-    color: white;
 }
 
 .btn-reject {
     background: linear-gradient(135deg, #9575cd 0%, #b39ddb 100%);
-    border: none;
     color: white;
 }
 
@@ -345,13 +311,6 @@ body {
     background: linear-gradient(135deg, #b39ddb 0%, #9575cd 100%);
     transform: translateY(-2px);
     box-shadow: 0 4px 10px rgba(149, 117, 205, 0.3);
-    color: white;
-}
-
-.appointment-card h5 {
-    font-weight: 600;
-    color: var(--dark-purple);
-    margin-bottom: 1rem;
 }
 
 .stats-card {
@@ -391,23 +350,10 @@ body {
 }
 
 @media (max-width: 768px) {
-    .page-header {
-        padding: 1.5rem;
-    }
-    
-    .appointment-card {
-        padding: 1rem;
-    }
-    
-    .action-buttons {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-    
-    .action-buttons .btn {
-        width: 100%;
-    }
+    .page-header { padding: 1.5rem; }
+    .appointment-card { padding: 1rem; }
+    .action-buttons { justify-content: center; }
+    .action-buttons .btn { flex: 1; min-width: 120px; }
 }
 </style>
 </head>
@@ -429,7 +375,6 @@ body {
                 <p class="mb-0 mt-2" style="opacity: 0.9;">Manage and track all your salon appointments</p>
             </div>
             <div class="mt-3 mt-md-0">
-                <!-- NO inline JS here -->
                 <button class="btn btn-light me-2" id="backBtn">
                     <i class="fas fa-arrow-left me-1"></i>Back
                 </button>
@@ -511,26 +456,7 @@ body {
 <script nonce="<?= $nonce ?>">
 const csrfToken = <?= json_encode($_SESSION['csrf_token']) ?>;
 
-// 🔹 Wire up Back and Refresh buttons here
-document.addEventListener('DOMContentLoaded', () => {
-    const backBtn = document.getElementById('backBtn');
-    const refreshBtn = document.getElementById('refreshBtn');
-
-    if (backBtn) {
-        backBtn.addEventListener('click', () => {
-            // 🔴 CHANGE THIS PATH IF NEEDED
-            window.location.href = 'dashboard.php';
-        });
-    }
-
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => {
-            fetchAppointments(true);
-        });
-    }
-});
-
-// Utility function to escape HTML
+// Escape HTML to prevent XSS
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
@@ -579,15 +505,19 @@ function toggleLoading(show) {
 
 // Format date and time
 function formatDateTime(date, time) {
-    const dateObj = new Date(date + ' ' + time);
-    const options = { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    };
-    return dateObj.toLocaleDateString('en-US', options);
+    try {
+        const dateObj = new Date(date + ' ' + time);
+        const options = { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        };
+        return dateObj.toLocaleDateString('en-US', options);
+    } catch (e) {
+        return date + ' ' + time;
+    }
 }
 
 // Fetch appointments
@@ -595,15 +525,17 @@ async function fetchAppointments(showMessage = false) {
     try {
         if (showMessage) toggleLoading(true);
         
-        // 🔴 Ensure path is correct: this assumes fetch_appointments.php is in same folder
         const res = await fetch('fetch_appointments.php', {
+            method: 'GET',
             headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            },
+            credentials: 'same-origin'
         });
         
         if (!res.ok) {
-            throw new Error('Failed to fetch appointments');
+            throw new Error('Failed to fetch appointments: ' + res.status);
         }
         
         const data = await res.json();
@@ -664,10 +596,10 @@ function renderAppointments(status, appointments) {
         if (status === 'pending') {
             buttons = `
                 <div class="action-buttons">
-                    <button class="btn btn-confirm btn-sm me-2" onclick="handleAction(${apt.id}, 'confirm')" title="Confirm appointment">
+                    <button class="btn btn-confirm btn-sm" data-action="confirm" data-id="${apt.id}" title="Confirm appointment">
                         <i class="fas fa-check me-1"></i>Confirm
                     </button>
-                    <button class="btn btn-reject btn-sm" onclick="handleAction(${apt.id}, 'reject')" title="Reject appointment">
+                    <button class="btn btn-reject btn-sm" data-action="reject" data-id="${apt.id}" title="Reject appointment">
                         <i class="fas fa-times me-1"></i>Reject
                     </button>
                 </div>
@@ -675,7 +607,7 @@ function renderAppointments(status, appointments) {
         } else if (status === 'confirmed') {
             buttons = `
                 <div class="action-buttons">
-                    <button class="btn btn-complete btn-sm" onclick="handleAction(${apt.id}, 'complete')" title="Mark as completed">
+                    <button class="btn btn-complete btn-sm" data-action="complete" data-id="${apt.id}" title="Mark as completed">
                         <i class="fas fa-check-double me-1"></i>Mark Complete
                     </button>
                 </div>
@@ -699,9 +631,14 @@ function renderAppointments(status, appointments) {
                             <div class="mb-2">
                                 <i class="fas fa-store"></i>${escapeHtml(apt.salon_name)}
                             </div>
-                            <div>
+                            <div class="mb-2">
                                 <i class="fas fa-calendar-alt"></i>${formatDateTime(apt.appointment_date, apt.appointment_time)}
                             </div>
+                            ${apt.user_email ? `
+                            <div>
+                                <i class="fas fa-envelope"></i>${escapeHtml(apt.user_email)}
+                            </div>
+                            ` : ''}
                         </div>
                     </div>
                     <div class="col-lg-3 col-md-4 text-end mt-3 mt-md-0">
@@ -711,6 +648,22 @@ function renderAppointments(status, appointments) {
             </div>
         `;
     }).join('');
+    
+    // Attach event listeners to action buttons
+    attachActionListeners(container);
+}
+
+// Attach event listeners to action buttons
+function attachActionListeners(container) {
+    const buttons = container.querySelectorAll('[data-action]');
+    buttons.forEach(button => {
+        button.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const action = this.getAttribute('data-action');
+            const id = this.getAttribute('data-id');
+            await handleAction(id, action);
+        });
+    });
 }
 
 // Handle appointment actions
@@ -738,11 +691,12 @@ async function handleAction(id, action) {
             body: fd,
             headers: {
                 'X-Requested-With': 'XMLHttpRequest'
-            }
+            },
+            credentials: 'same-origin'
         });
         
         if (!res.ok) {
-            throw new Error('Request failed');
+            throw new Error('Request failed with status: ' + res.status);
         }
         
         const data = await res.json();
@@ -761,8 +715,27 @@ async function handleAction(id, action) {
     }
 }
 
-// Initial load
-fetchAppointments();
+// Initialize on DOM load
+document.addEventListener('DOMContentLoaded', () => {
+    // Back button
+    const backBtn = document.getElementById('backBtn');
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            window.location.href = 'dashboard.php';
+        });
+    }
+
+    // Refresh button
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            fetchAppointments(true);
+        });
+    }
+    
+    // Initial load
+    fetchAppointments();
+});
 
 // Auto-refresh every 2 minutes
 setInterval(() => {

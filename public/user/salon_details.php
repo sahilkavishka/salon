@@ -1,5 +1,6 @@
 <?php
 session_start();
+date_default_timezone_set('Asia/Colombo');
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../auth_check.php';
 checkAuth();
@@ -94,19 +95,24 @@ $description = $salon['description'] ?? null;
 // Check if salon is currently open
 $is_open = false;
 $current_status = 'Closed';
+
 if (!empty($salon['opening_time']) && !empty($salon['closing_time'])) {
-    $now = new DateTime();
-    $opening = DateTime::createFromFormat('H:i:s', $salon['opening_time']);
-    $closing = DateTime::createFromFormat('H:i:s', $salon['closing_time']);
-    
+    $now = new DateTime(); // current date & time
+
+    // Create DateTime for today's opening & closing
+    $opening = DateTime::createFromFormat('H:i:s', $salon['opening_time']); // e.g. 09:00:00
+    $closing = DateTime::createFromFormat('H:i:s', $salon['closing_time']); // e.g. 19:00:00
+
+    // Attach today's date to opening & closing
+    $opening->setDate($now->format('Y'), $now->format('m'), $now->format('d'));
+    $closing->setDate($now->format('Y'), $now->format('m'), $now->format('d'));
+
     if ($now >= $opening && $now <= $closing) {
         $is_open = true;
         $current_status = 'Open Now';
-    } else if ($now < $opening) {
-        $minutes_until = ($opening->getTimestamp() - $now->getTimestamp()) / 60;
-        if ($minutes_until < 60) {
-            $current_status = 'Opens in ' . round($minutes_until) . ' mins';
-        }
+    } else {
+        $is_open = false;
+        $current_status = 'Closed';
     }
 }
 

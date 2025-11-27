@@ -1,5 +1,4 @@
 <?php
-// public/owner/appointment_action.php
 session_start();
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../auth_check.php';
@@ -15,6 +14,13 @@ if (!isset($_SERVER['HTTP_X_REQUESTED_WITH']) || $_SERVER['HTTP_X_REQUESTED_WITH
     exit;
 }
 
+// Check HTTP method
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['error' => 'Method not allowed']);
+    exit;
+}
+
 // Check authorization
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'owner') {
     http_response_code(403);
@@ -24,17 +30,17 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'owner') {
 
 // Validate CSRF token using timing-safe comparison
 $csrf = $_POST['csrf_token'] ?? '';
-if (!$csrf || !hash_equals($_SESSION['csrf_token'], $csrf)) {
+if (!$csrf || !isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $csrf)) {
     http_response_code(403);
-    echo json_encode(['error' => 'Invalid CSRF token']);
+    echo json_encode(['error' => 'Invalid CSRF token. Please refresh the page.']);
     exit;
 }
 
 // Validate and sanitize input
 $appt_id = filter_input(INPUT_POST, 'appointment_id', FILTER_VALIDATE_INT);
-$action = $_POST['action'] ?? '';
+$action = trim($_POST['action'] ?? '');
 
-if (!$appt_id) {
+if (!$appt_id || $appt_id <= 0) {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid appointment ID']);
     exit;
@@ -42,9 +48,24 @@ if (!$appt_id) {
 
 // Define valid status transitions
 $validTransitions = [
-    'confirm' => ['from' => 'pending', 'to' => 'confirmed', 'message' => 'Appointment confirmed successfully'],
-    'reject' => ['from' => 'pending', 'to' => 'cancelled', 'message' => 'Appointment rejected'],
-    'complete' => ['from' => 'confirmed', 'to' => 'completed', 'message' => 'Appointment marked as completed']
+    'confirm' => [
+        'from' => 'pending', 
+        'to' => 'confirmed', 
+        'message' => 'Appointment confirmed successfully',
+        'notification' => 'Your appointment at {salon} for {service} has been confirmed!'
+    ],
+    'reject' => [
+        'from' => 'pending', 
+        'to' => 'cancelled', 
+        'message' => 'Appointment rejected',
+        'notification' => 'Your appointment at {salon} for {service} has been rejected.'
+    ],
+    'complete' => [
+        'from' => 'confirmed', 
+        'to' => 'completed', 
+        'message' => 'Appointment marked as completed',
+        'notification' => 'Your appointment at {salon} has been completed. Please leave a review!'
+    ]
 ];
 
 if (!array_key_exists($action, $validTransitions)) {
@@ -61,7 +82,13 @@ try {
     
     // Verify appointment belongs to owner's salon and lock the row
     $stmt = $pdo->prepare("
-        SELECT a.*, s.owner_id, s.name as salon_name, u.username, serv.name as service_name
+        SELECT 
+            a.*, 
+            s.owner_id, 
+            s.name as salon_name, 
+            u.username, 
+            u.email as user_email,
+            serv.name as service_name
         FROM appointments a
         JOIN salons s ON s.id = a.salon_id
         JOIN users u ON u.id = a.user_id
@@ -116,17 +143,45 @@ try {
     ");
     $stmt->execute([$newStatus, $appt_id]);
     
-    // Optional: Log the action for audit trail
-    // Uncomment if you have an appointment_logs table
-    /*
-    $stmt = $pdo->prepare("
-        INSERT INTO appointment_logs 
-        (appointment_id, old_status, new_status, changed_by, action_type, changed_at)
-        VALUES (?, ?, ?, ?, ?, NOW())
-    ");
-    $stmt->execute([$appt_id, $appt['status'], $newStatus, $owner_id, $action]);
-    */
+    // Log the action in appointment_logs table
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO appointment_logs 
+            (appointment_id, old_status, new_status, changed_by, action_type, changed_at)
+            VALUES (?, ?, ?, ?, ?, NOW())
+        ");
+        $stmt->execute([
+            $appt_id, 
+            $appt['status'], 
+            $newStatus, 
+            $owner_id, 
+            $action
+        ]);
+    } catch (PDOException $e) {
+        // Log error but don't fail the main transaction
+        error_log("Failed to log appointment action: " . $e->getMessage());
+    }
     
+    // Create notification for the user
+    $notificationTemplate = $validTransitions[$action]['notification'];
+    $notificationMessage = str_replace(
+        ['{salon}', '{service}'],
+        [$appt['salon_name'], $appt['service_name']],
+        $notificationTemplate
+    );
+    
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO notifications (user_id, message, created_at) 
+            VALUES (?, ?, NOW())
+        ");
+        $stmt->execute([$appt['user_id'], $notificationMessage]);
+    } catch (PDOException $e) {
+        // Log error but don't fail the main transaction
+        error_log("Failed to create notification: " . $e->getMessage());
+    }
+    
+    // Commit transaction
     $pdo->commit();
     
     // Return success response
@@ -134,7 +189,9 @@ try {
         'success' => true,
         'message' => $validTransitions[$action]['message'],
         'new_status' => $newStatus,
-        'appointment_id' => $appt_id
+        'appointment_id' => $appt_id,
+        'user_name' => $appt['username'],
+        'service_name' => $appt['service_name']
     ]);
     
 } catch (PDOException $e) {
@@ -142,30 +199,17 @@ try {
         $pdo->rollBack();
     }
     
-    error_log("Appointment action error: " . $e->getMessage());
+    error_log("Appointment action error (PDO): " . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['error' => 'An error occurred while processing your request']);
+    echo json_encode(['error' => 'A database error occurred. Please try again.']);
+    
 } catch (Exception $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
     
-    error_log("Appointment action error: " . $e->getMessage());
+    error_log("Appointment action error (General): " . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['error' => 'An unexpected error occurred']);
-}
-// After successfully updating appointment status
-$notification_message = '';
-if ($action === 'confirm') {
-    $notification_message = "Your appointment at {$appt['salon_name']} for {$appt['service_name']} has been confirmed!";
-} elseif ($action === 'reject') {
-    $notification_message = "Your appointment at {$appt['salon_name']} for {$appt['service_name']} has been rejected.";
-} elseif ($action === 'complete') {
-    $notification_message = "Your appointment at {$appt['salon_name']} has been completed. Please leave a review!";
-}
-
-if ($notification_message) {
-    $stmt = $pdo->prepare("INSERT INTO notifications (user_id, message) VALUES (?, ?)");
-    $stmt->execute([$appt['user_id'], $notification_message]);
+    echo json_encode(['error' => 'An unexpected error occurred. Please try again.']);
 }
 ?>

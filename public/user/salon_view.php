@@ -180,7 +180,7 @@ $logged_user_role = $_SESSION['role'] ?? '';
       display: flex;
       justify-content: space-around;
       align-items: center;
-      background: var(--dark-purple);
+      background: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);
       border-radius: 20px;
       padding: 2rem;
       margin-bottom: 2rem;
