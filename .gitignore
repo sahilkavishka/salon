@@ -1,0 +1,15 @@
+# Vendor dependencies
+/vendor/
+
+# Temporary and OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+*.tmp
+
+# IDE / Editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
