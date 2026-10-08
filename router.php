@@ -58,7 +58,11 @@ if (is_file($publicFile)) {
         require $publicFile;
         return true;
     }
-    return false;
+    if (isset($mimes[$ext])) {
+        header("Content-Type: " . $mimes[$ext]);
+    }
+    readfile($publicFile);
+    return true;
 }
 
 http_response_code(404);

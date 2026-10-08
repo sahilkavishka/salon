@@ -221,6 +221,31 @@ function renderAppointmentCard($a, $now, $csrf_token) {
         </div>
         <?php endif; ?>
 
+        <?php
+        $rawPhone = preg_replace('/[^0-9]/', '', $a['salon_phone'] ?? '');
+        $waPhone = '';
+        if (!empty($rawPhone)) {
+            $waPhone = str_starts_with($rawPhone, '0') ? ('94' . substr($rawPhone, 1)) : $rawPhone;
+        }
+        $waText = urlencode("Hello " . $a['salon_name'] . ", I have an appointment (#" . $a['id'] . ") for " . $a['service_name'] . " on " . date('M d, Y', strtotime($a['appointment_date'])) . " at " . date('h:i A', strtotime($a['appointment_time'])) . ".");
+        ?>
+
+        <div class="d-flex flex-wrap gap-2 mt-3 pt-2 border-top">
+            <?php if (!empty($waPhone)): ?>
+            <a href="https://wa.me/<?= htmlspecialchars($waPhone) ?>?text=<?= $waText ?>" target="_blank" class="btn btn-sm btn-outline-success rounded-pill px-3">
+                <i class="fab fa-whatsapp me-1"></i> WhatsApp
+            </a>
+            <?php endif; ?>
+
+            <a href="invoice.php?id=<?= $a['id'] ?>" target="_blank" class="btn btn-sm btn-outline-info rounded-pill px-3">
+                <i class="fas fa-file-invoice me-1"></i> Receipt
+            </a>
+
+            <button type="button" class="btn btn-sm btn-outline-dark rounded-pill px-3" onclick="showQRModal('<?= $a['id'] ?>', '<?= htmlspecialchars(addslashes($a['salon_name'])) ?>', '<?= htmlspecialchars(addslashes($a['service_name'])) ?>', '<?= date('M d, Y h:i A', strtotime($a['appointment_date'].' '.$a['appointment_time'])) ?>')">
+                <i class="fas fa-qrcode me-1"></i> QR Pass
+            </button>
+        </div>
+
         <hr>
         <small class="text-muted">
             <i class="far fa-clock"></i> Booked: <?= date('M d, Y h:i A', strtotime($a['created_at'])) ?>
@@ -527,12 +552,33 @@ body {
 
 </div>
 
+<!-- QR Pass Modal -->
+<div class="modal fade" id="appointmentQrModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content text-center p-4 rounded-4 shadow border-0">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold text-dark" id="qrModalSalonName">Salon Name</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Show this QR pass at the salon reception for fast check-in</p>
+        <div class="p-3 bg-white rounded-3 shadow-sm d-inline-block border">
+          <img id="qrModalImage" src="" alt="Appointment QR Code" style="width:200px; height:200px; object-fit:contain;">
+        </div>
+        <h6 class="mt-3 fw-bold text-dark mb-1" id="qrModalService">Service Name</h6>
+        <p class="text-muted small mb-2" id="qrModalDateTime">Date & Time</p>
+        <span class="badge bg-primary px-3 py-2" id="qrModalAptId">Appointment #</span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <?php include __DIR__ . '/../footer.php'; ?>
 
 <!-- Bootstrap JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-<!-- Tab switching logic -->
+<!-- Tab switching & QR Pass Modal logic -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const tabs = document.querySelectorAll('[data-tab]');
@@ -555,6 +601,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+function showQRModal(aptId, salonName, serviceName, dateTime) {
+    document.getElementById('qrModalSalonName').innerText = salonName;
+    document.getElementById('qrModalService').innerText = serviceName;
+    document.getElementById('qrModalDateTime').innerText = dateTime;
+    document.getElementById('qrModalAptId').innerText = 'Appointment #' + aptId;
+    
+    const qrData = 'SALONORA_APT:' + aptId;
+    document.getElementById('qrModalImage').src = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(qrData);
+    
+    const modalEl = document.getElementById('appointmentQrModal');
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+}
 </script>
 
 </body>

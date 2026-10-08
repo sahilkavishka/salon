@@ -55,6 +55,16 @@ foreach ($services as $service) {
     $grouped_services[$category][] = $service;
 }
 
+// Fetch active salon staff
+$staffStmt = $pdo->prepare("SELECT id, name, specialty, avatar FROM salon_staff WHERE salon_id = ? AND is_active = 1 ORDER BY name ASC");
+$staffStmt->execute([$salon_id]);
+$salon_staff_list = $staffStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Fetch active promo codes
+$promoStmt = $pdo->prepare("SELECT code, discount_percent, discount_amount, valid_until FROM promo_codes WHERE salon_id = ? AND is_active = 1 AND (valid_until IS NULL OR valid_until >= CURDATE())");
+$promoStmt->execute([$salon_id]);
+$salon_promos = $promoStmt->fetchAll(PDO::FETCH_ASSOC);
+
 // Check for existing pending appointments
 $existingStmt = $pdo->prepare("
     SELECT COUNT(*) as pending_count 
@@ -76,6 +86,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $service_id = intval($_POST['service_id'] ?? 0);
+    $staff_id = intval($_POST['staff_id'] ?? 0);
+    $promo_code_input = strtoupper(trim($_POST['promo_code'] ?? ''));
+    $discount_amount = 0.00;
+    $valid_promo_code = null;
     $appointment_date = $_POST['appointment_date'] ?? '';
     $appointment_time = $_POST['appointment_time'] ?? '';
     $notes = trim($_POST['notes'] ?? '');
@@ -104,11 +118,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Verify service belongs to salon
+    $selected_service = null;
     if (empty($errors)) {
-        $serviceCheck = $pdo->prepare("SELECT id FROM services WHERE id = ? AND salon_id = ? AND is_active = 1");
+        $serviceCheck = $pdo->prepare("SELECT id, name, price, duration FROM services WHERE id = ? AND salon_id = ? AND is_active = 1");
         $serviceCheck->execute([$service_id, $salon_id]);
-        if (!$serviceCheck->fetch()) {
+        $selected_service = $serviceCheck->fetch(PDO::FETCH_ASSOC);
+        if (!$selected_service) {
             $errors[] = "Invalid service selected.";
+        }
+    }
+
+    // Validate staff member if selected
+    if ($staff_id > 0) {
+        $stfChk = $pdo->prepare("SELECT id FROM salon_staff WHERE id = ? AND salon_id = ? AND is_active = 1");
+        $stfChk->execute([$staff_id, $salon_id]);
+        if (!$stfChk->fetch()) {
+            $staff_id = null;
+        }
+    } else {
+        $staff_id = null;
+    }
+
+    // Validate promo code if entered
+    if (!empty($promo_code_input) && $selected_service) {
+        $pChk = $pdo->prepare("SELECT * FROM promo_codes WHERE salon_id = ? AND code = ? AND is_active = 1 AND (valid_until IS NULL OR valid_until >= CURDATE())");
+        $pChk->execute([$salon_id, $promo_code_input]);
+        $promoData = $pChk->fetch(PDO::FETCH_ASSOC);
+        if ($promoData) {
+            $valid_promo_code = $promoData['code'];
+            $srvPrice = floatval($selected_service['price']);
+            if ($promoData['discount_percent'] > 0) {
+                $discount_amount = round(($srvPrice * $promoData['discount_percent']) / 100, 2);
+            } elseif ($promoData['discount_amount'] > 0) {
+                $discount_amount = min($srvPrice, floatval($promoData['discount_amount']));
+            }
         }
     }
 
@@ -175,14 +218,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Insert appointment
                 $insertStmt = $pdo->prepare("
                     INSERT INTO appointments 
-                    (salon_id, user_id, service_id, appointment_date, appointment_time, notes, status, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())
+                    (salon_id, user_id, service_id, staff_id, promo_code, discount_amount, appointment_date, appointment_time, notes, status, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())
                 ");
 
                 $insertStmt->execute([
                     $salon_id,
                     $user_id,
                     $service_id,
+                    $staff_id,
+                    $valid_promo_code,
+                    $discount_amount,
                     $appointment_date,
                     $appointment_time,
                     $notes
@@ -1505,6 +1551,47 @@ body {
             </div>
         </div>
 
+        <?php if (!empty($salon_staff_list)): ?>
+        <!-- Stylist Selection -->
+        <div class="booking-card">
+            <div class="card-header-custom" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);">
+                <h5><i class="fas fa-user-friends me-2"></i>Choose Preferred Stylist (Optional)</h5>
+                <span class="step-badge">Optional</span>
+            </div>
+            <div class="card-body-custom">
+                <div class="row g-3">
+                    <div class="col-sm-6 col-md-4">
+                        <label class="d-flex align-items-center p-3 border rounded-3 h-100 cursor-pointer stylist-card shadow-sm" style="cursor: pointer;">
+                            <input type="radio" name="staff_id" value="0" class="form-check-input me-3" checked>
+                            <div>
+                                <strong class="d-block text-dark">Any Available Stylist</strong>
+                                <small class="text-muted">First available professional</small>
+                            </div>
+                        </label>
+                    </div>
+                    <?php foreach ($salon_staff_list as $stf): ?>
+                    <div class="col-sm-6 col-md-4">
+                        <label class="d-flex align-items-center p-3 border rounded-3 h-100 cursor-pointer stylist-card shadow-sm" style="cursor: pointer;">
+                            <input type="radio" name="staff_id" value="<?= $stf['id'] ?>" class="form-check-input me-3">
+                            <?php if (!empty($stf['avatar'])): ?>
+                                <img src="<?= htmlspecialchars($stf['avatar']) ?>" class="rounded-circle me-3" style="width: 44px; height: 44px; object-fit: cover;">
+                            <?php else: ?>
+                                <div class="rounded-circle bg-light d-flex align-items-center justify-content-center me-3" style="width: 44px; height: 44px;">
+                                    <i class="fas fa-user-tie text-secondary"></i>
+                                </div>
+                            <?php endif; ?>
+                            <div>
+                                <strong class="d-block text-dark"><?= htmlspecialchars($stf['name']) ?></strong>
+                                <small class="text-primary"><?= htmlspecialchars($stf['specialty'] ?: 'Stylist') ?></small>
+                            </div>
+                        </label>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Step 2: Select Date -->
         <div class="booking-card">
             <div class="card-header-custom">
@@ -1670,6 +1757,23 @@ body {
             </div>
         </div>
 
+        <!-- Promo Code Card -->
+        <div class="booking-card">
+            <div class="card-header-custom" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                <h5><i class="fas fa-ticket-alt me-2"></i>Have a Promo Code?</h5>
+                <span class="step-badge">Discount</span>
+            </div>
+            <div class="card-body-custom">
+                <div class="input-group">
+                    <input type="text" name="promo_code" id="promoCodeInput" class="form-control text-uppercase font-monospace" placeholder="e.g. WELCOME20" style="letter-spacing: 1px;">
+                    <button type="button" class="btn btn-warning px-4 fw-bold" id="applyPromoBtn" onclick="applyPromoCode()">
+                        <i class="fas fa-check me-1"></i> Apply
+                    </button>
+                </div>
+                <div id="promoFeedback" class="small mt-2"></div>
+            </div>
+        </div>
+
         <!-- Booking Summary -->
         <div class="booking-summary" id="bookingSummary">
             <div class="summary-header">
@@ -1693,10 +1797,14 @@ body {
                     <div class="summary-label"><i class="fas fa-hourglass-split"></i> Duration</div>
                     <div class="summary-value" id="summaryDuration">-</div>
                 </div>
+                <div class="summary-item" id="summaryDiscountRow" style="display: none;">
+                    <div class="summary-label text-success"><i class="fas fa-tag"></i> Promo Discount</div>
+                    <div class="summary-value text-success fw-bold" id="summaryDiscount">- Rs 0.00</div>
+                </div>
             </div>
             <div class="summary-total">
                 <div class="summary-item">
-                    <div class="summary-label"><i class="fas fa-money-bill-wave"></i> Total Amount</div>
+                    <div class="summary-label"><i class="fas fa-money-bill-wave"></i> Total Payable</div>
                     <div class="summary-value" id="summaryPrice">-</div>
                 </div>
             </div>
@@ -2056,6 +2164,32 @@ function updateProgress() {
     document.getElementById('submitBtn').disabled = !(selectedService && selectedDate && selectedTime);
 }
 
+const activePromos = <?= json_encode($salon_promos) ?>;
+let appliedPromo = null;
+
+function applyPromoCode() {
+    const input = document.getElementById('promoCodeInput');
+    const feedback = document.getElementById('promoFeedback');
+    const code = input.value.trim().toUpperCase();
+    
+    if (!code) {
+        appliedPromo = null;
+        feedback.innerHTML = '<span class="text-muted">Promo code cleared.</span>';
+        updateSummary();
+        return;
+    }
+    
+    const promo = activePromos.find(p => p.code.toUpperCase() === code);
+    if (promo) {
+        appliedPromo = promo;
+        feedback.innerHTML = `<span class="text-success fw-bold"><i class="fas fa-check-circle me-1"></i> Coupon "${promo.code}" applied successfully!</span>`;
+    } else {
+        appliedPromo = null;
+        feedback.innerHTML = `<span class="text-danger"><i class="fas fa-times-circle me-1"></i> Invalid or expired coupon code.</span>`;
+    }
+    updateSummary();
+}
+
 function updateSummary() {
     const summary = document.getElementById('bookingSummary');
     if (selectedService && selectedDate && selectedTime) {
@@ -2066,7 +2200,28 @@ function updateSummary() {
         document.getElementById('summaryDate').textContent = dateObj.toLocaleDateString('en-US', options);
         document.getElementById('summaryTime').textContent = selectedTime;
         document.getElementById('summaryDuration').textContent = selectedService.duration + ' minutes';
-        document.getElementById('summaryPrice').textContent = 'Rs ' + parseFloat(selectedService.price).toLocaleString('en-US', {
+        
+        const basePrice = parseFloat(selectedService.price);
+        let discount = 0;
+        const discountRow = document.getElementById('summaryDiscountRow');
+        
+        if (appliedPromo) {
+            if (appliedPromo.discount_percent > 0) {
+                discount = (basePrice * appliedPromo.discount_percent) / 100;
+            } else if (appliedPromo.discount_amount > 0) {
+                discount = Math.min(basePrice, parseFloat(appliedPromo.discount_amount));
+            }
+        }
+        
+        if (discount > 0) {
+            discountRow.style.display = 'flex';
+            document.getElementById('summaryDiscount').textContent = '- Rs ' + discount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        } else {
+            discountRow.style.display = 'none';
+        }
+        
+        const finalPrice = Math.max(0, basePrice - discount);
+        document.getElementById('summaryPrice').textContent = 'Rs ' + finalPrice.toLocaleString('en-US', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
         });

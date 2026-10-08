@@ -71,6 +71,21 @@ if (isset($_SESSION['id'])) {
     $user_has_reviewed = $stmt->fetchColumn() > 0;
 }
 
+// Fetch staff for this salon
+$staffStmt = $pdo->prepare("SELECT * FROM salon_staff WHERE salon_id = ? AND is_active = 1 ORDER BY name ASC");
+$staffStmt->execute([$salon_id]);
+$salon_staff = $staffStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Fetch gallery photos for this salon
+$galleryStmt = $pdo->prepare("SELECT * FROM salon_gallery WHERE salon_id = ? ORDER BY id DESC LIMIT 12");
+$galleryStmt->execute([$salon_id]);
+$salon_gallery = $galleryStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Fetch active promo codes
+$promoStmt = $pdo->prepare("SELECT code, discount_percent, discount_amount, valid_until FROM promo_codes WHERE salon_id = ? AND is_active = 1 AND (valid_until IS NULL OR valid_until >= CURDATE())");
+$promoStmt->execute([$salon_id]);
+$active_promos = $promoStmt->fetchAll(PDO::FETCH_ASSOC);
+
 // Can interact?
 $user_can_interact = isset($_SESSION['role'], $_SESSION['id']) &&
                      in_array($_SESSION['role'], ['user', 'customer']) &&
@@ -271,6 +286,17 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
               <i class="fas fa-phone"></i>
               <a href="tel:<?= htmlspecialchars($phone) ?>"><?= htmlspecialchars($phone) ?></a>
             </div>
+            <?php
+            $rawPhone = preg_replace('/[^0-9]/', '', $phone);
+            $waPhone = str_starts_with($rawPhone, '0') ? ('94' . substr($rawPhone, 1)) : $rawPhone;
+            $waText = urlencode("Hello " . $salon['name'] . ", I'm interested in your salon services on Salonora!");
+            ?>
+            <div class="meta-item">
+              <i class="fab fa-whatsapp text-success"></i>
+              <a href="https://wa.me/<?= htmlspecialchars($waPhone) ?>?text=<?= $waText ?>" target="_blank" rel="noopener" class="text-success fw-bold">
+                Chat on WhatsApp
+              </a>
+            </div>
             <?php endif; ?>
             <?php if ($email): ?>
             <div class="meta-item">
@@ -446,6 +472,93 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
       <?php endif; ?>
     </div>
+
+    <?php if (!empty($active_promos)): ?>
+    <!-- Active Promo Codes -->
+    <div class="section mb-4 p-4 rounded-4 shadow-sm" style="background: linear-gradient(135deg, rgba(233,30,99,0.06) 0%, rgba(139,92,246,0.06) 100%); border: 2px dashed rgba(233,30,99,0.3);">
+      <div class="d-flex align-items-center mb-3">
+        <i class="fas fa-tags text-warning fa-2x me-3"></i>
+        <div>
+          <h4 class="fw-bold mb-0 text-dark">Special Offers & Promo Codes</h4>
+          <small class="text-muted">Use these promo codes when booking your appointment to save!</small>
+        </div>
+      </div>
+      <div class="d-flex flex-wrap gap-3">
+        <?php foreach ($active_promos as $promo): ?>
+        <div class="bg-white p-3 rounded-3 shadow-sm border d-flex align-items-center gap-3">
+          <span class="badge bg-primary fs-6 px-3 py-2 font-monospace tracking-wide">
+            <?= htmlspecialchars($promo['code']) ?>
+          </span>
+          <div>
+            <strong class="text-success d-block">
+              <?= $promo['discount_percent'] > 0 ? ($promo['discount_percent'] . '% OFF') : ('Rs ' . number_format($promo['discount_amount'], 2) . ' OFF') ?>
+            </strong>
+            <small class="text-muted">Valid for online bookings</small>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if (!empty($salon_staff)): ?>
+    <!-- Staff & Stylists Section -->
+    <div class="section mb-4" id="staff">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-user-friends"></i>
+          Our Professional Team
+        </h2>
+        <span class="section-badge"><?= count($salon_staff) ?> Stylists</span>
+      </div>
+      <div class="row g-3">
+        <?php foreach ($salon_staff as $st): ?>
+        <div class="col-6 col-md-4 col-lg-3">
+          <div class="card h-100 border-0 shadow-sm rounded-4 text-center p-3">
+            <div class="mb-2">
+              <?php if (!empty($st['avatar'])): ?>
+                <img src="<?= htmlspecialchars($st['avatar']) ?>" alt="<?= htmlspecialchars($st['name']) ?>" class="rounded-circle shadow-sm" style="width: 75px; height: 75px; object-fit: cover;">
+              <?php else: ?>
+                <div class="rounded-circle bg-light d-flex align-items-center justify-content-center mx-auto shadow-sm" style="width: 75px; height: 75px;">
+                  <i class="fas fa-user-tie fa-2x text-muted"></i>
+                </div>
+              <?php endif; ?>
+            </div>
+            <h6 class="fw-bold mb-0 text-dark"><?= htmlspecialchars($st['name']) ?></h6>
+            <small class="text-primary"><?= htmlspecialchars($st['specialty'] ?: 'Stylist') ?></small>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if (!empty($salon_gallery)): ?>
+    <!-- Salon Photo Gallery / Portfolio -->
+    <div class="section mb-4" id="gallery">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-images"></i>
+          Work Portfolio & Gallery
+        </h2>
+        <span class="section-badge"><?= count($salon_gallery) ?> Photos</span>
+      </div>
+      <div class="row g-3">
+        <?php foreach ($salon_gallery as $photo): ?>
+        <div class="col-6 col-md-4 col-lg-3">
+          <div class="card h-100 border-0 shadow-sm rounded-4 overflow-hidden position-relative group">
+            <img src="<?= htmlspecialchars($photo['image_url']) ?>" alt="<?= htmlspecialchars($photo['title']) ?>" class="img-fluid" style="height: 180px; width: 100%; object-fit: cover;">
+            <?php if (!empty($photo['title'])): ?>
+            <div class="p-2 text-center bg-white">
+              <small class="fw-semibold text-truncate d-block text-dark"><?= htmlspecialchars($photo['title']) ?></small>
+            </div>
+            <?php endif; ?>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Enhanced Reviews Section -->
     <div class="section" id="reviews">

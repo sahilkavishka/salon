@@ -1,0 +1,16 @@
+{
+  "name": "Salonora - Salon Booking & Management",
+  "short_name": "Salonora",
+  "start_url": "index.php",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#e91e63",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "assets/images/logo.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512 192x192 any"
+    }
+  ]
+}

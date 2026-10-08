@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e91e63;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#9c27b0;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="url(#grad)" filter="url(#shadow)"/>
+  <circle cx="256" cy="256" r="180" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="8"/>
+  <g fill="white" transform="translate(136, 126) scale(0.48)">
+    <path d="M128 0C92.7 0 64 28.7 64 64l0 96 64 0 0-96 128 0 0 96 64 0 0-96c0-35.3-28.7-64-64-64L128 0zM320 224L64 224c-35.3 0-64 28.7-64 64l0 160c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-160c0-35.3-28.7-64-64-64zm-48 112a48 48 0 1 1 0 96 48 48 0 1 1 0-96z"/>
+    <path d="M416 128c-17.7 0-32 14.3-32 32l0 160c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160c0-17.7-14.3-32-32-32z"/>
+  </g>
+  <text x="256" y="380" font-family="'Poppins', sans-serif" font-size="64" font-weight="bold" fill="#ffffff" text-anchor="middle" letter-spacing="4">SALONORA</text>
+</svg>

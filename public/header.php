@@ -18,9 +18,68 @@
   <!-- Main Style CSS (from index.php) -->
   <link rel="stylesheet" href="<?= url('assets/css/style.css') ?>">
 
- 
+  <!-- PWA Manifest & Meta -->
+  <meta name="theme-color" content="#e91e63">
+  <link rel="manifest" href="<?= url('manifest.json') ?>">
+  <link rel="icon" type="image/svg+xml" href="<?= url('assets/images/logo.svg') ?>">
+  <link rel="apple-touch-icon" href="<?= url('assets/images/logo.svg') ?>">
+
+  <script>
+    // Apply saved theme immediately before render
+    if (localStorage.getItem('salonora_theme') === 'dark') {
+      document.documentElement.classList.add('dark-mode');
+    }
+  </script>
 
   <style>
+  /* ================================
+     DARK MODE THEME
+     ================================ */
+  html.dark-mode, body.dark-mode {
+    background-color: #111122 !important;
+    color: #e2e8f0 !important;
+  }
+  body.dark-mode .card,
+  body.dark-mode .appointment-card,
+  body.dark-mode .profile-card,
+  body.dark-mode .empty-state,
+  body.dark-mode .form-container,
+  body.dark-mode .notifications-header,
+  body.dark-mode .notification-card,
+  body.dark-mode .modal-content,
+  body.dark-mode .nav-tabs,
+  body.dark-mode .tab-content,
+  body.dark-mode .stat-box {
+    background-color: #1a1a2e !important;
+    color: #e2e8f0 !important;
+    border-color: #2d2d48 !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+  }
+  body.dark-mode .text-dark,
+  body.dark-mode h1, body.dark-mode h2, body.dark-mode h3, 
+  body.dark-mode h4, body.dark-mode h5, body.dark-mode h6,
+  body.dark-mode .form-label, body.dark-mode strong {
+    color: #f8fafc !important;
+  }
+  body.dark-mode .text-muted, body.dark-mode .form-hint {
+    color: #94a3b8 !important;
+  }
+  body.dark-mode .form-control,
+  body.dark-mode .form-select,
+  body.dark-mode .form-textarea,
+  body.dark-mode textarea {
+    background-color: #1e1e38 !important;
+    color: #ffffff !important;
+    border-color: #3b3b5e !important;
+  }
+  body.dark-mode .form-control:focus,
+  body.dark-mode .form-select:focus {
+    border-color: #e91e63 !important;
+    box-shadow: 0 0 0 0.25rem rgba(233, 30, 99, 0.25) !important;
+  }
+  body.dark-mode .page-header {
+    background: linear-gradient(135deg, #ad1457, #6a1b9a) !important;
+  }
    
 /* ================================
    NAVBAR
@@ -146,13 +205,30 @@
             <?php if (isset($_SESSION['id'])): ?>
               <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'owner'): ?>
                 <li class="nav-item"><a href="<?= url('owner/dashboard.php') ?>" class="nav-link"><i class="fas fa-chart-line me-1"></i> Dashboard</a></li>
-                <li class="nav-item"><a href="<?= url('owner/appointments.php') ?>" class="nav-link"><i class="far fa-calendar-alt me-1"></i> Manage Bookings</a></li>
+                <li class="nav-item"><a href="<?= url('owner/appointments.php') ?>" class="nav-link"><i class="far fa-calendar-alt me-1"></i> Bookings</a></li>
+                <li class="nav-item"><a href="<?= url('owner/checkin.php') ?>" class="nav-link"><i class="fas fa-qrcode me-1"></i> QR Check-in</a></li>
+                <li class="nav-item dropdown">
+                  <a class="nav-link dropdown-toggle" href="#" id="ownerToolsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-tools me-1"></i> Manage
+                  </a>
+                  <ul class="dropdown-menu dropdown-menu-dark shadow" aria-labelledby="ownerToolsDropdown">
+                    <li><a class="dropdown-item" href="<?= url('owner/services.php') ?>"><i class="fas fa-cut me-2"></i> Services</a></li>
+                    <li><a class="dropdown-item" href="<?= url('owner/staff.php') ?>"><i class="fas fa-user-friends me-2"></i> Staff & Stylists</a></li>
+                    <li><a class="dropdown-item" href="<?= url('owner/promos.php') ?>"><i class="fas fa-tags me-2"></i> Promo Codes</a></li>
+                    <li><a class="dropdown-item" href="<?= url('owner/gallery.php') ?>"><i class="fas fa-images me-2"></i> Gallery Portfolio</a></li>
+                  </ul>
+                </li>
               <?php else: ?>
                 <li class="nav-item"><a href="<?= url('user/my_appointments.php') ?>" class="nav-link"><i class="far fa-calendar-check me-1"></i> Appointments</a></li>
               <?php endif; ?>
               
               <li class="nav-item"><a href="<?= url('notifications.php') ?>" class="nav-link"><i class="far fa-bell me-1"></i> Notifications</a></li>
               <li class="nav-item"><a href="<?= url('user/profile.php') ?>" class="nav-link"><i class="far fa-user me-1"></i> Profile</a></li>
+              <li class="nav-item ms-2">
+                <button type="button" id="themeToggleBtn" class="btn btn-outline-light btn-sm rounded-circle d-flex align-items-center justify-content-center" style="width:36px;height:36px;" title="Toggle Theme">
+                  <i class="fas fa-moon" id="themeToggleIcon"></i>
+                </button>
+              </li>
               <li class="nav-item ms-3">
                 <a href="<?= url('logout.php') ?>" class="btn btn-outline-light btn-sm">
                   <i class="fas fa-sign-out-alt me-1"></i> Logout
@@ -160,6 +236,11 @@
               </li>
             <?php else: ?>
               <li class="nav-item"><a href="<?= url('index.php#contact') ?>" class="nav-link">Contact</a></li>
+              <li class="nav-item ms-2">
+                <button type="button" id="themeToggleBtn" class="btn btn-outline-light btn-sm rounded-circle d-flex align-items-center justify-content-center" style="width:36px;height:36px;" title="Toggle Theme">
+                  <i class="fas fa-moon" id="themeToggleIcon"></i>
+                </button>
+              </li>
               <li class="nav-item ms-3">
                 <a href="<?= url('login.php') ?>" class="btn btn-gradient">
                   <i class="fas fa-sign-in-alt me-1"></i> Login
@@ -171,3 +252,45 @@
       </div>
     </nav>
   </header>
+
+  <script>
+    // Dark/Light Mode Toggle Logic
+    document.addEventListener('DOMContentLoaded', function() {
+      const toggleBtn = document.getElementById('themeToggleBtn');
+      const toggleIcon = document.getElementById('themeToggleIcon');
+      
+      function updateIcon(isDark) {
+        if (!toggleIcon) return;
+        if (isDark) {
+          toggleIcon.classList.remove('fa-moon');
+          toggleIcon.classList.add('fa-sun');
+          toggleIcon.style.color = '#f1c40f';
+        } else {
+          toggleIcon.classList.remove('fa-sun');
+          toggleIcon.classList.add('fa-moon');
+          toggleIcon.style.color = '#ffffff';
+        }
+      }
+
+      const isCurrentDark = document.documentElement.classList.contains('dark-mode') || localStorage.getItem('salonora_theme') === 'dark';
+      if (isCurrentDark) {
+        document.documentElement.classList.add('dark-mode');
+        document.body.classList.add('dark-mode');
+        updateIcon(true);
+      }
+
+      if (toggleBtn) {
+        toggleBtn.addEventListener('click', function() {
+          const isDark = document.body.classList.toggle('dark-mode');
+          document.documentElement.classList.toggle('dark-mode', isDark);
+          localStorage.setItem('salonora_theme', isDark ? 'dark' : 'light');
+          updateIcon(isDark);
+        });
+      }
+
+      // Register PWA Service Worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('<?= url("sw.js") ?>').catch(() => {});
+      }
+    });
+  </script>
