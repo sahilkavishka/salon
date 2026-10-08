@@ -230,6 +230,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         background: #2d2d48 !important;
         color: #e2e8f0 !important;
     }
+    body.dark-mode .preview-card {
+        background: #252542 !important;
+        border-color: #3b3b5e !important;
+        color: #e2e8f0 !important;
+    }
+    body.dark-mode .preview-title,
+    body.dark-mode .form-title,
+    body.dark-mode #previewName {
+        color: #f8fafc !important;
+    }
+    body.dark-mode .form-description,
+    body.dark-mode .form-hint,
+    body.dark-mode .text-muted,
+    body.dark-mode p,
+    body.dark-mode span:not(.badge) {
+        color: #cbd5e1 !important;
+    }
+    body.dark-mode .amenity-checkbox {
+        background: #1a1a2e !important;
+        border-color: #2d2d48 !important;
+        color: #e2e8f0 !important;
+    }
+    body.dark-mode .amenity-checkbox:hover {
+        border-color: #e91e63 !important;
+        background: #252542 !important;
+    }
+    body.dark-mode .char-counter {
+        color: #94a3b8 !important;
+    }
   </style>
 </head>
 <body>

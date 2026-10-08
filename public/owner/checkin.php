@@ -131,6 +131,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
       overflow: hidden;
       border: 2px dashed #e2e8f0;
     }
+
+    /* Dark Mode Overrides */
+    body.dark-mode {
+      background: #111122 !important;
+      color: #e2e8f0 !important;
+    }
+    body.dark-mode .scanner-card {
+      background: #1a1a2e !important;
+      border-color: #2d2d48 !important;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4) !important;
+    }
+    body.dark-mode .scanner-card h3 {
+      color: #f8fafc !important;
+    }
+    body.dark-mode #resultCard {
+      background: #252542 !important;
+      border-color: #3b3b5e !important;
+      color: #e2e8f0 !important;
+    }
+    body.dark-mode #resultCard table td {
+      color: #cbd5e1 !important;
+    }
+    body.dark-mode #resultCard table .fw-bold {
+      color: #f8fafc !important;
+    }
+    body.dark-mode .input-group-text {
+      background: #1e1e38 !important;
+      border-color: #3b3b5e !important;
+      color: #cbd5e1 !important;
+    }
+    body.dark-mode .form-control {
+      background: #1e1e38 !important;
+      border-color: #3b3b5e !important;
+      color: #ffffff !important;
+    }
+    body.dark-mode .badge.bg-light.text-muted {
+      background: #252542 !important;
+      color: #94a3b8 !important;
+    }
   </style>
 </head>
 <body>

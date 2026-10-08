@@ -73,7 +73,11 @@ $total_duration = array_sum(array_column($services, 'duration'));
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="../assets/css/services.css">
   
- 
+  <script>
+    if (localStorage.getItem('salonora_theme') === 'dark') {
+      document.documentElement.classList.add('dark-mode');
+    }
+  </script>
 </head>
 <body>
   
@@ -88,6 +92,9 @@ $total_duration = array_sum(array_column($services, 'duration'));
           <?= htmlspecialchars($salon['address']) ?>
         </p>
         <div class="page-actions">
+          <button type="button" id="themeToggleBtn" class="btn-action" title="Toggle Theme" style="cursor: pointer;">
+            <i class="fas fa-moon" id="themeToggleIcon"></i> Theme
+          </button>
           <a href="dashboard.php" class="btn-action">
             <i class="fas fa-arrow-left"></i> Dashboard
           </a>
@@ -251,6 +258,33 @@ $total_duration = array_sum(array_column($services, 'duration'));
         setTimeout(() => alert.remove(), 500);
       });
     }, 5000);
+
+    // Theme toggle handling
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const themeToggleIcon = document.getElementById('themeToggleIcon');
+    function updateThemeIcon(isDark) {
+      if (!themeToggleIcon) return;
+      if (isDark) {
+        themeToggleIcon.classList.remove('fa-moon');
+        themeToggleIcon.classList.add('fa-sun');
+        themeToggleIcon.style.color = '#f1c40f';
+      } else {
+        themeToggleIcon.classList.remove('fa-sun');
+        themeToggleIcon.classList.add('fa-moon');
+        themeToggleIcon.style.color = '';
+      }
+    }
+    if (document.documentElement.classList.contains('dark-mode')) {
+      updateThemeIcon(true);
+    }
+    if (themeToggleBtn) {
+      themeToggleBtn.addEventListener('click', function() {
+        const isDark = document.documentElement.classList.toggle('dark-mode');
+        document.body.classList.toggle('dark-mode', isDark);
+        localStorage.setItem('salonora_theme', isDark ? 'dark' : 'light');
+        updateThemeIcon(isDark);
+      });
+    }
   </script>
 </body>
 </html>

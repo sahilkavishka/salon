@@ -175,6 +175,11 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
   <!-- Leaflet Map CSS (Free OpenStreetMap) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="../assets/css/salon_details.css">
+  <script>
+    if (localStorage.getItem('salonora_theme') === 'dark') {
+      document.documentElement.classList.add('dark-mode');
+    }
+  </script>
 </head>
 <body>
   

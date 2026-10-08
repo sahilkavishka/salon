@@ -237,6 +237,32 @@ body.dark-mode .btn-outline-secondary {
     color: #f8fafc !important;
     border-color: rgba(255, 255, 255, 0.25) !important;
 }
+body.dark-mode .amenity-checkbox {
+    background: #1a1a2e !important;
+    border-color: #2d2d48 !important;
+    color: #e2e8f0 !important;
+}
+body.dark-mode .amenity-checkbox:hover {
+    border-color: #e91e63 !important;
+    background: #252542 !important;
+}
+body.dark-mode .amenity-checkbox input:checked + label {
+    color: #f472b6 !important;
+}
+body.dark-mode .form-check-label {
+    color: #e2e8f0 !important;
+}
+body.dark-mode .char-counter {
+    color: #94a3b8 !important;
+}
+body.dark-mode .btn.bg-white,
+body.dark-mode .bg-white {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #f8fafc !important;
+}
+body.dark-mode p, body.dark-mode span:not(.badge) {
+    color: #cbd5e1 !important;
+}
 </style>
 </head>
 <body>

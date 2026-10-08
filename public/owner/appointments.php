@@ -61,68 +61,6 @@ header("Content-Security-Policy: script-src 'self' 'nonce-{$nonce}' https://cdn.
     --gradient-primary: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);
     --gradient-light: linear-gradient(135deg, #f8bbd0 0%, #e1bee7 100%);
 }
-
-/* Dark Mode Support */
-html.dark-mode, body.dark-mode {
-    background: #111122 !important;
-    color: #e2e8f0 !important;
-}
-body.dark-mode .appointment-card {
-    background: #1a1a2e !important;
-    color: #e2e8f0 !important;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
-}
-body.dark-mode .appointment-card h5 {
-    color: #f8fafc !important;
-}
-body.dark-mode .appointment-info,
-body.dark-mode .appointment-info div {
-    color: #cbd5e1 !important;
-}
-body.dark-mode .stats-card {
-    background: #1a1a2e !important;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
-}
-body.dark-mode .stat-item {
-    background: rgba(139, 92, 246, 0.15) !important;
-}
-body.dark-mode .stat-item .stat-number {
-    color: #f8fafc !important;
-}
-body.dark-mode .stat-item .stat-label {
-    color: #94a3b8 !important;
-}
-body.dark-mode .nav-tabs {
-    border-bottom-color: #2d2d48 !important;
-}
-body.dark-mode .nav-tabs .nav-link {
-    color: #94a3b8 !important;
-}
-body.dark-mode .nav-tabs .nav-link.active {
-    background: #1a1a2e !important;
-    color: #f8fafc !important;
-    border-color: #2d2d48 #2d2d48 #1a1a2e !important;
-}
-body.dark-mode .badge.bg-light.text-dark {
-    background: rgba(255, 255, 255, 0.15) !important;
-    color: #ffffff !important;
-}
-body.dark-mode .btn-light {
-    background: rgba(255, 255, 255, 0.15) !important;
-    color: #ffffff !important;
-    border-color: rgba(255, 255, 255, 0.25) !important;
-}
-body.dark-mode .btn-light:hover {
-    background: #ffffff !important;
-    color: #1a1a2e !important;
-}
-body.dark-mode .page-header {
-    background: linear-gradient(135deg, #ad1457, #6a1b9a) !important;
-}
-body.dark-mode .empty-state {
-    color: #94a3b8 !important;
-}
-
 body { 
     font-family: 'Poppins', sans-serif; 
     background: linear-gradient(135deg, #fce4ec 0%, #f3e5f5 100%);
@@ -420,6 +358,136 @@ body {
     .appointment-card { padding: 1rem; }
     .action-buttons { justify-content: center; }
     .action-buttons .btn { flex: 1; min-width: 120px; }
+}
+
+/* ========================================================
+   COMPREHENSIVE DARK MODE SUPPORT (Bottom Priority)
+   ======================================================== */
+html.dark-mode, body.dark-mode {
+    background: #111122 !important;
+    color: #e2e8f0 !important;
+    --dark-purple: #f8fafc !important;
+    --primary-purple: #c084fc !important;
+    --primary-pink: #f472b6 !important;
+    --light-purple: #3b2d54 !important;
+    --gradient-light: linear-gradient(135deg, rgba(233, 30, 99, 0.2) 0%, rgba(156, 39, 176, 0.25) 100%) !important;
+}
+
+body.dark-mode .page-header {
+    background: linear-gradient(135deg, #880e4f 0%, #4a148c 100%) !important;
+}
+
+body.dark-mode .appointment-card,
+body.dark-mode .stats-card,
+body.dark-mode .tab-content,
+body.dark-mode .modal-content,
+body.dark-mode .card {
+    background: #1a1a2e !important;
+    color: #e2e8f0 !important;
+    border-color: #2d2d48 !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+}
+
+body.dark-mode .appointment-card h5,
+body.dark-mode .modal-title,
+body.dark-mode h1, body.dark-mode h2, body.dark-mode h3,
+body.dark-mode h4, body.dark-mode h5, body.dark-mode h6,
+body.dark-mode strong {
+    color: #f8fafc !important;
+}
+
+body.dark-mode .appointment-info,
+body.dark-mode .appointment-info div,
+body.dark-mode .appointment-info span:not(.price):not(.status-badge),
+body.dark-mode .text-muted,
+body.dark-mode .stat-label,
+body.dark-mode p {
+    color: #cbd5e1 !important;
+}
+
+body.dark-mode .appointment-info .price {
+    background: linear-gradient(135deg, #f472b6 0%, #c084fc 100%) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    font-weight: 700 !important;
+}
+
+body.dark-mode .nav-tabs {
+    background: #1a1a2e !important;
+    border-bottom: 3px solid #2d2d48 !important;
+}
+
+body.dark-mode .nav-tabs .nav-link {
+    color: #94a3b8 !important;
+}
+
+body.dark-mode .nav-tabs .nav-link:hover {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+}
+
+body.dark-mode .nav-tabs .nav-link.active {
+    background: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(156, 39, 176, 0.4) !important;
+}
+
+body.dark-mode .stat-item {
+    background: rgba(139, 92, 246, 0.15) !important;
+    border: 1px solid #2d2d48 !important;
+}
+
+body.dark-mode .stat-item .stat-number {
+    color: #f8fafc !important;
+}
+
+body.dark-mode .stat-item .stat-label {
+    color: #94a3b8 !important;
+}
+
+body.dark-mode .empty-state {
+    color: #94a3b8 !important;
+}
+
+body.dark-mode .empty-state i {
+    color: #c084fc !important;
+    -webkit-text-fill-color: #c084fc !important;
+}
+
+body.dark-mode .btn-light {
+    background: rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
+    border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+body.dark-mode .btn-light:hover {
+    background: #ffffff !important;
+    color: #1a1a2e !important;
+}
+
+body.dark-mode .status-badge.pending {
+    color: #f472b6 !important;
+    background: rgba(244, 114, 182, 0.18) !important;
+    border: 1px solid rgba(244, 114, 182, 0.4) !important;
+}
+
+body.dark-mode .status-badge.confirmed {
+    color: #38bdf8 !important;
+    background: rgba(56, 189, 248, 0.18) !important;
+    border: 1px solid rgba(56, 189, 248, 0.4) !important;
+}
+
+body.dark-mode .status-badge.completed {
+    color: #4ade80 !important;
+    background: rgba(74, 222, 128, 0.18) !important;
+    border: 1px solid rgba(74, 222, 128, 0.4) !important;
+}
+
+body.dark-mode .status-badge.cancelled {
+    color: #a78bfa !important;
+    background: rgba(167, 139, 250, 0.18) !important;
+    border: 1px solid rgba(167, 139, 250, 0.4) !important;
 }
 </style>
 </head>

@@ -444,6 +444,29 @@ body.dark-mode .nav-pills .nav-link.active {
     background: linear-gradient(135deg, #e91e63, #9c27b0) !important;
     color: white !important;
 }
+body.dark-mode .pending .status-badge {
+    color: #fbbf24 !important;
+    background: rgba(251, 191, 36, 0.2) !important;
+}
+body.dark-mode .confirmed .status-badge {
+    color: #4ade80 !important;
+    background: rgba(74, 222, 128, 0.2) !important;
+}
+body.dark-mode .cancelled .status-badge {
+    color: #cbd5e1 !important;
+    background: rgba(203, 213, 225, 0.15) !important;
+}
+body.dark-mode .rejected .status-badge {
+    color: #f87171 !important;
+    background: rgba(248, 113, 113, 0.2) !important;
+}
+body.dark-mode .completed .status-badge {
+    color: #60a5fa !important;
+    background: rgba(96, 165, 250, 0.2) !important;
+}
+body.dark-mode .info-row a {
+    color: #93c5fd !important;
+}
 .tab-content {
     display: none;
 }

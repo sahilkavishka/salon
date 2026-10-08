@@ -299,6 +299,11 @@ if (!isset($_SESSION['csrf_token'])) {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        if (localStorage.getItem('salonora_theme') === 'dark') {
+            document.documentElement.classList.add('dark-mode');
+        }
+    </script>
 <style>
 :root {
     --primary-pink: #ff6b9d;
@@ -1403,6 +1408,203 @@ body {
     .slots-grid {
         grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
     }
+}
+
+/* ========================================================
+   DARK MODE SUPPORT (Book Appointment)
+   ======================================================== */
+html.dark-mode, body.dark-mode {
+    background: #111122 !important;
+    color: #e2e8f0 !important;
+    --dark-purple: #f8fafc !important;
+    --primary-purple: #c084fc !important;
+    --primary-pink: #f472b6 !important;
+    --light-pink: #252542 !important;
+    --gradient-secondary: linear-gradient(135deg, rgba(233, 30, 99, 0.15) 0%, rgba(156, 39, 176, 0.25) 100%) !important;
+}
+
+body.dark-mode .page-header {
+    background: linear-gradient(135deg, #880e4f 0%, #4a148c 100%) !important;
+}
+
+body.dark-mode .booking-card,
+body.dark-mode .summary-card,
+body.dark-mode .service-card,
+body.dark-mode .stylist-card,
+body.dark-mode .modal-content,
+body.dark-mode .card {
+    background: #1a1a2e !important;
+    color: #e2e8f0 !important;
+    border-color: #2d2d48 !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+}
+
+body.dark-mode .card-body-custom {
+    color: #e2e8f0 !important;
+}
+
+body.dark-mode .salon-info-card {
+    background: rgba(156, 39, 176, 0.15) !important;
+    border-left-color: #a855f7 !important;
+}
+
+body.dark-mode .info-icon {
+    background: #252542 !important;
+    color: #c084fc !important;
+}
+
+body.dark-mode .info-label {
+    color: #94a3b8 !important;
+}
+
+body.dark-mode .info-value,
+body.dark-mode .section-title,
+body.dark-mode .service-name,
+body.dark-mode .stylist-name,
+body.dark-mode .calendar-month,
+body.dark-mode .period-name,
+body.dark-mode .summary-total,
+body.dark-mode h1, body.dark-mode h2, body.dark-mode h3,
+body.dark-mode h4, body.dark-mode h5, body.dark-mode h6,
+body.dark-mode strong {
+    color: #f8fafc !important;
+}
+
+body.dark-mode .service-desc,
+body.dark-mode .stylist-specialty,
+body.dark-mode .text-muted,
+body.dark-mode .period-time,
+body.dark-mode p,
+body.dark-mode span:not(.badge):not(.step-badge) {
+    color: #cbd5e1 !important;
+}
+
+body.dark-mode .step-circle {
+    background: #1a1a2e !important;
+    border-color: #3b3b5e !important;
+    color: #cbd5e1 !important;
+}
+
+body.dark-mode .step-progress::before {
+    background: #2d2d48 !important;
+}
+
+body.dark-mode .category-tab {
+    background: #1e1e38 !important;
+    color: #cbd5e1 !important;
+    border-color: #3b3b5e !important;
+}
+
+body.dark-mode .category-tab:hover,
+body.dark-mode .category-tab.active {
+    background: linear-gradient(135deg, #e91e63, #9c27b0) !important;
+    color: #ffffff !important;
+}
+
+body.dark-mode .service-card:hover,
+body.dark-mode .stylist-card:hover {
+    border-color: #a855f7 !important;
+    background: #252542 !important;
+}
+
+body.dark-mode .service-card.selected,
+body.dark-mode .stylist-card.selected {
+    border-color: #ec4899 !important;
+    background: rgba(233, 30, 99, 0.15) !important;
+}
+
+body.dark-mode .view-toggle {
+    background: #1e1e38 !important;
+}
+
+body.dark-mode .toggle-btn {
+    color: #94a3b8 !important;
+}
+
+body.dark-mode .toggle-btn.active {
+    background: #2d2d48 !important;
+    color: #f8fafc !important;
+}
+
+body.dark-mode .calendar-header {
+    background: rgba(156, 39, 176, 0.2) !important;
+}
+
+body.dark-mode .calendar-nav-btn {
+    background: #252542 !important;
+    color: #e2e8f0 !important;
+}
+
+body.dark-mode .calendar-day {
+    background: #1e1e38 !important;
+    border-color: #2d2d48 !important;
+    color: #e2e8f0 !important;
+}
+
+body.dark-mode .calendar-day:hover:not(.disabled):not(.closed) {
+    background: #2d2d48 !important;
+    border-color: #a855f7 !important;
+}
+
+body.dark-mode .calendar-day.selected {
+    background: linear-gradient(135deg, #e91e63, #9c27b0) !important;
+    color: #ffffff !important;
+}
+
+body.dark-mode .calendar-day.disabled,
+body.dark-mode .calendar-day.closed {
+    background: rgba(255, 255, 255, 0.03) !important;
+    color: #64748b !important;
+}
+
+body.dark-mode .calendar-legend {
+    background: #1e1e38 !important;
+}
+
+body.dark-mode .slot-btn {
+    background: #1e1e38 !important;
+    border-color: #2d2d48 !important;
+    color: #e2e8f0 !important;
+}
+
+body.dark-mode .slot-btn:hover:not(.booked):not(.disabled) {
+    background: #2d2d48 !important;
+    border-color: #a855f7 !important;
+}
+
+body.dark-mode .slot-btn.selected {
+    background: linear-gradient(135deg, #e91e63, #9c27b0) !important;
+    color: #ffffff !important;
+}
+
+body.dark-mode .slot-btn.booked,
+body.dark-mode .slot-btn.disabled {
+    background: rgba(255, 255, 255, 0.04) !important;
+    color: #64748b !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+body.dark-mode .summary-item {
+    border-bottom-color: #2d2d48 !important;
+}
+
+body.dark-mode .form-control,
+body.dark-mode .form-select,
+body.dark-mode textarea {
+    background: #1e1e38 !important;
+    color: #ffffff !important;
+    border-color: #3b3b5e !important;
+}
+
+body.dark-mode .input-group-text {
+    background: #1e1e38 !important;
+    border-color: #3b3b5e !important;
+    color: #cbd5e1 !important;
+}
+
+body.dark-mode .coupon-box {
+    background: #1e1e38 !important;
+    border-color: #2d2d48 !important;
 }
 </style>
 </head>

@@ -219,71 +219,6 @@ $page_title = "Owner Dashboard - Salonora";
             --gradient-primary: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);
             --gradient-light: linear-gradient(135deg, #f8bbd0 0%, #e1bee7 100%);
         }
-
-        /* Dark Mode Support */
-        html.dark-mode, body.dark-mode {
-            background: #111122 !important;
-            color: #e2e8f0 !important;
-        }
-        body.dark-mode .welcome-header {
-            background: linear-gradient(135deg, #880e4f 0%, #4a148c 100%) !important;
-        }
-        body.dark-mode .quick-stat-card,
-        body.dark-mode .analytics-card,
-        body.dark-mode .salon-item-card,
-        body.dark-mode .recent-card,
-        body.dark-mode .appointments-card,
-        body.dark-mode .card,
-        body.dark-mode .dashboard-card,
-        body.dark-mode .modal-content {
-            background: #1a1a2e !important;
-            color: #e2e8f0 !important;
-            border-color: #2d2d48 !important;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
-        }
-        body.dark-mode .quick-stat-label,
-        body.dark-mode .stat-label,
-        body.dark-mode .text-muted {
-            color: #94a3b8 !important;
-        }
-        body.dark-mode .quick-stat-value,
-        body.dark-mode h1, body.dark-mode h2, body.dark-mode h3,
-        body.dark-mode h4, body.dark-mode h5, body.dark-mode h6,
-        body.dark-mode strong {
-            color: #f8fafc !important;
-        }
-        body.dark-mode .table {
-            color: #e2e8f0 !important;
-            border-color: #2d2d48 !important;
-        }
-        body.dark-mode .table th {
-            background: #1e1e38 !important;
-            color: #f8fafc !important;
-            border-color: #2d2d48 !important;
-        }
-        body.dark-mode .table td {
-            background: #1a1a2e !important;
-            color: #cbd5e1 !important;
-            border-color: #2d2d48 !important;
-        }
-        body.dark-mode .table tr:hover td {
-            background: #252542 !important;
-        }
-        body.dark-mode .btn-action {
-            background: rgba(255, 255, 255, 0.15) !important;
-            color: #ffffff !important;
-            border: 1px solid rgba(255, 255, 255, 0.25) !important;
-        }
-        body.dark-mode .btn-action:hover {
-            background: #ffffff !important;
-            color: #1a1a2e !important;
-        }
-        body.dark-mode .list-group-item {
-            background: #1a1a2e !important;
-            color: #cbd5e1 !important;
-            border-color: #2d2d48 !important;
-        }
-
         * {
             margin: 0;
             padding: 0;
@@ -797,6 +732,176 @@ $page_title = "Owner Dashboard - Salonora";
             .salon-actions {
                 grid-template-columns: 1fr;
             }
+        }
+
+        /* ========================================================
+           COMPREHENSIVE DARK MODE SUPPORT (Bottom Priority)
+           ======================================================== */
+        html.dark-mode, body.dark-mode {
+            background: #111122 !important;
+            color: #e2e8f0 !important;
+            --dark-purple: #f8fafc !important;
+            --primary-purple: #c084fc !important;
+            --primary-pink: #f472b6 !important;
+            --light-purple: #3b2d54 !important;
+            --gradient-light: linear-gradient(135deg, rgba(233, 30, 99, 0.2) 0%, rgba(156, 39, 176, 0.25) 100%) !important;
+        }
+
+        body.dark-mode .welcome-header {
+            background: linear-gradient(135deg, #880e4f 0%, #4a148c 100%) !important;
+        }
+
+        body.dark-mode .section,
+        body.dark-mode .salon-card,
+        body.dark-mode .upcoming-card,
+        body.dark-mode .chart-card,
+        body.dark-mode .card,
+        body.dark-mode .dashboard-card,
+        body.dark-mode .modal-content {
+            background: #1a1a2e !important;
+            color: #e2e8f0 !important;
+            border-color: #2d2d48 !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+        }
+
+        body.dark-mode .section-header {
+            border-bottom: 3px solid #2d2d48 !important;
+        }
+
+        body.dark-mode .section-title,
+        body.dark-mode .salon-name,
+        body.dark-mode .chart-title,
+        body.dark-mode h1, body.dark-mode h2, body.dark-mode h3,
+        body.dark-mode h4, body.dark-mode h5, body.dark-mode h6,
+        body.dark-mode strong {
+            color: #f8fafc !important;
+        }
+
+        body.dark-mode [style*="color: var(--dark-purple)"],
+        body.dark-mode [style*="color:var(--dark-purple)"],
+        body.dark-mode [style*="color: #6a1b9a"],
+        body.dark-mode [style*="color:#6a1b9a"] {
+            color: #f8fafc !important;
+        }
+
+        body.dark-mode [style*="color: var(--primary-purple)"],
+        body.dark-mode [style*="color:var(--primary-purple)"] {
+            color: #c084fc !important;
+        }
+
+        body.dark-mode [style*="color: var(--primary-pink)"],
+        body.dark-mode [style*="color:var(--primary-pink)"] {
+            color: #f472b6 !important;
+        }
+
+        body.dark-mode .quick-stat-label,
+        body.dark-mode .stat-label,
+        body.dark-mode .salon-address,
+        body.dark-mode .salon-stat-label,
+        body.dark-mode .text-muted,
+        body.dark-mode .section-subtitle,
+        body.dark-mode .empty-state,
+        body.dark-mode p,
+        body.dark-mode span:not(.badge):not(.status-badge) {
+            color: #cbd5e1 !important;
+        }
+
+        body.dark-mode .salon-stats {
+            background: rgba(156, 39, 176, 0.15) !important;
+            border: 1px solid #2d2d48 !important;
+        }
+
+        body.dark-mode .salon-stat-value {
+            color: #f8fafc !important;
+        }
+
+        body.dark-mode .top-service-item {
+            background: rgba(156, 39, 176, 0.15) !important;
+            border: 1px solid #2d2d48 !important;
+        }
+
+        body.dark-mode .top-service-item strong {
+            color: #f8fafc !important;
+        }
+
+        body.dark-mode .appointments-table {
+            color: #e2e8f0 !important;
+        }
+
+        body.dark-mode .appointments-table thead th {
+            background: linear-gradient(135deg, #ad1457 0%, #6a1b9a 100%) !important;
+            color: #ffffff !important;
+            border: none !important;
+        }
+
+        body.dark-mode .appointments-table tbody tr {
+            background: #1a1a2e !important;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3) !important;
+        }
+
+        body.dark-mode .appointments-table tbody td {
+            background: #1a1a2e !important;
+            color: #cbd5e1 !important;
+            border: none !important;
+        }
+
+        body.dark-mode .appointments-table tbody tr:hover td {
+            background: #252542 !important;
+        }
+
+        body.dark-mode .btn-action {
+            background: rgba(255, 255, 255, 0.15) !important;
+            color: #ffffff !important;
+            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+        }
+
+        body.dark-mode .btn-action:hover {
+            background: #ffffff !important;
+            color: #1a1a2e !important;
+        }
+
+        body.dark-mode .btn-services {
+            background: rgba(156, 39, 176, 0.2) !important;
+            color: #d8b4fe !important;
+            border-color: #a855f7 !important;
+        }
+
+        body.dark-mode .btn-services:hover {
+            background: #a855f7 !important;
+            color: #ffffff !important;
+        }
+
+        body.dark-mode .btn-appointments {
+            background: rgba(233, 30, 99, 0.2) !important;
+            color: #f472b6 !important;
+            border-color: #ec4899 !important;
+        }
+
+        body.dark-mode .btn-appointments:hover {
+            background: #ec4899 !important;
+            color: #ffffff !important;
+        }
+
+        body.dark-mode .btn-delete {
+            background: rgba(239, 68, 68, 0.15) !important;
+            color: #f87171 !important;
+            border-color: #ef4444 !important;
+        }
+
+        body.dark-mode .btn-delete:hover {
+            background: #ef4444 !important;
+            color: #ffffff !important;
+        }
+
+        body.dark-mode .empty-state i {
+            color: #c084fc !important;
+            -webkit-text-fill-color: #c084fc !important;
+        }
+
+        body.dark-mode .alert {
+            background: rgba(156, 39, 176, 0.2) !important;
+            color: #e2e8f0 !important;
+            border: 1px solid #3b2d54 !important;
         }
     </style>
 </head>

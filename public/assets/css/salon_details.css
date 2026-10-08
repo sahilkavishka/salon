@@ -563,3 +563,100 @@
         gap: 1rem;
     }
 }
+
+/* ========================================================
+   DARK MODE SUPPORT (Salon Details)
+   ======================================================== */
+html.dark-mode, body.dark-mode {
+  background-color: #111122 !important;
+  color: #e2e8f0 !important;
+  --light: #111122 !important;
+  --text-dark: #f8fafc !important;
+  --text-light: #94a3b8 !important;
+  --dark: #f8fafc !important;
+  --gradient-light: linear-gradient(135deg, rgba(233, 30, 99, 0.2) 0%, rgba(156, 39, 176, 0.25) 100%) !important;
+}
+
+body.dark-mode .section,
+body.dark-mode .salon-info-card,
+body.dark-mode .popular-service-card,
+body.dark-mode .service-card,
+body.dark-mode .stylist-card,
+body.dark-mode .review-item,
+body.dark-mode .rating-summary-card,
+body.dark-mode .booking-card,
+body.dark-mode .modal-content,
+body.dark-mode .card {
+  background: #1a1a2e !important;
+  color: #e2e8f0 !important;
+  border-color: #2d2d48 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+body.dark-mode .salon-title,
+body.dark-mode .section-title,
+body.dark-mode .service-title,
+body.dark-mode .stylist-name,
+body.dark-mode .review-author,
+body.dark-mode .modal-title,
+body.dark-mode h1, body.dark-mode h2, body.dark-mode h3,
+body.dark-mode h4, body.dark-mode h5, body.dark-mode h6,
+body.dark-mode strong {
+  color: #f8fafc !important;
+}
+
+body.dark-mode .salon-description,
+body.dark-mode .service-description,
+body.dark-mode .review-text,
+body.dark-mode .text-muted,
+body.dark-mode .salon-address,
+body.dark-mode p {
+  color: #cbd5e1 !important;
+}
+
+body.dark-mode .btn-back {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+body.dark-mode .btn-back:hover {
+  background: var(--gradient-primary) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+}
+
+body.dark-mode .btn-outline-primary {
+  color: #c4b5fd !important;
+  border-color: #8b5cf6 !important;
+  background: rgba(139, 92, 246, 0.1) !important;
+}
+
+body.dark-mode .btn-outline-primary:hover {
+  background: #8b5cf6 !important;
+  color: #ffffff !important;
+}
+
+body.dark-mode .review-form-card,
+body.dark-mode .amenity-pill {
+  background: #252542 !important;
+  border-color: #3b3b5e !important;
+  color: #e2e8f0 !important;
+}
+
+body.dark-mode .form-control,
+body.dark-mode .form-select,
+body.dark-mode textarea {
+  background-color: #1e1e38 !important;
+  color: #ffffff !important;
+  border-color: #3b3b5e !important;
+}
+
+body.dark-mode .table,
+body.dark-mode .table td,
+body.dark-mode .table th {
+  color: #cbd5e1 !important;
+  border-color: #2d2d48 !important;
+  background: transparent !important;
+}
+

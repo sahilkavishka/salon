@@ -554,3 +554,90 @@
     .service-card:nth-child(4) { animation-delay: 0.4s; }
     .service-card:nth-child(5) { animation-delay: 0.5s; }
     .service-card:nth-child(6) { animation-delay: 0.6s; }
+
+    /* ========================================================
+       DARK MODE SUPPORT (Services)
+       ======================================================== */
+    html.dark-mode, body.dark-mode {
+      background-color: #111122 !important;
+      color: #e2e8f0 !important;
+      --light: #111122 !important;
+      --text-dark: #f8fafc !important;
+      --text-light: #94a3b8 !important;
+      --gradient-light: linear-gradient(135deg, rgba(233, 30, 99, 0.2) 0%, rgba(156, 39, 176, 0.25) 100%) !important;
+    }
+
+    body.dark-mode .page-header {
+      background: linear-gradient(135deg, #880e4f 0%, #4a148c 100%) !important;
+    }
+
+    body.dark-mode .stat-card,
+    body.dark-mode .service-card,
+    body.dark-mode .card,
+    body.dark-mode .modal-content {
+      background: #1a1a2e !important;
+      color: #e2e8f0 !important;
+      border-color: #2d2d48 !important;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+    }
+
+    body.dark-mode .stat-info h3,
+    body.dark-mode .service-name,
+    body.dark-mode .service-title,
+    body.dark-mode .modal-title,
+    body.dark-mode h1, body.dark-mode h2, body.dark-mode h3,
+    body.dark-mode h4, body.dark-mode h5, body.dark-mode h6,
+    body.dark-mode strong {
+      color: #f8fafc !important;
+    }
+
+    body.dark-mode .stat-info p,
+    body.dark-mode .service-description,
+    body.dark-mode .text-muted,
+    body.dark-mode p {
+      color: #cbd5e1 !important;
+    }
+
+    body.dark-mode .service-card-meta,
+    body.dark-mode .service-duration,
+    body.dark-mode .service-info-item {
+      color: #cbd5e1 !important;
+    }
+
+    body.dark-mode .service-card:hover {
+      border-color: #a855f7 !important;
+      box-shadow: 0 8px 30px rgba(168, 85, 247, 0.25) !important;
+    }
+
+    body.dark-mode .btn-action {
+      background: rgba(255, 255, 255, 0.15) !important;
+      color: #ffffff !important;
+      border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    }
+
+    body.dark-mode .btn-action:hover {
+      background: #ffffff !important;
+      color: #1a1a2e !important;
+    }
+
+    body.dark-mode .btn-card-action.edit {
+      background: rgba(156, 39, 176, 0.2) !important;
+      color: #d8b4fe !important;
+      border-color: #a855f7 !important;
+    }
+
+    body.dark-mode .btn-card-action.edit:hover {
+      background: #a855f7 !important;
+      color: #ffffff !important;
+    }
+
+    body.dark-mode .btn-card-action.delete {
+      background: rgba(239, 68, 68, 0.15) !important;
+      color: #f87171 !important;
+      border-color: #ef4444 !important;
+    }
+
+    body.dark-mode .btn-card-action.delete:hover {
+      background: #ef4444 !important;
+      color: #ffffff !important;
+    }
