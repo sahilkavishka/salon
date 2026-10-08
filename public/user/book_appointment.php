@@ -1183,11 +1183,18 @@ body {
 }
 
 .calendar-day.selected {
-    background: var(--gradient-primary);
-    color: white;
-    border-color: var(--primary-purple);
-    transform: scale(1.05);
-    box-shadow: var(--shadow-md);
+    background: var(--gradient-primary) !important;
+    color: white !important;
+    border-color: var(--primary-purple) !important;
+    transform: scale(1.08);
+    box-shadow: 0 4px 15px rgba(233, 30, 99, 0.4) !important;
+    font-weight: 700;
+    z-index: 2;
+}
+
+.calendar-day.selected .day-number,
+.calendar-day.selected .slot-info {
+    color: white !important;
 }
 
 .calendar-day.has-booking {
@@ -1654,6 +1661,21 @@ body {
                     </div>
                 </div>
 
+                <!-- Selected Date Confirmation Banner -->
+                <div id="selectedDateBanner" class="alert alert-success align-items-center justify-content-between p-3 rounded-4 mt-3" style="display: none !important;">
+                    <div class="d-flex align-items-center gap-3">
+                        <i class="fas fa-calendar-check fa-2x text-success"></i>
+                        <div>
+                            <span class="text-muted small d-block">Selected Date:</span>
+                            <h6 class="mb-0 fw-bold text-dark" id="selectedDateDisplay">-</h6>
+                        </div>
+                    </div>
+                    <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fas fa-check me-1"></i> Date Selected</span>
+                </div>
+
+                <!-- Hidden Input for Form Submission -->
+                <input type="hidden" name="appointment_date" id="appointmentDateInput" required>
+
                 <!-- Date Picker View (Hidden by default) -->
                 <div id="pickerView" class="picker-view" style="display: none;">
                     <div class="calendar-shortcuts">
@@ -1670,12 +1692,10 @@ body {
                     <div class="date-picker-wrapper">
                         <i class="fas fa-calendar-event date-icon"></i>
                         <input type="date" 
-                               name="appointment_date" 
                                id="datePicker"
                                class="date-input" 
                                min="<?= date("Y-m-d") ?>" 
-                               max="<?= date("Y-m-d", strtotime("+30 days")) ?>"
-                               required>
+                               max="<?= date("Y-m-d", strtotime("+30 days")) ?>">
                     </div>
                 </div>
                 
@@ -1686,7 +1706,7 @@ body {
         </div>
 
         <!-- Step 3: Select Time -->
-        <div class="booking-card">
+        <div class="booking-card" id="step3Card">
             <div class="card-header-custom">
                 <h5><i class="fas fa-clock me-2"></i>Step 3: Select Your Time Slot</h5>
                 <span class="step-badge">3 of 4</span>
@@ -1831,12 +1851,37 @@ let selectedTime = null;
 let currentMonth = new Date();
 let userBookings = []; // Will store user's existing bookings
 let salonAvailability = {}; // Will store availability data for each date
+let availabilityMonthKey = '';
+let isAvailabilityLoading = false;
+
+const salonOperatingDays = <?= json_encode($operatingDays) ?>;
+const todayStr = '<?= date("Y-m-d") ?>';
+const maxDateStr = '<?= date("Y-m-d", strtotime("+30 days")) ?>';
 
 // Initialize calendar on page load
 document.addEventListener('DOMContentLoaded', function() {
     loadUserBookings();
-    renderCalendar();
+    loadMonthAvailabilityAndRender();
 });
+
+// Format YYYY-MM-DD in local time without UTC offset bugs
+function formatLocalDate(year, month, day) {
+    const m = String(month + 1).padStart(2, '0');
+    const d = String(day).padStart(2, '0');
+    return `${year}-${m}-${d}`;
+}
+
+// Convert 24h '14:30' to '2:30 PM'
+function formatTime12h(timeStr) {
+    if (!timeStr) return '';
+    const parts = timeStr.split(':');
+    let h = parseInt(parts[0], 10);
+    const m = parts[1] || '00';
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${h}:${m} ${ampm}`;
+}
 
 // Load user's existing bookings
 function loadUserBookings() {
@@ -1844,85 +1889,103 @@ function loadUserBookings() {
         .then(res => res.json())
         .then(data => {
             userBookings = data.bookings || [];
-            renderCalendar();
+            drawCalendar();
         })
         .catch(err => console.error('Error loading bookings:', err));
 }
 
-// Load availability for visible month
-function loadMonthAvailability(year, month) {
-    const startDate = new Date(year, month, 1).toISOString().split('T')[0];
-    const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+// Load availability for visible month and render safely without infinite loop
+function loadMonthAvailabilityAndRender() {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const key = `${year}-${month}`;
+    
+    // Draw immediately
+    drawCalendar();
+    
+    if (availabilityMonthKey === key || isAvailabilityLoading) {
+        return;
+    }
+    
+    isAvailabilityLoading = true;
+    const startDate = formatLocalDate(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const endDate = formatLocalDate(year, month, lastDay);
     
     fetch(`get_availability.php?salon_id=<?= $salon_id ?>&start=${startDate}&end=${endDate}`)
         .then(res => res.json())
         .then(data => {
+            isAvailabilityLoading = false;
+            availabilityMonthKey = key;
             salonAvailability = data.availability || {};
-            renderCalendar();
+            drawCalendar();
         })
-        .catch(err => console.error('Error loading availability:', err));
+        .catch(err => {
+            isAvailabilityLoading = false;
+            console.error('Error loading availability:', err);
+        });
 }
 
-// Render calendar
-function renderCalendar() {
+// Render calendar grid
+function drawCalendar() {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     
-    // Update header
+    // Update month header
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                        'July', 'August', 'September', 'October', 'November', 'December'];
-    document.getElementById('calendarMonth').textContent = `${monthNames[month]} ${year}`;
+    const monthHeader = document.getElementById('calendarMonth');
+    if (monthHeader) {
+        monthHeader.textContent = `${monthNames[month]} ${year}`;
+    }
     
-    // Load availability data
-    loadMonthAvailability(year, month);
-    
-    // Get first day of month and number of days
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const daysInPrevMonth = new Date(year, month, 0).getDate();
     
     const calendarDays = document.getElementById('calendarDays');
+    if (!calendarDays) return;
     calendarDays.innerHTML = '';
     
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const maxDate = new Date();
-    maxDate.setDate(maxDate.getDate() + 30);
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     
-    // Previous month days
+    // Previous month days (padding)
     for (let i = firstDay - 1; i >= 0; i--) {
         const day = daysInPrevMonth - i;
-        const dayEl = createDayElement(day, true, false);
+        const dayEl = createDayElement(day, true, true);
         calendarDays.appendChild(dayEl);
     }
     
     // Current month days
     for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(year, month, day);
-        date.setHours(0, 0, 0, 0);
-        const dateString = date.toISOString().split('T')[0];
+        const dateString = formatLocalDate(year, month, day);
+        const dayDate = new Date(year, month, day);
+        const dayOfWeek = dayNames[dayDate.getDay()];
         
-        const isDisabled = date < today || date > maxDate;
-        const isToday = date.getTime() === today.getTime();
+        const isPast = dateString < todayStr;
+        const isTooFar = dateString > maxDateStr;
+        const isClosed = !salonOperatingDays.includes(dayOfWeek);
+        const isDisabled = isPast || isTooFar || isClosed;
+        
+        const isToday = dateString === todayStr;
         const isSelected = selectedDate === dateString;
         const hasBooking = userBookings.some(b => b.appointment_date === dateString);
-        
         const availability = salonAvailability[dateString];
         
-        const dayEl = createDayElement(day, false, isDisabled, isToday, isSelected, hasBooking, availability, dateString);
+        const dayEl = createDayElement(day, false, isDisabled, isToday, isSelected, hasBooking, availability, dateString, isClosed, isPast);
         calendarDays.appendChild(dayEl);
     }
     
-    // Next month days to fill grid
+    // Next month days to fill grid row
     const totalCells = calendarDays.children.length;
     const remainingCells = (totalCells % 7 === 0) ? 0 : 7 - (totalCells % 7);
     for (let day = 1; day <= remainingCells; day++) {
-        const dayEl = createDayElement(day, true, false);
+        const dayEl = createDayElement(day, true, true);
         calendarDays.appendChild(dayEl);
     }
 }
 
-function createDayElement(day, isOtherMonth, isDisabled, isToday = false, isSelected = false, hasBooking = false, availability = null, dateString = '') {
+function createDayElement(day, isOtherMonth, isDisabled, isToday = false, isSelected = false, hasBooking = false, availability = null, dateString = '', isClosed = false, isPast = false) {
     const dayEl = document.createElement('div');
     dayEl.className = 'calendar-day';
     
@@ -1947,64 +2010,109 @@ function createDayElement(day, isOtherMonth, isDisabled, isToday = false, isSele
     dayNumber.textContent = day;
     dayEl.appendChild(dayNumber);
     
-    // Add availability indicator
-    if (!isOtherMonth && !isDisabled && availability) {
-        const indicator = document.createElement('div');
-        indicator.className = 'day-indicator';
-        
-        if (availability.available > 10) {
-            indicator.classList.add('available');
-        } else if (availability.available > 0) {
-            indicator.classList.add('limited');
-        } else {
-            indicator.classList.add('full');
-        }
-        
-        dayEl.appendChild(indicator);
-        
-        // Add slot info
-        if (availability.available > 0) {
-            const slotInfo = document.createElement('div');
-            slotInfo.className = 'slot-info';
-            slotInfo.textContent = `${availability.available} slots`;
-            dayEl.appendChild(slotInfo);
+    if (isToday && !isSelected) {
+        const todayBadge = document.createElement('span');
+        todayBadge.className = 'badge bg-primary mt-1';
+        todayBadge.style.fontSize = '0.6rem';
+        todayBadge.style.padding = '2px 5px';
+        todayBadge.textContent = 'Today';
+        dayEl.appendChild(todayBadge);
+    }
+    
+    if (!isOtherMonth) {
+        if (isClosed && !isPast) {
+            const closedInfo = document.createElement('div');
+            closedInfo.className = 'slot-info text-danger fw-bold';
+            closedInfo.style.fontSize = '0.65rem';
+            closedInfo.textContent = 'Closed';
+            dayEl.appendChild(closedInfo);
+        } else if (!isDisabled) {
+            if (availability && availability.available > 0) {
+                const indicator = document.createElement('div');
+                indicator.className = 'day-indicator ' + (availability.available > 10 ? 'available' : 'limited');
+                dayEl.appendChild(indicator);
+                
+                const slotInfo = document.createElement('div');
+                slotInfo.className = 'slot-info ' + (isSelected ? 'text-white' : 'text-success');
+                slotInfo.style.fontSize = '0.65rem';
+                slotInfo.textContent = `${availability.available} slots`;
+                dayEl.appendChild(slotInfo);
+            } else if (!availability) {
+                const slotInfo = document.createElement('div');
+                slotInfo.className = 'slot-info ' + (isSelected ? 'text-white' : 'text-muted');
+                slotInfo.style.fontSize = '0.65rem';
+                slotInfo.textContent = 'Open';
+                dayEl.appendChild(slotInfo);
+            }
         }
     }
     
-    // Add click handler
+    // Direct click handler on the calendar day
     if (!isOtherMonth && !isDisabled && dateString) {
         dayEl.style.cursor = 'pointer';
-        dayEl.onclick = () => selectDate(dateString);
+        dayEl.addEventListener('click', function(e) {
+            e.stopPropagation();
+            selectDate(dateString);
+        });
     }
     
     return dayEl;
 }
 
 function selectDate(dateString) {
+    if (!dateString) return;
     selectedDate = dateString;
     selectedTime = null;
-    document.getElementById('selectedTime').value = '';
-    document.getElementById('datePicker').value = dateString;
     
-    // Update calendar display
-    renderCalendar();
+    const selectedTimeInput = document.getElementById('selectedTime');
+    if (selectedTimeInput) selectedTimeInput.value = '';
+    
+    const datePicker = document.getElementById('datePicker');
+    if (datePicker) datePicker.value = dateString;
+    
+    const aptInput = document.getElementById('appointmentDateInput');
+    if (aptInput) aptInput.value = dateString;
+    
+    // Update confirmation banner in Step 2
+    const banner = document.getElementById('selectedDateBanner');
+    const display = document.getElementById('selectedDateDisplay');
+    if (banner && display) {
+        const parts = dateString.split('-');
+        const dObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        display.textContent = dObj.toLocaleDateString('en-US', opts);
+        banner.style.setProperty('display', 'flex', 'important');
+    }
+    
+    // Re-draw without fetching to update selected style immediately
+    drawCalendar();
     
     // Load time slots
-    document.getElementById('emptySlots').style.display = 'none';
-    document.getElementById('slotsContainer').style.display = 'none';
-    document.getElementById('loadingSlots').classList.add('show');
+    const emptySlots = document.getElementById('emptySlots');
+    const slotsContainer = document.getElementById('slotsContainer');
+    const loadingSlots = document.getElementById('loadingSlots');
+    
+    if (emptySlots) emptySlots.style.display = 'none';
+    if (slotsContainer) slotsContainer.style.display = 'none';
+    if (loadingSlots) loadingSlots.classList.add('show');
     
     fetch(`fetch_slots.php?salon_id=<?= $salon_id ?>&date=${selectedDate}`)
         .then(res => res.json())
         .then(data => {
-            document.getElementById('loadingSlots').classList.remove('show');
+            if (loadingSlots) loadingSlots.classList.remove('show');
             displaySlots(data);
             updateProgress();
             updateSummary();
+            
+            // Scroll smoothly to Step 3 (Time Slot Selection)
+            const step3Card = document.getElementById('step3Card');
+            if (step3Card) {
+                step3Card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         })
         .catch(err => {
-            document.getElementById('loadingSlots').classList.remove('show');
-            document.getElementById('emptySlots').style.display = 'block';
+            if (loadingSlots) loadingSlots.classList.remove('show');
+            if (emptySlots) emptySlots.style.display = 'block';
         });
 }
 
@@ -2026,7 +2134,7 @@ function changeMonth(delta) {
         return;
     }
     
-    renderCalendar();
+    loadMonthAvailabilityAndRender();
 }
 
 function toggleView(view) {
@@ -2071,7 +2179,7 @@ document.querySelectorAll('.service-card').forEach(card => {
 function setDate(days) {
     const date = new Date();
     date.setDate(date.getDate() + days);
-    const dateString = date.toISOString().split('T')[0];
+    const dateString = formatLocalDate(date.getFullYear(), date.getMonth(), date.getDate());
     selectDate(dateString);
 }
 
@@ -2087,28 +2195,34 @@ function displaySlots(data) {
     morningSlots.innerHTML = '';
     afternoonSlots.innerHTML = '';
     eveningSlots.innerHTML = '';
+    
     if (!data || data.length === 0) {
         document.getElementById('emptySlots').style.display = 'block';
         return;
     }
+    
     document.getElementById('slotsContainer').style.display = 'block';
     let slots = data;
     if (typeof data[0] === 'string') {
         slots = data.map(time => ({ time: time, booked: false }));
     }
+    
     slots.forEach(slot => {
-        const hour = parseInt(slot.time.split(':')[0]);
+        const hour = parseInt(slot.time.split(':')[0], 10);
         const period = slot.time.includes('PM') ? 'PM' : 'AM';
         const hour24 = period === 'PM' && hour !== 12 ? hour + 12 : (period === 'AM' && hour === 12 ? 0 : hour);
+        
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'slot-btn';
+        const formattedDisplayTime = formatTime12h(slot.time);
+        
         if (slot.booked) {
             btn.classList.add('booked');
-            btn.innerHTML = `<span class="slot-time">${slot.time}</span><span class="slot-status">Booked</span>`;
+            btn.innerHTML = `<span class="slot-time">${formattedDisplayTime}</span><span class="slot-status">Booked</span>`;
             btn.disabled = true;
         } else {
-            btn.innerHTML = `<span class="slot-time">${slot.time}</span><span class="slot-status">Available</span>`;
+            btn.innerHTML = `<span class="slot-time">${formattedDisplayTime}</span><span class="slot-status">Available</span>`;
             btn.addEventListener('click', function() {
                 document.querySelectorAll('.slot-btn:not(.booked)').forEach(b => {
                     b.classList.remove('selected');
@@ -2122,6 +2236,7 @@ function displaySlots(data) {
                 updateSummary();
             });
         }
+        
         if (hour24 < 12) {
             morningSlots.appendChild(btn);
         } else if (hour24 < 17) {
@@ -2195,10 +2310,12 @@ function updateSummary() {
     if (selectedService && selectedDate && selectedTime) {
         summary.classList.add('show');
         document.getElementById('summaryService').textContent = selectedService.name;
-        const dateObj = new Date(selectedDate + 'T00:00:00');
+        
+        const parts = selectedDate.split('-');
+        const dateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
         const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
         document.getElementById('summaryDate').textContent = dateObj.toLocaleDateString('en-US', options);
-        document.getElementById('summaryTime').textContent = selectedTime;
+        document.getElementById('summaryTime').textContent = formatTime12h(selectedTime);
         document.getElementById('summaryDuration').textContent = selectedService.duration + ' minutes';
         
         const basePrice = parseFloat(selectedService.price);
