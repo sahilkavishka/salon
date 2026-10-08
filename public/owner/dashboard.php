@@ -732,7 +732,6 @@ $page_title = "Owner Dashboard - Salonora";
     </style>
 </head>
 <body>
-<?php include __DIR__ . '/../header.php'; ?>
 
 <!-- Flash Messages -->
 <?php if (isset($_SESSION['flash_success'])): ?>

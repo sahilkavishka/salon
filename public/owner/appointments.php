@@ -358,7 +358,6 @@ body {
 </style>
 </head>
 <body>
-<?php include __DIR__ . '/../header.php'; ?>
 
 <div class="loading-overlay" id="loadingOverlay">
     <div class="spinner-border text-light" role="status">
@@ -376,6 +375,9 @@ body {
                 <p class="mb-0 mt-2" style="opacity: 0.9;">Manage and track all your salon appointments</p>
             </div>
             <div class="mt-3 mt-md-0">
+                <button class="btn btn-light me-2" id="backBtn">
+                    <i class="fas fa-arrow-left me-1"></i>Back
+                </button>
                 <button class="btn btn-light" id="refreshBtn">
                     <i class="fas fa-sync-alt me-1"></i>Refresh
                 </button>

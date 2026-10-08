@@ -31,16 +31,6 @@
     }
   </script>
 
-  <?php 
-  $currentScript = basename($_SERVER['PHP_SELF'] ?? '');
-  $isHome = ($currentScript === 'index.php' || empty($currentScript));
-  if (!$isHome): 
-  ?>
-  <style>
-    body { padding-top: 74px; }
-  </style>
-  <?php endif; ?>
-
   <style>
   /* ================================
      DARK MODE THEME
@@ -106,11 +96,6 @@
   }
   body.dark-mode .text-muted, body.dark-mode .form-hint {
     color: #94a3b8 !important;
-  }
-  body.dark-mode .navbar .badge.bg-white {
-    background: rgba(255, 255, 255, 0.15) !important;
-    color: #ffffff !important;
-    border: 1px solid rgba(255, 255, 255, 0.25) !important;
   }
   body.dark-mode .form-control,
   body.dark-mode .form-select,
@@ -321,14 +306,6 @@ body.dark-mode .btn-back {
               
               <li class="nav-item"><a href="<?= url('notifications.php') ?>" class="nav-link"><i class="far fa-bell me-1"></i> Notifications</a></li>
               <li class="nav-item"><a href="<?= url('user/profile.php') ?>" class="nav-link"><i class="far fa-user me-1"></i> Profile</a></li>
-              <li class="nav-item d-none d-md-flex align-items-center ms-lg-2">
-                <a href="<?= url('user/profile.php') ?>" class="badge rounded-pill bg-white text-dark py-2 px-3 shadow-sm d-inline-flex align-items-center text-decoration-none" title="Logged in as <?= htmlspecialchars($_SESSION['user_name'] ?? $_SESSION['username'] ?? 'User') ?>">
-                  <i class="fas fa-user-circle text-primary me-1"></i>
-                  <span class="fw-semibold text-truncate" style="max-width: 130px;">
-                    <?= htmlspecialchars($_SESSION['user_name'] ?? $_SESSION['username'] ?? 'User') ?>
-                  </span>
-                </a>
-              </li>
               <li class="nav-item ms-2">
                 <button type="button" id="themeToggleBtn" class="btn btn-outline-light btn-sm rounded-circle d-flex align-items-center justify-content-center" style="width:36px;height:36px;" title="Toggle Theme">
                   <i class="fas fa-moon" id="themeToggleIcon"></i>
