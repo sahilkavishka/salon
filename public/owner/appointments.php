@@ -23,7 +23,7 @@ if (empty($salonIds)) {
     echo '<body><div class="container mt-5"><div class="alert" style="background: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%); color: white; border: none;">';
     echo '<h4><i class="fas fa-info-circle me-2"></i>No Salons Registered Yet</h4>';
     echo '<p>Please register a salon first to manage appointments.</p>';
-    echo '<a href="salons.php" class="btn btn-light">Register Salon</a>';
+    echo '<a href="salon_add.php" class="btn btn-light">Register Salon</a>';
     echo '</div></div></body></html>';
     exit;
 }

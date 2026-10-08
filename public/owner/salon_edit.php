@@ -26,7 +26,15 @@ if (!$salon) {
 
 $errors = [];
 
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $errors[] = 'Invalid security token. Please refresh and try again.';
+    }
+
     // Basic fields
     $name          = trim($_POST['name'] ?? '');
     $address       = trim($_POST['address'] ?? '');
@@ -266,6 +274,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
 
       <form method="post" enctype="multipart/form-data" id="salonForm">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
         <!-- Salon Name -->
         <div class="form-group">
           <label class="form-label">

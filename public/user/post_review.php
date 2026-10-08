@@ -23,6 +23,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     sendResponse(false, 'Invalid request method');
 }
 
+// CSRF token validation
+$csrf = $_POST['csrf_token'] ?? '';
+if (!$csrf || !isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $csrf)) {
+    sendResponse(false, 'Invalid security token. Please refresh and try again.');
+}
+
 $user_id = $_SESSION['id'];
 $salon_id = intval($_POST['salon_id'] ?? 0);
 $rating = intval($_POST['rating'] ?? 0);
@@ -141,9 +147,9 @@ try {
     $avg_rating = round((float)($stats['avg_rating'] ?? 0), 1);
     $total_reviews = (int)($stats['total_reviews'] ?? 0);
 
-    // Persist new rating in salons table
-    $updateSalonRating = $pdo->prepare("UPDATE salons SET rating = ? WHERE id = ?");
-    $updateSalonRating->execute([$avg_rating, $salon_id]);
+    // Persist new rating and total_reviews count in salons table
+    $updateSalonRating = $pdo->prepare("UPDATE salons SET rating = ?, total_reviews = ? WHERE id = ?");
+    $updateSalonRating->execute([$avg_rating, $total_reviews, $salon_id]);
 
     // Send email to salon owner
     $stmtOwner = $pdo->prepare("SELECT email, username FROM users WHERE id = ?");

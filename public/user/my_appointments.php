@@ -63,10 +63,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_appointment'])
 
                     // Add log to appointment_logs
                     $logStmt = $pdo->prepare("
-                        INSERT INTO appointment_logs (appointment_id, changed_by, old_status, new_status, notes) 
-                        VALUES (?, ?, ?, 'cancelled', 'Cancelled by customer')
+                        INSERT INTO appointment_logs (appointment_id, user_id, changed_by, old_status, new_status, action, action_type, changed_at) 
+                        VALUES (?, ?, ?, ?, 'cancelled', 'cancelled', 'cancel', NOW())
                     ");
-                    $logStmt->execute([$appointment_id, $user_id, $oldStatus]);
+                    $logStmt->execute([$appointment_id, $user_id, $user_id, $oldStatus]);
 
                     // Notify salon owner
                     $ownerStmt = $pdo->prepare("SELECT owner_id FROM salons WHERE id = ?");

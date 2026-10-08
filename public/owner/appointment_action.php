@@ -56,7 +56,7 @@ $validTransitions = [
     ],
     'reject' => [
         'from' => 'pending', 
-        'to' => 'cancelled', 
+        'to' => 'rejected', 
         'message' => 'Appointment rejected',
         'notification' => 'Your appointment at {salon} for {service} has been rejected.'
     ],

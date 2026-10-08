@@ -2,7 +2,7 @@
 // public/user/cancel_appointment.php
 session_start();
 require_once __DIR__ . '/../../config.php';
-require_once __DIR__ . '/auth_check.php';
+require_once __DIR__ . '/../auth_check.php';
 checkAuth();
 
 // Set JSON response header
@@ -84,21 +84,9 @@ try {
         exit;
     }
 
-    // Check if appointment is at least 24 hours away
     $appointmentDateTime = strtotime($appt['appointment_date'] . ' ' . $appt['appointment_time']);
     $currentTime = time();
     $hoursUntilAppointment = ($appointmentDateTime - $currentTime) / 3600;
-
-    if ($hoursUntilAppointment < 24) {
-        $pdo->rollBack();
-        http_response_code(400);
-        echo json_encode([
-            'success' => false,
-            'message' => 'Appointments cannot be cancelled within 24 hours of the scheduled time. Please contact the salon directly.',
-            'salon_contact' => $appt['salon_email'] ?? null
-        ]);
-        exit;
-    }
 
     // Check if appointment is in the past
     if ($appointmentDateTime < $currentTime) {
@@ -107,6 +95,18 @@ try {
         echo json_encode([
             'success' => false,
             'message' => 'Cannot cancel past appointments.'
+        ]);
+        exit;
+    }
+
+    // Only confirmed appointments require 24 hours notice
+    if ($appt['status'] === 'confirmed' && $hoursUntilAppointment < 24) {
+        $pdo->rollBack();
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Confirmed appointments cannot be cancelled within 24 hours of the scheduled time. Please contact the salon directly.',
+            'salon_contact' => $appt['salon_email'] ?? null
         ]);
         exit;
     }

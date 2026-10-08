@@ -7,9 +7,19 @@ checkAuth('owner');
 
 $owner_id = $_SESSION['id'];
 
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 // Handle salon deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_salon'])) {
-    $salon_id = $_POST['salon_id'] ?? 0;
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $_SESSION['flash_error'] = 'Invalid security token. Please try again.';
+        header('Location: dashboard.php');
+        exit;
+    }
+
+    $salon_id = intval($_POST['salon_id'] ?? 0);
     
     // Verify ownership
     $stmt = $pdo->prepare("SELECT id FROM salons WHERE id = ? AND owner_id = ?");
@@ -89,7 +99,7 @@ $stmt = $pdo->prepare("
     LEFT JOIN appointments a ON s.id = a.salon_id
     LEFT JOIN reviews r ON s.id = r.salon_id
     WHERE s.owner_id = ?
-    GROUP BY s.id
+    GROUP BY s.id, s.name, s.address, s.image
 ");
 $stmt->execute([$owner_id]);
 $salons = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -1071,6 +1081,7 @@ $page_title = "Owner Dashboard - Salonora";
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <form method="POST" id="deleteForm" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
                     <input type="hidden" name="delete_salon" value="1">
                     <input type="hidden" name="salon_id" id="salonIdToDelete">
                     <button type="submit" class="btn btn-danger">

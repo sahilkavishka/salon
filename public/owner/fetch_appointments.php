@@ -74,6 +74,32 @@ try {
             
             $stmt = $pdo->prepare($sql);
             $stmt->execute($salons);
+        } elseif ($status === 'cancelled') {
+            $sql = "SELECT 
+                        a.id,
+                        a.user_id,
+                        a.service_id,
+                        a.salon_id,
+                        a.appointment_date,
+                        a.appointment_time,
+                        a.status,
+                        a.created_at,
+                        u.username AS user_name,
+                        u.email AS user_email,
+                        s.name AS service_name,
+                        s.price AS service_price,
+                        s.duration AS service_duration,
+                        sal.name AS salon_name
+                    FROM appointments a
+                    JOIN users u ON u.id = a.user_id
+                    JOIN services s ON s.id = a.service_id
+                    JOIN salons sal ON sal.id = a.salon_id
+                    WHERE a.status IN ('cancelled', 'rejected')
+                    AND a.salon_id IN ($placeholders)
+                    ORDER BY a.created_at DESC";
+            
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($salons);
         } else {
             $sql = "SELECT 
                         a.id,

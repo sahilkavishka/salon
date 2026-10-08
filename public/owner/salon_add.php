@@ -8,7 +8,15 @@ checkAuth('owner');
 $owner_id = $_SESSION['id'];
 $errors = [];
 
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $errors[] = 'Invalid security token. Please refresh and try again.';
+    }
+
     // Basic validation
     $name = trim($_POST['name'] ?? '');
     $address = trim($_POST['address'] ?? '');
@@ -211,6 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php endif; ?>
 
     <form method="post" enctype="multipart/form-data" id="salonForm" novalidate>
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
         
         <!-- Live Preview Card -->
         <div class="preview-card">

@@ -76,12 +76,13 @@ $user_can_interact = isset($_SESSION['role'], $_SESSION['id']) &&
                      in_array($_SESSION['role'], ['user', 'customer']) &&
                      $_SESSION['id'] != $salon['owner_id'];
 
-// Format operating hours from opening_time and closing_time
-$operating_hours = 'Mon-Sat: 9:00 AM - 8:00 PM'; // Default
+// Format operating hours from opening_time, closing_time and operating_days
+$operating_days_list = !empty($salon['operating_days']) ? $salon['operating_days'] : 'Everyday';
+$operating_hours = "$operating_days_list: 9:00 AM - 8:00 PM";
 if (!empty($salon['opening_time']) && !empty($salon['closing_time'])) {
-    $opening = date('g:i A', strtotime($salon['opening_time']));
-    $closing = date('g:i A', strtotime($salon['closing_time']));
-    $operating_hours = "Mon-Sat: $opening - $closing";
+    $opening_fmt = date('g:i A', strtotime($salon['opening_time']));
+    $closing_fmt = date('g:i A', strtotime($salon['closing_time']));
+    $operating_hours = "$operating_days_list: $opening_fmt - $closing_fmt";
 }
 
 // Get contact and social info
@@ -92,37 +93,46 @@ $facebook = $salon['facebook'] ?? null;
 $instagram = $salon['instagram'] ?? null;
 $description = $salon['description'] ?? null;
 
-// Check if salon is currently open
+// Check if salon is currently open (checking both operating days and time)
 $is_open = false;
 $current_status = 'Closed';
 
-if (!empty($salon['opening_time']) && !empty($salon['closing_time'])) {
-    $now = new DateTime(); // current date & time
+$todayDay = date('l');
+$operatingDays = !empty($salon['operating_days']) 
+    ? array_map('trim', explode(',', $salon['operating_days'])) 
+    : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-    // Create DateTime for today's opening & closing
-    $opening = DateTime::createFromFormat('H:i:s', $salon['opening_time']); // e.g. 09:00:00
-    $closing = DateTime::createFromFormat('H:i:s', $salon['closing_time']); // e.g. 19:00:00
+$isOpenDay = in_array($todayDay, $operatingDays);
 
-    // Attach today's date to opening & closing
-    $opening->setDate($now->format('Y'), $now->format('m'), $now->format('d'));
-    $closing->setDate($now->format('Y'), $now->format('m'), $now->format('d'));
+if (!$isOpenDay) {
+    $is_open = false;
+    $current_status = 'Closed Today';
+} elseif (!empty($salon['opening_time']) && !empty($salon['closing_time'])) {
+    $now = new DateTime();
+    $opening = DateTime::createFromFormat('H:i:s', $salon['opening_time']) ?: DateTime::createFromFormat('H:i', $salon['opening_time']);
+    $closing = DateTime::createFromFormat('H:i:s', $salon['closing_time']) ?: DateTime::createFromFormat('H:i', $salon['closing_time']);
 
-    if ($now >= $opening && $now <= $closing) {
-        $is_open = true;
-        $current_status = 'Open Now';
-    } else {
-        $is_open = false;
-        $current_status = 'Closed';
+    if ($opening && $closing) {
+        $opening->setDate($now->format('Y'), $now->format('m'), $now->format('d'));
+        $closing->setDate($now->format('Y'), $now->format('m'), $now->format('d'));
+
+        if ($now >= $opening && $now <= $closing) {
+            $is_open = true;
+            $current_status = 'Open Now';
+        } else {
+            $is_open = false;
+            $current_status = 'Closed';
+        }
     }
 }
 
 // Get popular services (most booked)
 $stmt = $pdo->prepare("
-    SELECT s.*, COUNT(a.id) as booking_count 
+    SELECT s.id, s.salon_id, s.name, s.description, s.price, s.duration, s.category, COUNT(a.id) as booking_count 
     FROM services s 
     LEFT JOIN appointments a ON s.id = a.service_id 
     WHERE s.salon_id = ? 
-    GROUP BY s.id 
+    GROUP BY s.id, s.salon_id, s.name, s.description, s.price, s.duration, s.category
     ORDER BY booking_count DESC 
     LIMIT 3
 ");
