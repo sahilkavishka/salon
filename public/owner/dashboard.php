@@ -204,6 +204,11 @@ $page_title = "Owner Dashboard - Salonora";
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        if (localStorage.getItem('salonora_theme') === 'dark') {
+            document.documentElement.classList.add('dark-mode');
+        }
+    </script>
     <style>
         :root {
             --primary-pink: #e91e63;
@@ -213,6 +218,70 @@ $page_title = "Owner Dashboard - Salonora";
             --dark-purple: #6a1b9a;
             --gradient-primary: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);
             --gradient-light: linear-gradient(135deg, #f8bbd0 0%, #e1bee7 100%);
+        }
+
+        /* Dark Mode Support */
+        html.dark-mode, body.dark-mode {
+            background: #111122 !important;
+            color: #e2e8f0 !important;
+        }
+        body.dark-mode .welcome-header {
+            background: linear-gradient(135deg, #880e4f 0%, #4a148c 100%) !important;
+        }
+        body.dark-mode .quick-stat-card,
+        body.dark-mode .analytics-card,
+        body.dark-mode .salon-item-card,
+        body.dark-mode .recent-card,
+        body.dark-mode .appointments-card,
+        body.dark-mode .card,
+        body.dark-mode .dashboard-card,
+        body.dark-mode .modal-content {
+            background: #1a1a2e !important;
+            color: #e2e8f0 !important;
+            border-color: #2d2d48 !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+        }
+        body.dark-mode .quick-stat-label,
+        body.dark-mode .stat-label,
+        body.dark-mode .text-muted {
+            color: #94a3b8 !important;
+        }
+        body.dark-mode .quick-stat-value,
+        body.dark-mode h1, body.dark-mode h2, body.dark-mode h3,
+        body.dark-mode h4, body.dark-mode h5, body.dark-mode h6,
+        body.dark-mode strong {
+            color: #f8fafc !important;
+        }
+        body.dark-mode .table {
+            color: #e2e8f0 !important;
+            border-color: #2d2d48 !important;
+        }
+        body.dark-mode .table th {
+            background: #1e1e38 !important;
+            color: #f8fafc !important;
+            border-color: #2d2d48 !important;
+        }
+        body.dark-mode .table td {
+            background: #1a1a2e !important;
+            color: #cbd5e1 !important;
+            border-color: #2d2d48 !important;
+        }
+        body.dark-mode .table tr:hover td {
+            background: #252542 !important;
+        }
+        body.dark-mode .btn-action {
+            background: rgba(255, 255, 255, 0.15) !important;
+            color: #ffffff !important;
+            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+        }
+        body.dark-mode .btn-action:hover {
+            background: #ffffff !important;
+            color: #1a1a2e !important;
+        }
+        body.dark-mode .list-group-item {
+            background: #1a1a2e !important;
+            color: #cbd5e1 !important;
+            border-color: #2d2d48 !important;
         }
 
         * {
@@ -765,11 +834,17 @@ $page_title = "Owner Dashboard - Salonora";
                 <p>Here's what's happening with your business today</p>
             </div>
             <div class="welcome-actions">
+                <button type="button" id="themeToggleBtn" class="btn-action" title="Toggle Theme" style="cursor: pointer; border: none;">
+                    <i class="fas fa-moon me-2" id="themeToggleIcon"></i>Theme
+                </button>
                 <a href="salon_add.php" class="btn-action">
                     <i class="fas fa-plus-circle me-2"></i>Add Salon
                 </a>
                 <a href="appointments.php" class="btn-action">
                     <i class="fas fa-calendar-check me-2"></i>Manage Bookings
+                </a>
+                <a href="checkin.php" class="btn-action">
+                    <i class="fas fa-qrcode me-2"></i>QR Check-in
                 </a>
                 <a href="../logout.php" class="btn-action btn-logout">
                     <i class="fas fa-sign-out-alt me-2"></i>Logout
@@ -1232,6 +1307,27 @@ setTimeout(() => {
     console.log('You have <?= $pending_appointments ?> pending appointments waiting for approval');
 }, 2000);
 <?php endif; ?>
+
+// Theme toggle
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+const themeToggleIcon = document.getElementById('themeToggleIcon');
+
+function updateThemeUI() {
+    const isDark = document.body.classList.contains('dark-mode') || document.documentElement.classList.contains('dark-mode');
+    if (themeToggleIcon) {
+        themeToggleIcon.className = isDark ? 'fas fa-sun me-2' : 'fas fa-moon me-2';
+    }
+}
+updateThemeUI();
+
+if (themeToggleBtn) {
+    themeToggleBtn.addEventListener('click', () => {
+        const isDark = document.body.classList.toggle('dark-mode');
+        document.documentElement.classList.toggle('dark-mode', isDark);
+        localStorage.setItem('salonora_theme', isDark ? 'dark' : 'light');
+        updateThemeUI();
+    });
+}
 </script>
 
 </body>

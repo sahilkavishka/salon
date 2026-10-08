@@ -107,29 +107,23 @@ try {
     }
     
     // Validate status transition
-    $expectedStatus = $validTransitions[$action]['from'];
-    if ($appt['status'] !== $expectedStatus) {
-        $pdo->rollBack();
-        http_response_code(400);
-        echo json_encode([
-            'error' => "Cannot {$action} appointment with status '{$appt['status']}'. Expected status: '{$expectedStatus}'"
-        ]);
-        exit;
-    }
-    
-    // Additional validation for completing appointments
     if ($action === 'complete') {
-        $apptDateTime = new DateTime($appt['appointment_date'] . ' ' . $appt['appointment_time']);
-        $now = new DateTime();
-        
-        // Check if appointment is in the future (with 15-minute grace period)
-        $gracePeriod = new DateInterval('PT15M');
-        $apptDateTime->sub($gracePeriod);
-        
-        if ($apptDateTime > $now) {
+        if (!in_array($appt['status'], ['confirmed', 'pending'])) {
             $pdo->rollBack();
             http_response_code(400);
-            echo json_encode(['error' => 'Cannot complete future appointments']);
+            echo json_encode([
+                'error' => "Cannot complete appointment with status '{$appt['status']}'. It must be confirmed or pending."
+            ]);
+            exit;
+        }
+    } else {
+        $expectedStatus = $validTransitions[$action]['from'];
+        if ($appt['status'] !== $expectedStatus) {
+            $pdo->rollBack();
+            http_response_code(400);
+            echo json_encode([
+                'error' => "Cannot {$action} appointment with status '{$appt['status']}'. Expected status: '{$expectedStatus}'"
+            ]);
             exit;
         }
     }

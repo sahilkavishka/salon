@@ -46,6 +46,11 @@ header("Content-Security-Policy: script-src 'self' 'nonce-{$nonce}' https://cdn.
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script nonce="<?= $nonce ?>">
+    if (localStorage.getItem('salonora_theme') === 'dark') {
+        document.documentElement.classList.add('dark-mode');
+    }
+</script>
 <style>
 :root {
     --primary-pink: #e91e63;
@@ -55,6 +60,67 @@ header("Content-Security-Policy: script-src 'self' 'nonce-{$nonce}' https://cdn.
     --dark-purple: #6a1b9a;
     --gradient-primary: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);
     --gradient-light: linear-gradient(135deg, #f8bbd0 0%, #e1bee7 100%);
+}
+
+/* Dark Mode Support */
+html.dark-mode, body.dark-mode {
+    background: #111122 !important;
+    color: #e2e8f0 !important;
+}
+body.dark-mode .appointment-card {
+    background: #1a1a2e !important;
+    color: #e2e8f0 !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+}
+body.dark-mode .appointment-card h5 {
+    color: #f8fafc !important;
+}
+body.dark-mode .appointment-info,
+body.dark-mode .appointment-info div {
+    color: #cbd5e1 !important;
+}
+body.dark-mode .stats-card {
+    background: #1a1a2e !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+}
+body.dark-mode .stat-item {
+    background: rgba(139, 92, 246, 0.15) !important;
+}
+body.dark-mode .stat-item .stat-number {
+    color: #f8fafc !important;
+}
+body.dark-mode .stat-item .stat-label {
+    color: #94a3b8 !important;
+}
+body.dark-mode .nav-tabs {
+    border-bottom-color: #2d2d48 !important;
+}
+body.dark-mode .nav-tabs .nav-link {
+    color: #94a3b8 !important;
+}
+body.dark-mode .nav-tabs .nav-link.active {
+    background: #1a1a2e !important;
+    color: #f8fafc !important;
+    border-color: #2d2d48 #2d2d48 #1a1a2e !important;
+}
+body.dark-mode .badge.bg-light.text-dark {
+    background: rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
+}
+body.dark-mode .btn-light {
+    background: rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
+    border-color: rgba(255, 255, 255, 0.25) !important;
+}
+body.dark-mode .btn-light:hover {
+    background: #ffffff !important;
+    color: #1a1a2e !important;
+}
+body.dark-mode .page-header {
+    background: linear-gradient(135deg, #ad1457, #6a1b9a) !important;
+}
+body.dark-mode .empty-state {
+    color: #94a3b8 !important;
 }
 
 body { 
@@ -374,8 +440,11 @@ body {
                 <h2><i class="fas fa-calendar-check me-2"></i>Appointments Management</h2>
                 <p class="mb-0 mt-2" style="opacity: 0.9;">Manage and track all your salon appointments</p>
             </div>
-            <div class="mt-3 mt-md-0">
-                <button class="btn btn-light me-2" id="backBtn">
+            <div class="mt-3 mt-md-0 d-flex gap-2">
+                <button class="btn btn-light" id="themeToggleBtn" title="Toggle Theme">
+                    <i class="fas fa-moon me-1" id="themeToggleIcon"></i>Theme
+                </button>
+                <button class="btn btn-light" id="backBtn">
                     <i class="fas fa-arrow-left me-1"></i>Back
                 </button>
                 <button class="btn btn-light" id="refreshBtn">
@@ -700,11 +769,11 @@ async function handleAction(id, action) {
             credentials: 'same-origin'
         });
         
-        if (!res.ok) {
-            throw new Error('Request failed with status: ' + res.status);
-        }
+        const data = await res.json().catch(() => ({}));
         
-        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.error || 'Request failed with status: ' + res.status);
+        }
         
         if (data.success) {
             showAlert(data.message || 'Action completed successfully!', 'success');
@@ -738,6 +807,27 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    // Theme toggle
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const themeToggleIcon = document.getElementById('themeToggleIcon');
+
+    function updateThemeUI() {
+        const isDark = document.body.classList.contains('dark-mode') || document.documentElement.classList.contains('dark-mode');
+        if (themeToggleIcon) {
+            themeToggleIcon.className = isDark ? 'fas fa-sun me-1' : 'fas fa-moon me-1';
+        }
+    }
+    updateThemeUI();
+
+    if (themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', () => {
+            const isDark = document.body.classList.toggle('dark-mode');
+            document.documentElement.classList.toggle('dark-mode', isDark);
+            localStorage.setItem('salonora_theme', isDark ? 'dark' : 'light');
+            updateThemeUI();
+        });
+    }
+
     // Initial load
     fetchAppointments();
 });

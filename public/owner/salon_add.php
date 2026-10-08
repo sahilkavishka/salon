@@ -200,6 +200,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     font-size: 0.9rem;
 }
 </style>
+<script>
+    if (localStorage.getItem('salonora_theme') === 'dark') {
+        document.documentElement.classList.add('dark-mode');
+    }
+</script>
+<style>
+/* Dark Mode */
+html.dark-mode, body.dark-mode {
+    background: #111122 !important;
+    color: #e2e8f0 !important;
+}
+body.dark-mode .form-container,
+body.dark-mode .card {
+    background: #1a1a2e !important;
+    color: #e2e8f0 !important;
+    border-color: #2d2d48 !important;
+}
+body.dark-mode .form-control,
+body.dark-mode .form-select,
+body.dark-mode textarea {
+    background: #1e1e38 !important;
+    color: #ffffff !important;
+    border-color: #3b3b5e !important;
+}
+body.dark-mode .form-label,
+body.dark-mode h2, body.dark-mode h4, body.dark-mode h5 {
+    color: #f8fafc !important;
+}
+body.dark-mode .location-info {
+    background: #1e1e38 !important;
+    color: #cbd5e1 !important;
+}
+body.dark-mode .btn-outline-secondary {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #f8fafc !important;
+    border-color: rgba(255, 255, 255, 0.25) !important;
+}
+</style>
 </head>
 <body>
 
