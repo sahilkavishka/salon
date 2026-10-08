@@ -177,6 +177,7 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
   <link rel="stylesheet" href="../assets/css/salon_details.css">
 </head>
 <body>
+<?php include __DIR__ . '/../header.php'; ?>
   
   <!-- Hero Section with Overlay -->
   <div class="salon-hero">
@@ -187,71 +188,8 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
   </div>
 
   <div class="container pb-5">
-    <!-- Enhanced Navigation -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <a href="salon_view.php" class="btn-back">
-        <i class="fas fa-arrow-left"></i> Back to Salons
-      </a>
-      <div class="d-none d-md-flex gap-3">
-        <a href="#services" class="btn btn-outline-primary btn-sm">
-          <i class="fas fa-cut"></i> Services
-        </a>
-        <a href="#reviews" class="btn btn-outline-primary btn-sm">
-          <i class="fas fa-star"></i> Reviews
-        </a>
-      </div>
-    </div>
 
-    <!-- Salon Description Section -->
-    <?php if ($description): ?>
-    <div class="section">
-      <div class="section-header">
-        <h2 class="section-title">
-          <i class="fas fa-info-circle"></i>
-          About This Salon
-        </h2>
-      </div>
-      <div class="salon-description">
-        <p><?= nl2br(htmlspecialchars($description)) ?></p>
-      </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- Popular Services Section -->
-    <?php if (!empty($popular_services) && count($popular_services) > 0): ?>
-    <div class="section">
-      <div class="section-header">
-        <h2 class="section-title">
-          <i class="fas fa-fire"></i>
-          Popular Services
-        </h2>
-        <span class="section-badge">Most Booked</span>
-      </div>
-      <div class="row">
-        <?php foreach ($popular_services as $ps): ?>
-          <div class="col-md-4 mb-3">
-            <div class="popular-service-card">
-              <div class="d-flex align-items-center mb-2">
-                <i class="fas fa-fire text-danger me-2"></i>
-                <h5 class="mb-0"><?= htmlspecialchars($ps['name']) ?></h5>
-              </div>
-              <div class="d-flex justify-content-between align-items-center">
-                <span class="text-primary fw-bold">Rs <?= number_format($ps['price'], 2) ?></span>
-                <span class="text-muted"><i class="far fa-clock"></i> <?= $ps['duration'] ?> mins</span>
-              </div>
-              <?php if ($ps['booking_count'] > 0): ?>
-                <small class="text-success">
-                  <i class="fas fa-check-circle"></i> <?= $ps['booking_count'] ?> bookings
-                </small>
-              <?php endif; ?>
-            </div>
-          </div>
-        <?php endforeach; ?>
-      </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- Enhanced Salon Info Card -->
+    <!-- Enhanced Salon Info Card (Top Prominent Identity) -->
     <div class="salon-info-card">
       <div class="salon-header">
         <?php if ($salon['image']): ?>
@@ -261,7 +199,12 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
                loading="lazy">
         <?php endif; ?>
         <div class="salon-details flex-grow-1">
-          <h1><?= htmlspecialchars($salon['name']) ?></h1>
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+            <h1><?= htmlspecialchars($salon['name']) ?></h1>
+            <a href="book_appointment.php?salon_id=<?= $salon_id ?>" class="btn btn-primary rounded-pill px-4 py-2 shadow-sm fw-semibold">
+              <i class="fas fa-calendar-check me-2"></i>Book Now
+            </a>
+          </div>
           
           <!-- Enhanced Rating Display -->
           <div class="rating-container mb-3">
@@ -316,7 +259,7 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
             </div>
             <div class="meta-item">
               <i class="fas fa-user-tie"></i>
-              <span>Owner: <strong><?= htmlspecialchars($salon['owner_name']) ?></strong></span>
+              <span>Owner: <strong><?= htmlspecialchars(!empty($salon['owner_name']) ? $salon['owner_name'] : 'Verified Stylist') ?></strong></span>
             </div>
           </div>
 
@@ -392,6 +335,55 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
       </div>
     </div>
+
+    <!-- Salon Description Section -->
+    <?php if ($description): ?>
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-info-circle"></i>
+          About This Salon
+        </h2>
+      </div>
+      <div class="salon-description">
+        <p><?= nl2br(htmlspecialchars($description)) ?></p>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Popular Services Section -->
+    <?php if (!empty($popular_services) && count($popular_services) > 0): ?>
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-fire"></i>
+          Popular Services
+        </h2>
+        <span class="section-badge">Most Booked</span>
+      </div>
+      <div class="row">
+        <?php foreach ($popular_services as $ps): ?>
+          <div class="col-md-4 mb-3">
+            <div class="popular-service-card">
+              <div class="d-flex align-items-center mb-2">
+                <i class="fas fa-fire text-danger me-2"></i>
+                <h5 class="mb-0"><?= htmlspecialchars($ps['name']) ?></h5>
+              </div>
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="text-primary fw-bold">Rs <?= number_format($ps['price'], 2) ?></span>
+                <span class="text-muted"><i class="far fa-clock"></i> <?= $ps['duration'] ?> mins</span>
+              </div>
+              <?php if ($ps['booking_count'] > 0): ?>
+                <small class="text-success">
+                  <i class="fas fa-check-circle"></i> <?= $ps['booking_count'] ?> bookings
+                </small>
+              <?php endif; ?>
+            </div>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Services Section with Search/Filter -->
     <div class="section" id="services">

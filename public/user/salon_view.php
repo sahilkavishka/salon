@@ -926,7 +926,7 @@ $logged_user_role = $_SESSION['role'] ?? '';
                   </div>
                   <div class="info-row">
                     <i class="fas fa-user-tie"></i>
-                    <span>Owner: <strong><?= htmlspecialchars($salon['owner_name']) ?></strong></span>
+                    <span>Owner: <strong><?= htmlspecialchars(!empty($salon['owner_name']) ? $salon['owner_name'] : 'Verified Stylist') ?></strong></span>
                   </div>
                   <div class="info-row">
                     <i class="fas fa-star"></i>

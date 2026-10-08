@@ -358,6 +358,7 @@ body {
 </style>
 </head>
 <body>
+<?php include __DIR__ . '/../header.php'; ?>
 
 <div class="loading-overlay" id="loadingOverlay">
     <div class="spinner-border text-light" role="status">
@@ -375,9 +376,6 @@ body {
                 <p class="mb-0 mt-2" style="opacity: 0.9;">Manage and track all your salon appointments</p>
             </div>
             <div class="mt-3 mt-md-0">
-                <button class="btn btn-light me-2" id="backBtn">
-                    <i class="fas fa-arrow-left me-1"></i>Back
-                </button>
                 <button class="btn btn-light" id="refreshBtn">
                     <i class="fas fa-sync-alt me-1"></i>Refresh
                 </button>
@@ -619,7 +617,7 @@ function renderAppointments(status, appointments) {
                 <div class="row align-items-start">
                     <div class="col-lg-9 col-md-8">
                         <h5>
-                            <i class="fas fa-user-circle me-2"></i>${escapeHtml(apt.user_name)} 
+                            <i class="fas fa-user-circle me-2"></i>${escapeHtml(apt.user_name || 'Valued Customer')} 
                             <span class="status-badge ${status}">${status}</span>
                         </h5>
                         <div class="appointment-info">
@@ -628,6 +626,11 @@ function renderAppointments(status, appointments) {
                                 <strong>${escapeHtml(apt.service_name)}</strong>
                                 <span class="price ms-2">Rs ${parseFloat(apt.service_price).toFixed(2)}</span>
                             </div>
+                            ${apt.staff_name ? `
+                            <div class="mb-2">
+                                <i class="fas fa-user-friends text-info"></i>Stylist: <strong>${escapeHtml(apt.staff_name)}</strong>
+                            </div>
+                            ` : ''}
                             <div class="mb-2">
                                 <i class="fas fa-store"></i>${escapeHtml(apt.salon_name)}
                             </div>

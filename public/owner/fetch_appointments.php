@@ -62,11 +62,13 @@ try {
                         s.name AS service_name,
                         s.price AS service_price,
                         s.duration AS service_duration,
-                        sal.name AS salon_name
+                        sal.name AS salon_name,
+                        st.name AS staff_name
                     FROM appointments a
                     JOIN users u ON u.id = a.user_id
                     JOIN services s ON s.id = a.service_id
                     JOIN salons sal ON sal.id = a.salon_id
+                    LEFT JOIN salon_staff st ON a.staff_id = st.id
                     WHERE a.status = 'confirmed' 
                     AND a.salon_id IN ($placeholders)
                     AND CONCAT(a.appointment_date, ' ', a.appointment_time) >= NOW()
@@ -89,11 +91,13 @@ try {
                         s.name AS service_name,
                         s.price AS service_price,
                         s.duration AS service_duration,
-                        sal.name AS salon_name
+                        sal.name AS salon_name,
+                        st.name AS staff_name
                     FROM appointments a
                     JOIN users u ON u.id = a.user_id
                     JOIN services s ON s.id = a.service_id
                     JOIN salons sal ON sal.id = a.salon_id
+                    LEFT JOIN salon_staff st ON a.staff_id = st.id
                     WHERE a.status IN ('cancelled', 'rejected')
                     AND a.salon_id IN ($placeholders)
                     ORDER BY a.created_at DESC";
@@ -115,11 +119,13 @@ try {
                         s.name AS service_name,
                         s.price AS service_price,
                         s.duration AS service_duration,
-                        sal.name AS salon_name
+                        sal.name AS salon_name,
+                        st.name AS staff_name
                     FROM appointments a
                     JOIN users u ON u.id = a.user_id
                     JOIN services s ON s.id = a.service_id
                     JOIN salons sal ON sal.id = a.salon_id
+                    LEFT JOIN salon_staff st ON a.staff_id = st.id
                     WHERE a.status = ?
                     AND a.salon_id IN ($placeholders)
                     ORDER BY a.created_at DESC";

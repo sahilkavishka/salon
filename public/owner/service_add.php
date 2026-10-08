@@ -76,17 +76,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
  
 </head>
 <body>
-  
+<?php include __DIR__ . '/../header.php'; ?>
 
   <!-- Page Header -->
   <div class="page-header">
     <div class="container">
       <div class="page-header-content">
-        <div class="mb-2">
-          <a href="services.php?salon_id=<?= $salon_id ?>" class="btn btn-sm btn-outline-light rounded-pill px-3">
-            <i class="fas fa-arrow-left me-1"></i> Back to Services
-          </a>
-        </div>
         <h1 class="page-title">Add New Service</h1>
         <p class="page-subtitle">
           <i class="fas fa-store"></i>

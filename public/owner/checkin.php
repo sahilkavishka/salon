@@ -138,11 +138,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 <?php include __DIR__ . '/../header.php'; ?>
 
 <div class="container checkin-container mt-5 pt-4">
-  <div class="mb-3">
-    <a href="dashboard.php" class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm bg-white">
-      <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
-    </a>
-  </div>
   <div class="scanner-card">
     <div class="text-center mb-4">
       <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3" style="width:70px;height:70px;background:linear-gradient(135deg,#e91e63,#9c27b0);color:white;font-size:1.8rem;">

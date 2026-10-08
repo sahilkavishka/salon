@@ -113,10 +113,12 @@ $stmt = $pdo->prepare("
         s.phone AS salon_phone,
         srv.name AS service_name,
         srv.price AS service_price,
-        srv.duration AS service_duration
+        srv.duration AS service_duration,
+        st.name AS staff_name
     FROM appointments a
     JOIN salons s ON s.id = a.salon_id
     JOIN services srv ON srv.id = a.service_id
+    LEFT JOIN salon_staff st ON a.staff_id = st.id
     WHERE a.user_id = :uid
     ORDER BY a.appointment_date DESC, a.appointment_time DESC
 ");
@@ -166,6 +168,12 @@ function renderAppointmentCard($a, $now, $csrf_token) {
                 <i class="fas fa-cut text-primary"></i>
                 <strong><?= htmlspecialchars($a['service_name']) ?></strong>
             </div>
+            <?php if (!empty($a['staff_name'])): ?>
+            <div class="info-row">
+                <i class="fas fa-user-friends text-info"></i>
+                Stylist: <strong><?= htmlspecialchars($a['staff_name']) ?></strong>
+            </div>
+            <?php endif; ?>
             <div class="info-row">
                 <i class="fas fa-rupee-sign text-success"></i>
                 Rs <?= number_format($a['service_price'], 2) ?>
@@ -405,12 +413,6 @@ body {
 </div>
 
 <div class="container pb-5 mt-4">
-
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <a href="salon_view.php" class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm bg-white">
-            <i class="fas fa-arrow-left me-1"></i> Back to Salons
-        </a>
-    </div>
 
 <?php if(isset($_SESSION['success_message'])): ?>
 <div class="alert alert-success alert-dismissible fade show" role="alert">

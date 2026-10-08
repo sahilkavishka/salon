@@ -31,6 +31,16 @@
     }
   </script>
 
+  <?php 
+  $currentScript = basename($_SERVER['PHP_SELF'] ?? '');
+  $isHome = ($currentScript === 'index.php' || empty($currentScript));
+  if (!$isHome): 
+  ?>
+  <style>
+    body { padding-top: 74px; }
+  </style>
+  <?php endif; ?>
+
   <style>
   /* ================================
      DARK MODE THEME
@@ -49,7 +59,32 @@
   body.dark-mode .modal-content,
   body.dark-mode .nav-tabs,
   body.dark-mode .tab-content,
-  body.dark-mode .stat-box {
+  body.dark-mode .stat-box,
+  body.dark-mode .salon-card,
+  body.dark-mode .salon-card-body,
+  body.dark-mode .salon-info-card,
+  body.dark-mode .salon-header,
+  body.dark-mode .booking-card,
+  body.dark-mode .card-body-custom,
+  body.dark-mode .service-card,
+  body.dark-mode .stylist-card,
+  body.dark-mode .summary-item,
+  body.dark-mode .summary-total,
+  body.dark-mode .review-item,
+  body.dark-mode .popular-service-card,
+  body.dark-mode .upcoming-card,
+  body.dark-mode .quick-stat-card,
+  body.dark-mode .stat-card,
+  body.dark-mode .filter-bar,
+  body.dark-mode .search-box,
+  body.dark-mode .search-box input,
+  body.dark-mode .scanner-card,
+  body.dark-mode .stats-card,
+  body.dark-mode .stats-bar,
+  body.dark-mode .filter-chip,
+  body.dark-mode .page-link,
+  body.dark-mode .bg-white,
+  body.dark-mode .bg-light {
     background-color: #1a1a2e !important;
     color: #e2e8f0 !important;
     border-color: #2d2d48 !important;
@@ -58,11 +93,24 @@
   body.dark-mode .text-dark,
   body.dark-mode h1, body.dark-mode h2, body.dark-mode h3, 
   body.dark-mode h4, body.dark-mode h5, body.dark-mode h6,
-  body.dark-mode .form-label, body.dark-mode strong {
+  body.dark-mode .form-label, body.dark-mode strong,
+  body.dark-mode .salon-title, body.dark-mode .service-name,
+  body.dark-mode .profile-name, body.dark-mode .filter-title,
+  body.dark-mode .stat-label, body.dark-mode .stat-number,
+  body.dark-mode .section-title, body.dark-mode .card-title {
     color: #f8fafc !important;
+  }
+  body.dark-mode .info-row,
+  body.dark-mode .info-row span {
+    color: #cbd5e1 !important;
   }
   body.dark-mode .text-muted, body.dark-mode .form-hint {
     color: #94a3b8 !important;
+  }
+  body.dark-mode .navbar .badge.bg-white {
+    background: rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
   }
   body.dark-mode .form-control,
   body.dark-mode .form-select,
@@ -273,6 +321,14 @@ body.dark-mode .btn-back {
               
               <li class="nav-item"><a href="<?= url('notifications.php') ?>" class="nav-link"><i class="far fa-bell me-1"></i> Notifications</a></li>
               <li class="nav-item"><a href="<?= url('user/profile.php') ?>" class="nav-link"><i class="far fa-user me-1"></i> Profile</a></li>
+              <li class="nav-item d-none d-md-flex align-items-center ms-lg-2">
+                <a href="<?= url('user/profile.php') ?>" class="badge rounded-pill bg-white text-dark py-2 px-3 shadow-sm d-inline-flex align-items-center text-decoration-none" title="Logged in as <?= htmlspecialchars($_SESSION['user_name'] ?? $_SESSION['username'] ?? 'User') ?>">
+                  <i class="fas fa-user-circle text-primary me-1"></i>
+                  <span class="fw-semibold text-truncate" style="max-width: 130px;">
+                    <?= htmlspecialchars($_SESSION['user_name'] ?? $_SESSION['username'] ?? 'User') ?>
+                  </span>
+                </a>
+              </li>
               <li class="nav-item ms-2">
                 <button type="button" id="themeToggleBtn" class="btn btn-outline-light btn-sm rounded-circle d-flex align-items-center justify-content-center" style="width:36px;height:36px;" title="Toggle Theme">
                   <i class="fas fa-moon" id="themeToggleIcon"></i>

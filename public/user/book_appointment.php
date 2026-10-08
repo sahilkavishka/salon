@@ -1407,6 +1407,7 @@ body {
 </style>
 </head>
 <body>
+<?php include __DIR__ . '/../header.php'; ?>
 
 <div class="page-header">
     <div class="container text-center">
@@ -1423,16 +1424,6 @@ body {
 </div>
 
 <div class="container booking-container">
-    
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <a href="salon_details.php?id=<?= $salon_id ?>" class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm bg-white">
-            <i class="fas fa-arrow-left me-1"></i> Back to Salon Details
-        </a>
-        <a href="salon_view.php" class="btn btn-sm btn-light rounded-pill px-3 text-muted">
-            <i class="fas fa-cut me-1"></i> All Salons
-        </a>
-    </div>
-
     <?php if ($has_pending): ?>
     <div class="alert-banner">
         <i class="fas fa-info-circle"></i>

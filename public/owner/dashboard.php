@@ -732,6 +732,7 @@ $page_title = "Owner Dashboard - Salonora";
     </style>
 </head>
 <body>
+<?php include __DIR__ . '/../header.php'; ?>
 
 <!-- Flash Messages -->
 <?php if (isset($_SESSION['flash_success'])): ?>
@@ -761,7 +762,7 @@ $page_title = "Owner Dashboard - Salonora";
     <div class="container">
         <div class="welcome-content">
             <div class="welcome-text">
-                <h1>Welcome back, <?= htmlspecialchars($_SESSION['user_name']) ?>! 👋</h1>
+                <h1>Welcome back, <?= htmlspecialchars($_SESSION['user_name'] ?? $_SESSION['username'] ?? 'Salon Owner') ?>! 👋</h1>
                 <p>Here's what's happening with your business today</p>
             </div>
             <div class="welcome-actions">
@@ -827,7 +828,7 @@ $page_title = "Owner Dashboard - Salonora";
                             <div class="d-flex justify-content-between align-items-start">
                                 <div>
                                     <h6 class="mb-1" style="color: var(--dark-purple); font-weight: 600;">
-                                        <i class="fas fa-user-circle me-2"></i><?= htmlspecialchars($apt['customer_name']) ?>
+                                        <i class="fas fa-user-circle me-2"></i><?= htmlspecialchars(!empty($apt['customer_name']) ? $apt['customer_name'] : 'Valued Customer') ?>
                                     </h6>
                                     <p class="mb-1 text-muted small">
                                         <i class="fas fa-cut"></i> <?= htmlspecialchars($apt['service_name']) ?>
@@ -1032,7 +1033,7 @@ $page_title = "Owner Dashboard - Salonora";
                                 <td><strong><?= htmlspecialchars($a['service_name']) ?></strong></td>
                                 <td>
                                     <i class="fas fa-user-circle me-1" style="color: var(--primary-pink);"></i>
-                                    <?= htmlspecialchars($a['customer_name']) ?>
+                                    <?= htmlspecialchars(!empty($a['customer_name']) ? $a['customer_name'] : 'Valued Customer') ?>
                                     <div class="small text-muted"><?= htmlspecialchars($a['customer_email']) ?></div>
                                 </td>
                                 <td>
