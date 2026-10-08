@@ -101,6 +101,12 @@ include __DIR__ . '/../header.php';
 ?>
 
 <div class="container py-4">
+    <div class="mb-3">
+        <a href="dashboard.php" class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm bg-white">
+            <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
+        </a>
+    </div>
+
     <!-- Header -->
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
         <div>

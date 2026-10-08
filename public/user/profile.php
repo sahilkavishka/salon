@@ -140,6 +140,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="container pb-5 profile-container">
 
+    <div class="mb-3">
+        <button type="button" onclick="handleGlobalBack()" class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm bg-white">
+            <i class="fas fa-arrow-left me-1"></i> Back
+        </button>
+    </div>
+
     <!-- Alerts -->
     <?php if ($errors): ?>
       <div class="alert alert-danger">

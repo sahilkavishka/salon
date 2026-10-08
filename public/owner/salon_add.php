@@ -204,6 +204,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
 
 <div class="container py-5">
+    <div class="mb-3">
+        <a href="dashboard.php" class="btn btn-outline-secondary rounded-pill px-3 shadow-sm bg-white">
+            <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
+        </a>
+    </div>
     <h2 class="mb-4"><i class="fas fa-plus-circle"></i> Add Your Salon</h2>
 
     <?php if (!empty($errors)): ?>

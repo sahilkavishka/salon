@@ -555,6 +555,11 @@ function timeAgo($timestamp) {
   </div>
 
   <div class="container pb-5">
+    <div class="mb-3">
+      <button type="button" onclick="handleGlobalBack()" class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm bg-white">
+        <i class="fas fa-arrow-left me-1"></i> Back
+      </button>
+    </div>
     
     <?php if(isset($_SESSION['success_message'])): ?>
     <div class="alert alert-success alert-dismissible fade show" role="alert">

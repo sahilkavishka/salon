@@ -406,6 +406,12 @@ body {
 
 <div class="container pb-5 mt-4">
 
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <a href="salon_view.php" class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm bg-white">
+            <i class="fas fa-arrow-left me-1"></i> Back to Salons
+        </a>
+    </div>
+
 <?php if(isset($_SESSION['success_message'])): ?>
 <div class="alert alert-success alert-dismissible fade show" role="alert">
     <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($_SESSION['success_message']); ?>

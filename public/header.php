@@ -182,6 +182,42 @@
   box-shadow: none;
 }
 
+.btn-back {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff !important;
+  border-radius: 50px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.25s ease;
+  backdrop-filter: blur(5px);
+  text-decoration: none;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.btn-back:hover {
+  background: var(--gradient-primary);
+  border-color: transparent;
+  color: #ffffff !important;
+  transform: translateX(-3px);
+  box-shadow: 0 4px 12px rgba(233, 30, 99, 0.4);
+}
+
+.btn-back i {
+  transition: transform 0.2s ease;
+}
+
+.btn-back:hover i {
+  transform: translateX(-2px);
+}
+
+body.dark-mode .btn-back {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
   </style>
 </head>
 
@@ -190,9 +226,22 @@
     <!-- Navbar - Always Visible with Original Colors -->
     <nav class="navbar navbar-expand-lg fixed-top scrolled" id="mainNav">
       <div class="container">
-        <a class="navbar-brand" href="<?= url('index.php') ?>">
-          <i class="fas fa-spa"></i> Salonora
-        </a>
+        <div class="d-flex align-items-center">
+          <?php 
+          $currentScript = basename($_SERVER['PHP_SELF'] ?? '');
+          $isHome = ($currentScript === 'index.php' || empty($currentScript));
+          ?>
+          <?php if (!$isHome): ?>
+          <button type="button" onclick="handleGlobalBack()" class="btn btn-back me-3 d-inline-flex align-items-center justify-content-center shadow-sm" title="Go Back">
+            <i class="fas fa-arrow-left me-1"></i>
+            <span class="d-none d-sm-inline">Back</span>
+          </button>
+          <?php endif; ?>
+
+          <a class="navbar-brand" href="<?= url('index.php') ?>">
+            <i class="fas fa-spa"></i> Salonora
+          </a>
+        </div>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
           <span class="navbar-toggler-icon"></span>
         </button>
@@ -293,4 +342,17 @@
         navigator.serviceWorker.register('<?= url("sw.js") ?>').catch(() => {});
       }
     });
+
+    // Global intelligent back navigation function
+    function handleGlobalBack() {
+      if (window.history.length > 1 && document.referrer && document.referrer.includes(window.location.host)) {
+        window.history.back();
+      } else {
+        <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'owner'): ?>
+        window.location.href = '<?= url("owner/dashboard.php") ?>';
+        <?php else: ?>
+        window.location.href = '<?= url("index.php") ?>';
+        <?php endif; ?>
+      }
+    }
   </script>
