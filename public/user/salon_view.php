@@ -488,16 +488,60 @@ $logged_user_role = $_SESSION['role'] ?? '';
     }
 
     .btn-review {
-      background: white;
-      color: var(--primary-pink);
-      border: 2px solid var(--primary-pink);
+      grid-column: 1 / -1;
+      background: #fff0f6;
+      color: #d63384;
+      border: 2px solid #f783ac;
+      font-weight: 600;
     }
 
     .btn-review:hover {
-      background: var(--primary-pink);
+      background: var(--gradient-primary);
       color: white;
+      border-color: transparent;
       transform: translateY(-2px);
       box-shadow: var(--shadow-md);
+    }
+
+    body.dark-mode .btn-view {
+      background: rgba(139, 92, 246, 0.18) !important;
+      color: #c4b5fd !important;
+      border: 2px solid #8b5cf6 !important;
+    }
+
+    body.dark-mode .btn-view:hover {
+      background: var(--gradient-primary) !important;
+      color: #ffffff !important;
+      border-color: transparent !important;
+    }
+
+    body.dark-mode .btn-review {
+      background: rgba(233, 30, 99, 0.18) !important;
+      color: #ff80ab !important;
+      border: 2px solid #ff80ab !important;
+    }
+
+    body.dark-mode .btn-review:hover {
+      background: var(--gradient-primary) !important;
+      color: #ffffff !important;
+      border-color: transparent !important;
+    }
+
+    body.dark-mode .view-toggle {
+      background: #1e1e38 !important;
+    }
+
+    body.dark-mode .view-btn {
+      color: #94a3b8 !important;
+    }
+
+    body.dark-mode .view-btn.active {
+      background: #2d2d48 !important;
+      color: #f8fafc !important;
+    }
+
+    body.dark-mode .rating-text {
+      color: #94a3b8 !important;
     }
 
     /* Pagination */

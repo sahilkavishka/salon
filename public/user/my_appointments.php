@@ -211,7 +211,7 @@ function renderAppointmentCard($a, $now, $csrf_token) {
         </form>
         <?php elseif ($a['status'] === 'completed'): ?>
         <div class="mt-3">
-            <a href="salon_view.php?id=<?= $a['salon_id'] ?>" class="btn btn-sm btn-outline-warning rounded-pill">
+            <a href="salon_view.php?id=<?= $a['salon_id'] ?>" class="btn btn-sm btn-rate-review rounded-pill px-3">
                 <i class="fas fa-star me-1"></i>Rate & Review Salon
             </a>
         </div>
@@ -249,7 +249,7 @@ function renderAppointmentCard($a, $now, $csrf_token) {
                 <i class="fas fa-file-invoice me-1"></i> Receipt
             </a>
 
-            <button type="button" class="btn btn-sm btn-outline-dark rounded-pill px-3" onclick="showQRModal('<?= $a['id'] ?>', '<?= htmlspecialchars(addslashes($a['salon_name'])) ?>', '<?= htmlspecialchars(addslashes($a['service_name'])) ?>', '<?= date('M d, Y h:i A', strtotime($a['appointment_date'].' '.$a['appointment_time'])) ?>')">
+            <button type="button" class="btn btn-sm btn-qr-pass rounded-pill px-3" onclick="showQRModal('<?= $a['id'] ?>', '<?= htmlspecialchars(addslashes($a['salon_name'])) ?>', '<?= htmlspecialchars(addslashes($a['service_name'])) ?>', '<?= date('M d, Y h:i A', strtotime($a['appointment_date'].' '.$a['appointment_time'])) ?>')">
                 <i class="fas fa-qrcode me-1"></i> QR Pass
             </button>
         </div>
@@ -366,18 +366,82 @@ body {
     color: white;
     transform: scale(1.05);
 }
+.btn-qr-pass {
+    background: #f1f5f9;
+    color: #1e293b;
+    border: 1.5px solid #94a3b8;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+.btn-qr-pass:hover {
+    background: #1e293b;
+    color: #ffffff;
+    border-color: #1e293b;
+}
+body.dark-mode .btn-qr-pass {
+    background: rgba(255, 255, 255, 0.12) !important;
+    color: #f8fafc !important;
+    border-color: rgba(255, 255, 255, 0.4) !important;
+}
+body.dark-mode .btn-qr-pass:hover {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #ffffff !important;
+}
+
+.btn-rate-review {
+    background: #fef3c7;
+    color: #b45309;
+    border: 1.5px solid #f59e0b;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+.btn-rate-review:hover {
+    background: #f59e0b;
+    color: #ffffff;
+    border-color: #f59e0b;
+}
+body.dark-mode .btn-rate-review {
+    background: rgba(245, 158, 11, 0.15) !important;
+    color: #fbbf24 !important;
+    border-color: #f59e0b !important;
+}
+body.dark-mode .btn-rate-review:hover {
+    background: #f59e0b !important;
+    color: #1e1b4b !important;
+}
+
 .nav-pills .nav-link {
-    color: #666;
-    background: #e91e63;
+    color: #4b5563;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
     margin: 0 0.25rem;
     border-radius: 50px;
+    font-weight: 500;
     transition: 0.3s;
 }
 .nav-pills .nav-link:hover {
-    background: #bb1591ff;
+    background: #fdf2f8;
+    color: #e91e63;
+    border-color: #fbcfe8;
 }
 .nav-pills .nav-link.active {
-    background: linear-gradient(135deg, #e91e63, #9c27b0);
+    background: linear-gradient(135deg, #e91e63, #9c27b0) !important;
+    color: white !important;
+    border-color: transparent !important;
+    box-shadow: 0 4px 12px rgba(233, 30, 99, 0.25);
+}
+body.dark-mode .nav-pills .nav-link {
+    background: #1e1e38 !important;
+    color: #cbd5e1 !important;
+    border-color: #2d2d48 !important;
+}
+body.dark-mode .nav-pills .nav-link:hover {
+    background: #2a2a4a !important;
+    color: #ffffff !important;
+}
+body.dark-mode .nav-pills .nav-link.active {
+    background: linear-gradient(135deg, #e91e63, #9c27b0) !important;
     color: white !important;
 }
 .tab-content {

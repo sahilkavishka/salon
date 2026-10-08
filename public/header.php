@@ -113,6 +113,84 @@
   body.dark-mode .page-header {
     background: linear-gradient(135deg, #ad1457, #6a1b9a) !important;
   }
+
+  /* Button Contrast & Dark Mode */
+  body.dark-mode .btn-outline-dark {
+    color: #f1f5f9 !important;
+    border-color: #64748b !important;
+    background-color: rgba(255, 255, 255, 0.08) !important;
+  }
+  body.dark-mode .btn-outline-dark:hover {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #ffffff !important;
+  }
+  body.dark-mode .btn-outline-secondary {
+    color: #cbd5e1 !important;
+    border-color: #475569 !important;
+    background-color: rgba(255, 255, 255, 0.05) !important;
+  }
+  body.dark-mode .btn-outline-secondary:hover {
+    background-color: #475569 !important;
+    color: #ffffff !important;
+  }
+  .btn-outline-warning {
+    color: #d97706 !important;
+    border-color: #d97706 !important;
+  }
+  .btn-outline-warning:hover {
+    background-color: #d97706 !important;
+    color: #ffffff !important;
+  }
+  body.dark-mode .btn-outline-warning {
+    color: #fbbf24 !important;
+    border-color: #fbbf24 !important;
+    background-color: rgba(251, 191, 36, 0.1) !important;
+  }
+  body.dark-mode .btn-outline-warning:hover {
+    background-color: #fbbf24 !important;
+    color: #1e1b4b !important;
+  }
+  body.dark-mode .btn-outline-primary {
+    color: #c4b5fd !important;
+    border-color: #8b5cf6 !important;
+    background-color: rgba(139, 92, 246, 0.1) !important;
+  }
+  body.dark-mode .btn-outline-primary:hover {
+    background-color: #8b5cf6 !important;
+    color: #ffffff !important;
+  }
+  body.dark-mode .btn-outline-info {
+    color: #38bdf8 !important;
+    border-color: #0284c7 !important;
+    background-color: rgba(56, 189, 248, 0.1) !important;
+  }
+  body.dark-mode .btn-outline-info:hover {
+    background-color: #0284c7 !important;
+    color: #ffffff !important;
+  }
+  body.dark-mode .btn-outline-success {
+    color: #4ade80 !important;
+    border-color: #16a34a !important;
+    background-color: rgba(74, 222, 128, 0.1) !important;
+  }
+  body.dark-mode .btn-outline-success:hover {
+    background-color: #16a34a !important;
+    color: #ffffff !important;
+  }
+  body.dark-mode .btn-modal-secondary {
+    background-color: #2d2d48 !important;
+    color: #e2e8f0 !important;
+    border-color: #3b3b5e !important;
+  }
+  body.dark-mode .btn-modal-secondary:hover {
+    background-color: #3b3b5e !important;
+    color: #ffffff !important;
+  }
+  body.dark-mode .modal-title,
+  body.dark-mode .char-counter {
+    color: #f8fafc !important;
+  }
    
 /* ================================
    NAVBAR
