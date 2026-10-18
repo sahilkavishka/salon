@@ -1,76 +1,121 @@
-# Salonora - Salon Booking & Management System
+# 💇 Salonora — Salon Appointment Booking & Management Platform
 
-Salonora is a modern web-based Salon Appointment Booking and Management System developed using PHP, MySQL, Bootstrap, and JavaScript.
+[![PHP](https://img.shields.io/badge/PHP-8.0+-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
+[![MySQL](https://img.shields.io/badge/MySQL-8.0+-4479A1?style=for-the-badge&logo=mysql&logoColor=white)](https://www.mysql.com/)
+[![Bootstrap](https://img.shields.io/badge/Bootstrap-5.x-7952B3?style=for-the-badge&logo=bootstrap&logoColor=white)](https://getbootstrap.com/)
+[![Leaflet.js](https://img.shields.io/badge/Leaflet-OpenStreetMap-199900?style=for-the-badge&logo=leaflet&logoColor=white)](https://leafletjs.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
-## 🌟 Key Features
+An enterprise-ready, role-based **Salon Appointment Booking and Salon Business Management Web Application**. Engineered with pure PHP, PDO MySQL security architecture, Leaflet.js open-source map integration, and automated double-booking collision prevention.
 
-- **User / Customer Features:**
-  - Browse salons with location search and ratings.
-  - Interactive OpenStreetMap (Leaflet.js) integration (no paid Google Maps API required).
-  - Categorized service selection (Hair, Skin, Facial, Nails, etc.).
-  - Real-time time-slot booking with automatic collision prevention.
-  - Appointment tracking with status tabs (Upcoming, Pending, Confirmed, Completed, Cancelled/Declined).
-  - Cancel pending appointments anytime or confirmed appointments prior to 24 hours.
-  - Rate and review completed appointments.
-  - Secure profile management with profile photo uploads.
+---
 
-- **Salon Owner Features:**
-  - Owner dashboard for managing bookings and schedules.
-  - Accept, decline, or mark appointments as completed.
-  - Add, edit, and manage salon services by categories with duration and pricing.
-  - Operating hours and working days configuration.
+## 🌟 Key Capabilities & Features
 
-- **Admin Features:**
-  - System-wide administrative controls for salons, users, and overall analytics.
+### 👤 Customer Portal
+- **Interactive Salon Discovery**: Search salons by location, rating, and district using free, zero-cost OpenStreetMap (Leaflet.js) tiles.
+- **Categorized Service Selection**: Seamlessly browse services across Hair, Skin, Facials, Nails, and Grooming with explicit durations and pricing.
+- **Real-Time Slot Scheduling**: Dynamic calendar time-slot booking that prevents overlapping reservations across barbers and stylists.
+- **Appointment Lifecycle Dashboard**: Track bookings across granular states (`Upcoming`, `Pending Confirmation`, `Confirmed`, `Completed`, `Cancelled`).
+- **Cancellation Grace Period**: Cancel pending appointments anytime or confirmed bookings with 24-hour notice.
+- **Verified Reviews & Ratings**: Submit post-appointment feedback and star ratings visible on salon profiles.
+- **User Profile & Avatars**: Upload profile images and maintain contact preferences.
 
-- **Security & Stability:**
-  - CSRF protection across all forms and AJAX requests.
-  - Prepared statements (PDO) preventing SQL injection.
-  - Time-limited, single-use token-based password reset mechanism.
-  - Race condition prevention (`FOR UPDATE` transaction locks) on double bookings.
+### 💼 Salon Owner / Stylist Dashboard
+- **Comprehensive Booking Management**: Review upcoming client queues with instant Accept, Decline, or Mark as Completed actions.
+- **Service & Menu Builder**: Add, edit, and organize services with custom category tags, duration estimates, and rates.
+- **Operational Schedule Tuning**: Define weekly business days, opening/closing hours, and break periods.
+
+### 🛡️ System Administration
+- **Global Management Console**: Monitor salon registrations, verify vendor credentials, audit active users, and evaluate booking volumes.
+
+### 🔒 Security & Concurrency Architecture
+- **CSRF Defense**: Cryptographic CSRF token generation and verification enforced across all form submissions and AJAX requests.
+- **SQL Injection Prevention**: 100% database communication utilizes PDO prepared statements with parameter binding.
+- **Race Condition Prevention**: Database transactions employ pessimistic row locking (`SELECT ... FOR UPDATE`) to eliminate double-booking edge cases.
+- **Secure Password Resets**: Cryptographically generated, single-use, time-limited reset tokens.
+
+---
+
+## 🛠️ Tech Stack & Architecture
+
+| Layer | Technologies |
+|---|---|
+| **Backend** | PHP 8.0+, Native Routing (`router.php`), PDO Abstraction Layer |
+| **Database** | MySQL / MariaDB (Relational schema with foreign key constraints) |
+| **Frontend UI** | HTML5, CSS3, Bootstrap 5, JavaScript (ES6+), Font Awesome |
+| **Maps & Geospatial** | Leaflet.js & OpenStreetMap Tiles (No paid Google Maps API key required) |
+| **Package Management**| Composer |
+
+---
+
+## 📁 Repository Structure
+
+```plaintext
+salon-main/
+├── public/                  # Public web root & AJAX endpoints
+│   ├── index.php            # Main homepage & salon search
+│   ├── get_all_salons.php   # GeoJSON / JSON endpoint for Leaflet map markers
+│   ├── book.php             # Slot booking controller
+│   └── dashboard.php        # Client/Owner dashboard
+├── sql/
+│   └── salonora_schema.sql  # Complete database schema, seed data, and tables
+├── uploads/                 # Uploaded salon banners and user profile pictures
+├── config.php               # Database connection settings & environment constants
+├── router.php               # PHP built-in server router
+└── composer.json            # Project dependencies
+```
 
 ---
 
 ## 🚀 Quick Setup Guide
 
-### Prerequisites
-- PHP 8.0 or higher
-- MySQL / MariaDB (e.g. XAMPP)
+### 1. Prerequisites
+- **PHP 8.0+**
+- **MySQL / MariaDB** (e.g. XAMPP, WAMP, or standalone MySQL)
 - Web Browser
 
-### 1. Database Setup
-1. Start MySQL in XAMPP (default port 3306 or configured port).
-2. Import the database schema:
-   ```bash
-   mysql -u root salonora < sql/salonora_schema.sql
-   ```
+### 2. Database Setup
+1. Start MySQL service.
+2. Create and import the database schema:
+```bash
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS salonora;"
+mysql -u root -p salonora < sql/salonora_schema.sql
+```
 
-### 2. Configuration
-Check `config.php` and verify your database credentials:
+### 3. Database Credentials Configuration
+Open `config.php` and verify your credentials:
 ```php
 define('DB_HOST', 'localhost');
-define('DB_PORT', 3306); // or 3307 if changed
+define('DB_PORT', 3306);
 define('DB_NAME', 'salonora');
 define('DB_USER', 'root');
 define('DB_PASS', '');
 ```
 
-### 3. Run the Application
-Run via PHP built-in server:
+### 4. Run the Application
+Launch via PHP's built-in development server:
 ```bash
 php -S localhost:8000 router.php
 ```
-Open `http://localhost:8000` in your web browser.
+Visit `http://localhost:8000` in your web browser.
 
 ---
 
-## 👥 Demo User Accounts
-- **Customer:**
-  - Email: `user@example.com`
-  - Password: `Password123`
-- **Salon Owner:**
-  - Email: `owner@example.com`
-  - Password: `Password123`
-- **Admin:**
-  - Email: `admin@example.com`
-  - Password: `Password123`
+## 👥 Default Demo Credentials
+
+| Role | Email | Password |
+|---|---|---|
+| **Customer** | `user@example.com` | `Password123` |
+| **Salon Owner** | `owner@example.com` | `Password123` |
+| **Administrator**| `admin@example.com` | `Password123` |
+
+---
+
+## 👤 Author
+
+**Sahil Kavishka**  
+*Undergraduate in Data Science | Sabaragamuwa University of Sri Lanka*  
+- **GitHub**: [@sahilkavishka](https://github.com/sahilkavishka)  
+- **LinkedIn**: [linkedin.com/in/sahilkavishka](https://www.linkedin.com/in/sahilkavishka)  
+- **Portfolio**: [sahilkavishka.github.io/portfolio](https://sahilkavishka.github.io/portfolio/)  
