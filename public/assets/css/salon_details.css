@@ -538,6 +538,105 @@
       }
     }
 
+    /* Primary Hero Booking Button */
+    .btn-book-hero {
+      background: var(--gradient-primary);
+      color: #ffffff !important;
+      font-weight: 700;
+      font-size: 1.1rem;
+      padding: 0.85rem 2.2rem;
+      border-radius: 50px;
+      box-shadow: 0 8px 25px rgba(233, 30, 99, 0.35);
+      transition: var(--transition);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      text-decoration: none;
+      border: none;
+    }
+
+    .btn-book-hero:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 30px rgba(233, 30, 99, 0.5);
+      color: #ffffff !important;
+    }
+
+    /* Popular Service Card */
+    .popular-service-card {
+      background: white;
+      border-radius: 18px;
+      padding: 1.5rem;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      box-shadow: var(--shadow-sm);
+      transition: var(--transition);
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .popular-service-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-md);
+      border-color: var(--primary);
+    }
+
+    /* Quick Stats & Amenities */
+    .quick-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .stat-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.5rem 0.9rem;
+      background: #fdf2f8;
+      border: 1px solid #fbcfe8;
+      border-radius: 12px;
+      color: #831843;
+    }
+
+    .stat-item i {
+      color: #db2777;
+      font-size: 1.1rem;
+    }
+
+    .stat-item strong {
+      font-weight: 700;
+      color: #831843;
+      font-size: 0.95rem;
+    }
+
+    .stat-item small {
+      color: #9d174d;
+      font-size: 0.8rem;
+      margin-left: 2px;
+    }
+
+    /* Salon Avatar Fallback */
+    .salon-avatar-fallback {
+      width: 180px;
+      height: 180px;
+      border-radius: 20px;
+      background: var(--gradient-primary);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      box-shadow: var(--shadow-lg);
+      border: 5px solid white;
+      flex-shrink: 0;
+    }
+
+    .salon-avatar-fallback i {
+      font-size: 3.5rem;
+      margin-bottom: 0.5rem;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .salon-header {
@@ -561,8 +660,8 @@
         flex-direction: column;
         align-items: flex-start;
         gap: 1rem;
+      }
     }
-}
 
 /* ========================================================
    DARK MODE SUPPORT (Salon Details)
@@ -577,20 +676,49 @@ html.dark-mode, body.dark-mode {
   --gradient-light: linear-gradient(135deg, rgba(233, 30, 99, 0.2) 0%, rgba(156, 39, 176, 0.25) 100%) !important;
 }
 
+body.dark-mode .salon-hero::after {
+  background: #111122 !important;
+}
+
 body.dark-mode .section,
 body.dark-mode .salon-info-card,
 body.dark-mode .popular-service-card,
 body.dark-mode .service-card,
 body.dark-mode .stylist-card,
 body.dark-mode .review-item,
-body.dark-mode .rating-summary-card,
+body.dark-mode .rating-summary,
 body.dark-mode .booking-card,
 body.dark-mode .modal-content,
-body.dark-mode .card {
+body.dark-mode .card,
+body.dark-mode .salon-description,
+body.dark-mode .salon-map,
+body.dark-mode .bg-white {
   background: #1a1a2e !important;
   color: #e2e8f0 !important;
   border-color: #2d2d48 !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+body.dark-mode .salon-avatar-fallback {
+  border-color: #2d2d48 !important;
+}
+
+body.dark-mode .stat-item {
+  background: #252542 !important;
+  border-color: #3b3b5e !important;
+  color: #fbcfe8 !important;
+}
+
+body.dark-mode .stat-item i {
+  color: #f472b6 !important;
+}
+
+body.dark-mode .stat-item strong {
+  color: #ffffff !important;
+}
+
+body.dark-mode .stat-item small {
+  color: #f9a8d4 !important;
 }
 
 body.dark-mode .salon-title,
@@ -637,11 +765,10 @@ body.dark-mode .btn-outline-primary:hover {
   color: #ffffff !important;
 }
 
-body.dark-mode .review-form-card,
-body.dark-mode .amenity-pill {
-  background: #252542 !important;
+body.dark-mode .btn-outline-secondary {
+  color: #cbd5e1 !important;
   border-color: #3b3b5e !important;
-  color: #e2e8f0 !important;
+  background: #1a1a2e !important;
 }
 
 body.dark-mode .form-control,
@@ -650,13 +777,5 @@ body.dark-mode textarea {
   background-color: #1e1e38 !important;
   color: #ffffff !important;
   border-color: #3b3b5e !important;
-}
-
-body.dark-mode .table,
-body.dark-mode .table td,
-body.dark-mode .table th {
-  color: #cbd5e1 !important;
-  border-color: #2d2d48 !important;
-  background: transparent !important;
 }
 

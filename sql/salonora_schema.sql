@@ -65,6 +65,9 @@ CREATE TABLE IF NOT EXISTS appointments (
     salon_id INT NOT NULL,
     user_id INT NOT NULL,
     service_id INT NOT NULL,
+    staff_id INT NULL,
+    promo_code VARCHAR(50) NULL,
+    discount_amount DECIMAL(10, 2) DEFAULT 0.00,
     appointment_date DATE NOT NULL,
     appointment_time TIME NOT NULL,
     notes TEXT NULL,
@@ -130,7 +133,42 @@ CREATE TABLE IF NOT EXISTS notifications (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 8. Password Resets Table
+-- 8. Salon Staff Table
+CREATE TABLE IF NOT EXISTS salon_staff (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    salon_id INT NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    specialty VARCHAR(150) NULL,
+    avatar VARCHAR(255) NULL,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (salon_id) REFERENCES salons(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 9. Promo Codes Table
+CREATE TABLE IF NOT EXISTS promo_codes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    salon_id INT NOT NULL,
+    code VARCHAR(50) NOT NULL,
+    discount_percent INT DEFAULT 0,
+    discount_amount DECIMAL(10, 2) DEFAULT 0.00,
+    valid_until DATE NULL,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (salon_id) REFERENCES salons(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 10. Salon Gallery Table
+CREATE TABLE IF NOT EXISTS salon_gallery (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    salon_id INT NOT NULL,
+    image_url VARCHAR(255) NOT NULL,
+    title VARCHAR(150) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (salon_id) REFERENCES salons(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 11. Password Resets Table
 CREATE TABLE IF NOT EXISTS password_resets (
     id INT AUTO_INCREMENT PRIMARY KEY,
     email VARCHAR(150) NOT NULL,

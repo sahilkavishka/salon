@@ -65,6 +65,9 @@ $promoStmt = $pdo->prepare("SELECT code, discount_percent, discount_amount, vali
 $promoStmt->execute([$salon_id]);
 $salon_promos = $promoStmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Preselected service if navigated from salon details
+$preselected_service_id = intval($_GET['service_id'] ?? 0);
+
 // Check for existing pending appointments
 $existingStmt = $pdo->prepare("
     SELECT COUNT(*) as pending_count 
@@ -1745,7 +1748,7 @@ body.dark-mode .coupon-box {
                         </div>
                         <div class="services-grid">
                             <?php foreach ($category_services as $s): ?>
-                                <label for="service_<?= $s['id'] ?>" class="service-card">
+                                <label for="service_<?= $s['id'] ?>" class="service-card <?= ($s['id'] === $preselected_service_id) ? 'selected' : '' ?>">
                                     <input type="radio" 
                                            name="service_id" 
                                            value="<?= $s['id'] ?>" 
@@ -1754,6 +1757,7 @@ body.dark-mode .coupon-box {
                                            data-price="<?= $s['price'] ?>"
                                            data-duration="<?= $s['duration'] ?>"
                                            data-name="<?= htmlspecialchars($s['name']) ?>"
+                                           <?= ($s['id'] === $preselected_service_id) ? 'checked' : '' ?>
                                            required>
                                     <div class="service-name"><?= htmlspecialchars($s['name']) ?></div>
                                     <?php if (!empty($s['description'])): ?>
@@ -2391,6 +2395,21 @@ document.querySelectorAll('.service-card').forEach(card => {
         updateSummary();
     });
 });
+
+// Auto initialize pre-selected service on page load
+const preselectedRadio = document.querySelector('.service-radio:checked');
+if (preselectedRadio) {
+    const parentCard = preselectedRadio.closest('.service-card');
+    if (parentCard) parentCard.classList.add('selected');
+    selectedService = {
+        id: preselectedRadio.value,
+        name: preselectedRadio.dataset.name,
+        price: preselectedRadio.dataset.price,
+        duration: preselectedRadio.dataset.duration
+    };
+    if (typeof updateProgress === 'function') updateProgress();
+    if (typeof updateSummary === 'function') updateSummary();
+}
 
 // Date shortcuts
 function setDate(days) {

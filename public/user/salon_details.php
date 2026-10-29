@@ -2,13 +2,19 @@
 session_start();
 date_default_timezone_set('Asia/Colombo');
 require_once __DIR__ . '/../../config.php';
-require_once __DIR__ . '/../auth_check.php';
-checkAuth();
+
+// Initialize CSRF token
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 
 $salon_id = intval($_GET['id'] ?? 0);
-if ($salon_id <= 0) die("Invalid salon ID.");
+if ($salon_id <= 0) {
+    header('Location: salon_view.php');
+    exit;
+}
 
-// Fetch salon info with enhanced query
+// Fetch salon info with owner details
 $stmt = $pdo->prepare("
     SELECT s.*, u.username AS owner_name, u.email AS owner_email 
     FROM salons s 
@@ -17,16 +23,19 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$salon_id]);
 $salon = $stmt->fetch(PDO::FETCH_ASSOC);
-if (!$salon) die("Salon not found.");
+if (!$salon) {
+    header('Location: salon_view.php');
+    exit;
+}
 
-// Fetch services with category grouping
-$stmt = $pdo->prepare("SELECT * FROM services WHERE salon_id = ? ORDER BY name ASC");
+// Fetch services
+$stmt = $pdo->prepare("SELECT * FROM services WHERE salon_id = ? AND is_active = 1 ORDER BY name ASC");
 $stmt->execute([$salon_id]);
 $services = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Fetch reviews with pagination support
 $reviews_per_page = 5;
-$page = intval($_GET['page'] ?? 1);
+$page = max(1, intval($_GET['page'] ?? 1));
 $offset = ($page - 1) * $reviews_per_page;
 
 $stmt = $pdo->prepare("
@@ -43,10 +52,10 @@ $reviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
 // Get total reviews count
 $stmt = $pdo->prepare("SELECT COUNT(*) FROM reviews WHERE salon_id = ?");
 $stmt->execute([$salon_id]);
-$total_reviews = $stmt->fetchColumn();
-$total_pages = ceil($total_reviews / $reviews_per_page);
+$total_reviews = intval($stmt->fetchColumn());
+$total_pages = max(1, ceil($total_reviews / $reviews_per_page));
 
-// Calculate detailed rating statistics
+// Calculate rating statistics
 $avg_rating = 0;
 $rating_distribution = [5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0];
 
@@ -58,16 +67,26 @@ if ($total_reviews > 0) {
     $total = array_sum($all_ratings);
     $avg_rating = round($total / count($all_ratings), 1);
     
-    foreach ($all_ratings as $rating) {
-        $rating_distribution[$rating]++;
+    foreach ($all_ratings as $rVal) {
+        $rInt = intval($rVal);
+        if (isset($rating_distribution[$rInt])) {
+            $rating_distribution[$rInt]++;
+        }
     }
 }
 
+// User context
+$is_logged_in = isset($_SESSION['id']);
+$user_id = $_SESSION['id'] ?? 0;
+$user_role = strtolower($_SESSION['role'] ?? 'guest');
+$is_owner = $is_logged_in && ($user_role === 'owner' || $user_id == $salon['owner_id']);
+$user_can_interact = $is_logged_in && in_array($user_role, ['user', 'customer']) && ($user_id != $salon['owner_id']);
+
 // Check if user has already reviewed
 $user_has_reviewed = false;
-if (isset($_SESSION['id'])) {
+if ($is_logged_in) {
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM reviews WHERE salon_id = ? AND user_id = ?");
-    $stmt->execute([$salon_id, $_SESSION['id']]);
+    $stmt->execute([$salon_id, $user_id]);
     $user_has_reviewed = $stmt->fetchColumn() > 0;
 }
 
@@ -86,12 +105,7 @@ $promoStmt = $pdo->prepare("SELECT code, discount_percent, discount_amount, vali
 $promoStmt->execute([$salon_id]);
 $active_promos = $promoStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Can interact?
-$user_can_interact = isset($_SESSION['role'], $_SESSION['id']) &&
-                     in_array($_SESSION['role'], ['user', 'customer']) &&
-                     $_SESSION['id'] != $salon['owner_id'];
-
-// Format operating hours from opening_time, closing_time and operating_days
+// Format operating hours
 $operating_days_list = !empty($salon['operating_days']) ? $salon['operating_days'] : 'Everyday';
 $operating_hours = "$operating_days_list: 9:00 AM - 8:00 PM";
 if (!empty($salon['opening_time']) && !empty($salon['closing_time'])) {
@@ -100,7 +114,7 @@ if (!empty($salon['opening_time']) && !empty($salon['closing_time'])) {
     $operating_hours = "$operating_days_list: $opening_fmt - $closing_fmt";
 }
 
-// Get contact and social info
+// Contact and social info
 $phone = $salon['phone'] ?? null;
 $email = $salon['email'] ?? null;
 $website = $salon['website'] ?? null;
@@ -108,7 +122,7 @@ $facebook = $salon['facebook'] ?? null;
 $instagram = $salon['instagram'] ?? null;
 $description = $salon['description'] ?? null;
 
-// Check if salon is currently open (checking both operating days and time)
+// Determine if currently open
 $is_open = false;
 $current_status = 'Closed';
 
@@ -141,18 +155,30 @@ if (!$isOpenDay) {
     }
 }
 
-// Get popular services (most booked)
+// Popular services (most booked)
 $stmt = $pdo->prepare("
     SELECT s.id, s.salon_id, s.name, s.description, s.price, s.duration, s.category, COUNT(a.id) as booking_count 
     FROM services s 
     LEFT JOIN appointments a ON s.id = a.service_id 
-    WHERE s.salon_id = ? 
+    WHERE s.salon_id = ? AND s.is_active = 1
     GROUP BY s.id, s.salon_id, s.name, s.description, s.price, s.duration, s.category
-    ORDER BY booking_count DESC 
+    ORDER BY booking_count DESC, s.name ASC
     LIMIT 3
 ");
 $stmt->execute([$salon_id]);
 $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Resolved salon image
+$salon_img_src = '';
+if (!empty($salon['image']) && file_exists(__DIR__ . '/../../' . $salon['image'])) {
+    $salon_img_src = '../../' . htmlspecialchars($salon['image']);
+} else {
+    // Check fallback uploads
+    $sample_img = 'uploads/salon_1761629900_7dcb0ead26c8.jpg';
+    if (file_exists(__DIR__ . '/../../' . $sample_img)) {
+        $salon_img_src = '../../' . $sample_img;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -172,9 +198,13 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
   
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- Leaflet Map CSS (Free OpenStreetMap) -->
+  
+  <!-- Leaflet Map CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <!-- Custom CSS -->
   <link rel="stylesheet" href="../assets/css/salon_details.css">
+
   <script>
     if (localStorage.getItem('salonora_theme') === 'dark') {
       document.documentElement.classList.add('dark-mode');
@@ -183,167 +213,130 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
 </head>
 <body>
   
-  <!-- Hero Section with Overlay -->
+  <!-- Hero Banner -->
   <div class="salon-hero">
-    <?php if ($salon['image']): ?>
-      <div class="salon-hero-bg" style="background-image: url('../../<?= htmlspecialchars($salon['image']) ?>');"></div>
-      <div class="hero-overlay"></div>
+    <?php if ($salon_img_src): ?>
+      <div class="salon-hero-bg" style="background-image: url('<?= $salon_img_src ?>');"></div>
     <?php endif; ?>
+    <div class="hero-overlay"></div>
   </div>
 
-  <div class="container pb-5">
-    <!-- Enhanced Navigation -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+  <div class="container pb-5" style="position: relative; z-index: 20; margin-top: -60px;">
+    
+    <!-- Top Navigation Bar -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
       <a href="salon_view.php" class="btn-back">
         <i class="fas fa-arrow-left"></i> Back to Salons
       </a>
-      <div class="d-flex gap-2 align-items-center">
+      
+      <div class="d-flex gap-2 align-items-center flex-wrap">
         <button type="button" id="themeToggleBtn" class="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-sm bg-white" title="Toggle Theme">
           <i class="fas fa-moon me-1" id="themeToggleIcon"></i> Theme
         </button>
         <div class="d-none d-md-flex gap-2">
-        <a href="#services" class="btn btn-outline-primary btn-sm">
-          <i class="fas fa-cut"></i> Services
-        </a>
-        <a href="#reviews" class="btn btn-outline-primary btn-sm">
-          <i class="fas fa-star"></i> Reviews
-        </a>
+          <a href="#services" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+            <i class="fas fa-cut me-1"></i> Services
+          </a>
+          <?php if (!empty($salon_staff)): ?>
+          <a href="#staff" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+            <i class="fas fa-user-friends me-1"></i> Team
+          </a>
+          <?php endif; ?>
+          <a href="#reviews" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+            <i class="fas fa-star me-1"></i> Reviews
+          </a>
+          <?php if (!empty($salon['lat']) && !empty($salon['lng'])): ?>
+          <a href="#location" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+            <i class="fas fa-map-marker-alt me-1"></i> Location
+          </a>
+          <?php endif; ?>
+        </div>
       </div>
-    </div>
-    <?php if ($description): ?>
-    <div class="section">
-      <div class="section-header">
-        <h2 class="section-title">
-          <i class="fas fa-info-circle"></i>
-          About This Salon
-        </h2>
-      </div>
-      <div class="salon-description">
-        <p><?= nl2br(htmlspecialchars($description)) ?></p>
-      </div>
-    </div>
-    <?php endif; ?>
+    </div><!-- End Navigation Bar -->
 
-    <!-- Popular Services Section -->
-    <?php if (!empty($popular_services) && count($popular_services) > 0): ?>
-    <div class="section">
-      <div class="section-header">
-        <h2 class="section-title">
-          <i class="fas fa-fire"></i>
-          Popular Services
-        </h2>
-        <span class="section-badge">Most Booked</span>
-      </div>
-      <div class="row">
-        <?php foreach ($popular_services as $ps): ?>
-          <div class="col-md-4 mb-3">
-            <div class="popular-service-card">
-              <div class="d-flex align-items-center mb-2">
-                <i class="fas fa-fire text-danger me-2"></i>
-                <h5 class="mb-0"><?= htmlspecialchars($ps['name']) ?></h5>
-              </div>
-              <div class="d-flex justify-content-between align-items-center">
-                <span class="text-primary fw-bold">Rs <?= number_format($ps['price'], 2) ?></span>
-                <span class="text-muted"><i class="far fa-clock"></i> <?= $ps['duration'] ?> mins</span>
-              </div>
-              <?php if ($ps['booking_count'] > 0): ?>
-                <small class="text-success">
-                  <i class="fas fa-check-circle"></i> <?= $ps['booking_count'] ?> bookings
-                </small>
-              <?php endif; ?>
-            </div>
-          </div>
-        <?php endforeach; ?>
-      </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- Enhanced Salon Info Card -->
+    <!-- Main Salon Profile Card (At the Top!) -->
     <div class="salon-info-card">
       <div class="salon-header">
-        <?php if ($salon['image']): ?>
-          <img src="../../<?= htmlspecialchars($salon['image']) ?>" 
+        <?php if ($salon_img_src): ?>
+          <img src="<?= $salon_img_src ?>" 
                class="salon-image" 
                alt="<?= htmlspecialchars($salon['name']) ?>"
                loading="lazy">
+        <?php else: ?>
+          <div class="salon-avatar-fallback">
+            <i class="fas fa-spa"></i>
+            <span class="fw-bold fs-6">Salonora</span>
+          </div>
         <?php endif; ?>
+
         <div class="salon-details flex-grow-1">
-          <h1><?= htmlspecialchars($salon['name']) ?></h1>
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <h1 class="mb-0 fw-bold"><?= htmlspecialchars($salon['name']) ?></h1>
+            <span class="badge <?= $is_open ? 'bg-success' : 'bg-danger' ?> fs-6 px-3 py-2 rounded-pill">
+              <i class="fas fa-clock me-1"></i> <?= $current_status ?>
+            </span>
+          </div>
           
-          <!-- Enhanced Rating Display -->
-          <div class="rating-container mb-3">
+          <!-- Rating Display -->
+          <div class="rating-container mb-3 d-flex align-items-center flex-wrap gap-2">
             <div class="rating-badge">
               <i class="fas fa-star"></i>
               <?= $avg_rating ?> / 5.0
             </div>
-            <span class="text-muted ms-2">(<?= $total_reviews ?> <?= $total_reviews == 1 ? 'review' : 'reviews' ?>)</span>
-            <span class="badge <?= $is_open ? 'bg-success' : 'bg-danger' ?> ms-2">
-              <i class="fas fa-clock"></i> <?= $current_status ?>
-            </span>
+            <span class="text-muted fw-semibold ms-1">(<?= $total_reviews ?> <?= $total_reviews == 1 ? 'review' : 'reviews' ?>)</span>
           </div>
 
-          <!-- Enhanced Meta Information -->
+          <!-- Meta Information -->
           <div class="salon-meta">
             <div class="meta-item">
               <i class="fas fa-map-marker-alt"></i>
               <span><?= htmlspecialchars($salon['address']) ?></span>
             </div>
+            
             <?php if ($phone): ?>
-            <div class="meta-item">
-              <i class="fas fa-phone"></i>
-              <a href="tel:<?= htmlspecialchars($phone) ?>"><?= htmlspecialchars($phone) ?></a>
-            </div>
-            <?php
-            $rawPhone = preg_replace('/[^0-9]/', '', $phone);
-            $waPhone = str_starts_with($rawPhone, '0') ? ('94' . substr($rawPhone, 1)) : $rawPhone;
-            $waText = urlencode("Hello " . $salon['name'] . ", I'm interested in your salon services on Salonora!");
-            ?>
-            <div class="meta-item">
-              <i class="fab fa-whatsapp text-success"></i>
-              <a href="https://wa.me/<?= htmlspecialchars($waPhone) ?>?text=<?= $waText ?>" target="_blank" rel="noopener" class="text-success fw-bold">
-                Chat on WhatsApp
-              </a>
-            </div>
+              <?php
+              $rawPhone = preg_replace('/[^0-9]/', '', $phone);
+              $waPhone = str_starts_with($rawPhone, '0') ? ('94' . substr($rawPhone, 1)) : $rawPhone;
+              $waText = urlencode("Hello " . $salon['name'] . ", I found your salon on Salonora!");
+              ?>
+              <div class="meta-item">
+                <i class="fas fa-phone"></i>
+                <a href="tel:<?= htmlspecialchars($phone) ?>" class="text-decoration-none fw-semibold"><?= htmlspecialchars($phone) ?></a>
+              </div>
+              <div class="meta-item">
+                <i class="fab fa-whatsapp text-success"></i>
+                <a href="https://wa.me/<?= htmlspecialchars($waPhone) ?>?text=<?= $waText ?>" target="_blank" rel="noopener" class="text-success fw-bold text-decoration-none">
+                  Chat on WhatsApp
+                </a>
+              </div>
             <?php endif; ?>
+
             <?php if ($email): ?>
-            <div class="meta-item">
-              <i class="fas fa-envelope"></i>
-              <a href="mailto:<?= htmlspecialchars($email) ?>"><?= htmlspecialchars($email) ?></a>
-            </div>
+              <div class="meta-item">
+                <i class="fas fa-envelope"></i>
+                <a href="mailto:<?= htmlspecialchars($email) ?>" class="text-decoration-none"><?= htmlspecialchars($email) ?></a>
+              </div>
             <?php endif; ?>
+
             <?php if ($website): ?>
-            <div class="meta-item">
-              <i class="fas fa-globe"></i>
-              <a href="<?= htmlspecialchars($website) ?>" target="_blank" rel="noopener">Visit Website</a>
-            </div>
+              <div class="meta-item">
+                <i class="fas fa-globe"></i>
+                <a href="<?= htmlspecialchars($website) ?>" target="_blank" rel="noopener" class="text-decoration-none">Visit Website</a>
+              </div>
             <?php endif; ?>
+
             <div class="meta-item">
-              <i class="fas fa-clock"></i>
+              <i class="fas fa-calendar-alt"></i>
               <span><?= htmlspecialchars($operating_hours) ?></span>
             </div>
+
             <div class="meta-item">
               <i class="fas fa-user-tie"></i>
-              <span>Owner: <strong><?= htmlspecialchars(!empty($salon['owner_name']) ? $salon['owner_name'] : 'Verified Stylist') ?></strong></span>
+              <span>Stylist: <strong><?= htmlspecialchars(!empty($salon['owner_name']) ? $salon['owner_name'] : 'Verified Stylist') ?></strong></span>
             </div>
           </div>
 
-          <!-- Social Media Links -->
-          <?php if ($facebook || $instagram): ?>
-          <div class="social-links mt-3">
-            <?php if ($facebook): ?>
-            <a href="<?= htmlspecialchars($facebook) ?>" target="_blank" rel="noopener" class="social-link facebook">
-              <i class="fab fa-facebook"></i> Facebook
-            </a>
-            <?php endif; ?>
-            <?php if ($instagram): ?>
-            <a href="<?= htmlspecialchars($instagram) ?>" target="_blank" rel="noopener" class="social-link instagram">
-              <i class="fab fa-instagram"></i> Instagram
-            </a>
-            <?php endif; ?>
-          </div>
-          <?php endif; ?>
-
-          <!-- Quick Stats -->
+          <!-- Amenities & Stats Pills -->
           <div class="quick-stats mt-3">
             <div class="stat-item">
               <i class="fas fa-concierge-bell"></i>
@@ -359,46 +352,167 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <small>Reviews</small>
               </div>
             </div>
-            <?php if ($salon['parking_available']): ?>
+            <?php if (!empty($salon['parking_available'])): ?>
             <div class="stat-item">
               <i class="fas fa-parking"></i>
               <div>
-                <strong>Available</strong>
-                <small>Parking</small>
+                <strong>Parking</strong>
+                <small>Free</small>
               </div>
             </div>
             <?php endif; ?>
-            <?php if ($salon['wifi_available']): ?>
+            <?php if (!empty($salon['wifi_available'])): ?>
             <div class="stat-item">
               <i class="fas fa-wifi"></i>
               <div>
-                <strong>Free</strong>
-                <small>WiFi</small>
+                <strong>WiFi</strong>
+                <small>Free</small>
               </div>
             </div>
             <?php endif; ?>
-            <?php if ($salon['wheelchair_accessible']): ?>
+            <?php if (!empty($salon['air_conditioned'])): ?>
+            <div class="stat-item">
+              <i class="fas fa-snowflake"></i>
+              <div>
+                <strong>AC</strong>
+                <small>Yes</small>
+              </div>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($salon['wheelchair_accessible'])): ?>
             <div class="stat-item">
               <i class="fas fa-wheelchair"></i>
               <div>
-                <strong>Yes</strong>
+                <strong>Wheelchair</strong>
                 <small>Accessible</small>
               </div>
             </div>
             <?php endif; ?>
-            <?php if ($salon['air_conditioned']): ?>
-            <div class="stat-item">
-              <i class="fas fa-snowflake"></i>
-              <div>
-                <strong>Yes</strong>
-                <small>AC</small>
-              </div>
-            </div>
-            <?php endif; ?>
           </div>
-        </div>
+
+          <!-- Primary Booking Call To Action -->
+          <div class="mt-4 pt-3 border-top d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div>
+              <?php if ($user_can_interact || !$is_logged_in): ?>
+                <a href="book_appointment.php?salon_id=<?= $salon_id ?>" class="btn-book-hero">
+                  <i class="fas fa-calendar-check"></i> Book an Appointment
+                </a>
+              <?php elseif ($is_owner): ?>
+                <div class="alert alert-info py-2 px-3 mb-0 d-inline-flex align-items-center gap-2 rounded-3">
+                  <i class="fas fa-user-shield"></i>
+                  <span>You are viewing your own salon profile.</span>
+                  <a href="../owner/dashboard.php" class="btn btn-sm btn-primary ms-2 rounded-pill">Owner Dashboard</a>
+                </div>
+              <?php endif; ?>
+            </div>
+
+            <div class="d-flex gap-2 flex-wrap">
+              <?php if ($user_can_interact && !$user_has_reviewed): ?>
+                <button type="button" class="btn btn-outline-primary rounded-pill px-3 py-2 fw-semibold" id="topWriteReviewBtn">
+                  <i class="fas fa-pen me-1"></i> Write Review
+                </button>
+              <?php endif; ?>
+              
+              <?php if ($facebook || $instagram): ?>
+                <?php if ($facebook): ?>
+                  <a href="<?= htmlspecialchars($facebook) ?>" target="_blank" rel="noopener" class="btn btn-outline-primary rounded-pill px-3 py-2 fw-semibold">
+                    <i class="fab fa-facebook me-1"></i> Facebook
+                  </a>
+                <?php endif; ?>
+                <?php if ($instagram): ?>
+                  <a href="<?= htmlspecialchars($instagram) ?>" target="_blank" rel="noopener" class="btn btn-outline-danger rounded-pill px-3 py-2 fw-semibold">
+                    <i class="fab fa-instagram me-1"></i> Instagram
+                  </a>
+                <?php endif; ?>
+              <?php endif; ?>
+            </div>
+          </div>
+
+        </div><!-- End salon-details -->
+      </div><!-- End salon-header -->
+    </div><!-- End Main Salon Profile Card -->
+
+    <!-- About This Salon -->
+    <?php if ($description): ?>
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-info-circle"></i>
+          About This Salon
+        </h2>
+      </div>
+      <div class="salon-description p-4 rounded-4 shadow-sm bg-white border">
+        <p class="mb-0 fs-6 leading-relaxed"><?= nl2br(htmlspecialchars($description)) ?></p>
       </div>
     </div>
+    <?php endif; ?>
+
+    <!-- Active Promo Codes Section -->
+    <?php if (!empty($active_promos)): ?>
+    <div class="section mb-4 p-4 rounded-4 shadow-sm" style="background: linear-gradient(135deg, rgba(233,30,99,0.06) 0%, rgba(139,92,246,0.06) 100%); border: 2px dashed rgba(233,30,99,0.3);">
+      <div class="d-flex align-items-center mb-3">
+        <i class="fas fa-tags text-warning fa-2x me-3"></i>
+        <div>
+          <h4 class="fw-bold mb-0 text-dark">Special Offers & Promo Codes</h4>
+          <small class="text-muted">Use these promo codes when booking your appointment to save!</small>
+        </div>
+      </div>
+      <div class="d-flex flex-wrap gap-3">
+        <?php foreach ($active_promos as $promo): ?>
+        <div class="bg-white p-3 rounded-3 shadow-sm border d-flex align-items-center gap-3">
+          <span class="badge bg-primary fs-6 px-3 py-2 font-monospace tracking-wide">
+            <?= htmlspecialchars($promo['code']) ?>
+          </span>
+          <div>
+            <strong class="text-success d-block">
+              <?= $promo['discount_percent'] > 0 ? ($promo['discount_percent'] . '% OFF') : ('Rs ' . number_format($promo['discount_amount'], 2) . ' OFF') ?>
+            </strong>
+            <small class="text-muted">Valid for online bookings</small>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Popular Services (Most Booked) -->
+    <?php if (!empty($popular_services) && count($popular_services) > 0): ?>
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-fire"></i>
+          Popular Services
+        </h2>
+        <span class="section-badge">Most Booked</span>
+      </div>
+      <div class="row g-3">
+        <?php foreach ($popular_services as $ps): ?>
+          <div class="col-md-4">
+            <div class="popular-service-card">
+              <div>
+                <div class="d-flex align-items-center mb-2">
+                  <i class="fas fa-fire text-danger me-2"></i>
+                  <h5 class="mb-0 fw-bold"><?= htmlspecialchars($ps['name']) ?></h5>
+                </div>
+                <?php if (!empty($ps['description'])): ?>
+                  <p class="text-muted small mb-2"><?= htmlspecialchars($ps['description']) ?></p>
+                <?php endif; ?>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <span class="text-primary fw-bold fs-6">Rs <?= number_format($ps['price'], 2) ?></span>
+                  <span class="text-muted small"><i class="far fa-clock"></i> <?= $ps['duration'] ?> mins</span>
+                </div>
+              </div>
+              <div>
+                <a href="book_appointment.php?salon_id=<?= $salon_id ?>&service_id=<?= $ps['id'] ?>" class="btn btn-sm btn-outline-primary w-100 rounded-pill py-2 fw-semibold">
+                  <i class="fas fa-calendar-check me-1"></i> Book This Service
+                </a>
+              </div>
+            </div>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Services Section with Search/Filter -->
     <div class="section" id="services">
@@ -412,14 +526,14 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
       <?php if (!empty($services)): ?>
         <!-- Service Search and Sort -->
-        <div class="row mb-4">
+        <div class="row mb-4 g-2">
           <div class="col-md-8">
             <div class="input-group">
               <span class="input-group-text"><i class="fas fa-search"></i></span>
               <input type="text" 
                      id="serviceSearch" 
                      class="form-control" 
-                     placeholder="Search services...">
+                     placeholder="Search services by name...">
             </div>
           </div>
           <div class="col-md-4">
@@ -437,7 +551,7 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <div class="empty-state">
           <i class="fas fa-spa"></i>
           <h4>No Services Available</h4>
-          <p>This salon hasn't added any services yet.</p>
+          <p>This salon hasn't listed any services yet.</p>
         </div>
       <?php else: ?>
         <div class="services-grid" id="servicesGrid">
@@ -465,51 +579,24 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
                   <span><strong><?= htmlspecialchars($s['duration']) ?></strong> mins</span>
                 </div>
               </div>
-              <?php if ($user_can_interact): ?>
-                <button class="btn btn-book book-btn" 
-                        data-service="<?= $s['id'] ?>" 
-                        data-service-name="<?= htmlspecialchars($s['name']) ?>"
-                        data-service-price="<?= htmlspecialchars($s['price']) ?>"
-                        data-service-duration="<?= htmlspecialchars($s['duration']) ?>">
-                  <i class="fas fa-calendar-check"></i> Book Now
-                </button>
-              <?php endif; ?>
+
+              <div class="service-actions mt-3">
+                <?php if ($user_can_interact || !$is_logged_in): ?>
+                  <a href="book_appointment.php?salon_id=<?= $salon_id ?>&service_id=<?= $s['id'] ?>" class="btn btn-book">
+                    <i class="fas fa-calendar-check me-1"></i> Book Now
+                  </a>
+                <?php elseif ($is_owner): ?>
+                  <span class="badge bg-secondary w-100 py-2">Owner View</span>
+                <?php endif; ?>
+              </div>
             </div>
           <?php endforeach; ?>
         </div>
       <?php endif; ?>
     </div>
 
-    <?php if (!empty($active_promos)): ?>
-    <!-- Active Promo Codes -->
-    <div class="section mb-4 p-4 rounded-4 shadow-sm" style="background: linear-gradient(135deg, rgba(233,30,99,0.06) 0%, rgba(139,92,246,0.06) 100%); border: 2px dashed rgba(233,30,99,0.3);">
-      <div class="d-flex align-items-center mb-3">
-        <i class="fas fa-tags text-warning fa-2x me-3"></i>
-        <div>
-          <h4 class="fw-bold mb-0 text-dark">Special Offers & Promo Codes</h4>
-          <small class="text-muted">Use these promo codes when booking your appointment to save!</small>
-        </div>
-      </div>
-      <div class="d-flex flex-wrap gap-3">
-        <?php foreach ($active_promos as $promo): ?>
-        <div class="bg-white p-3 rounded-3 shadow-sm border d-flex align-items-center gap-3">
-          <span class="badge bg-primary fs-6 px-3 py-2 font-monospace tracking-wide">
-            <?= htmlspecialchars($promo['code']) ?>
-          </span>
-          <div>
-            <strong class="text-success d-block">
-              <?= $promo['discount_percent'] > 0 ? ($promo['discount_percent'] . '% OFF') : ('Rs ' . number_format($promo['discount_amount'], 2) . ' OFF') ?>
-            </strong>
-            <small class="text-muted">Valid for online bookings</small>
-          </div>
-        </div>
-        <?php endforeach; ?>
-      </div>
-    </div>
-    <?php endif; ?>
-
-    <?php if (!empty($salon_staff)): ?>
     <!-- Staff & Stylists Section -->
+    <?php if (!empty($salon_staff)): ?>
     <div class="section mb-4" id="staff">
       <div class="section-header">
         <h2 class="section-title">
@@ -523,16 +610,16 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <div class="col-6 col-md-4 col-lg-3">
           <div class="card h-100 border-0 shadow-sm rounded-4 text-center p-3">
             <div class="mb-2">
-              <?php if (!empty($st['avatar'])): ?>
-                <img src="<?= htmlspecialchars($st['avatar']) ?>" alt="<?= htmlspecialchars($st['name']) ?>" class="rounded-circle shadow-sm" style="width: 75px; height: 75px; object-fit: cover;">
+              <?php if (!empty($st['avatar']) && file_exists(__DIR__ . '/../../' . $st['avatar'])): ?>
+                <img src="../../<?= htmlspecialchars($st['avatar']) ?>" alt="<?= htmlspecialchars($st['name']) ?>" class="rounded-circle shadow-sm" style="width: 75px; height: 75px; object-fit: cover;">
               <?php else: ?>
                 <div class="rounded-circle bg-light d-flex align-items-center justify-content-center mx-auto shadow-sm" style="width: 75px; height: 75px;">
-                  <i class="fas fa-user-tie fa-2x text-muted"></i>
+                  <i class="fas fa-user-tie fa-2x text-primary"></i>
                 </div>
               <?php endif; ?>
             </div>
             <h6 class="fw-bold mb-0 text-dark"><?= htmlspecialchars($st['name']) ?></h6>
-            <small class="text-primary"><?= htmlspecialchars($st['specialty'] ?: 'Stylist') ?></small>
+            <small class="text-primary fw-semibold"><?= htmlspecialchars($st['specialty'] ?: 'Professional Stylist') ?></small>
           </div>
         </div>
         <?php endforeach; ?>
@@ -540,8 +627,8 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
     <?php endif; ?>
 
-    <?php if (!empty($salon_gallery)): ?>
     <!-- Salon Photo Gallery / Portfolio -->
+    <?php if (!empty($salon_gallery)): ?>
     <div class="section mb-4" id="gallery">
       <div class="section-header">
         <h2 class="section-title">
@@ -567,6 +654,35 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
     <?php endif; ?>
 
+    <!-- Interactive Map Section -->
+    <?php if (!empty($salon['lat']) && !empty($salon['lng'])): ?>
+    <div class="section" id="location">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-map-marked-alt"></i>
+          Salon Location & Directions
+        </h2>
+      </div>
+      <div class="salon-map p-3 rounded-4 shadow-sm bg-white border">
+        <div id="detailMap" style="width: 100%; height: 380px; border-radius: 14px; z-index: 1;"></div>
+        <div class="mt-3 text-center d-flex justify-content-center gap-2 flex-wrap">
+          <a href="https://www.google.com/maps/search/?api=1&query=<?= $salon['lat'] ?>,<?= $salon['lng'] ?>" 
+             target="_blank" 
+             rel="noopener"
+             class="btn btn-primary btn-sm rounded-pill px-4 py-2">
+            <i class="fas fa-directions me-1"></i> Get Directions in Google Maps
+          </a>
+          <a href="https://www.openstreetmap.org/?mlat=<?= $salon['lat'] ?>&mlon=<?= $salon['lng'] ?>#map=16/<?= $salon['lat'] ?>/<?= $salon['lng'] ?>" 
+             target="_blank" 
+             rel="noopener"
+             class="btn btn-outline-secondary btn-sm rounded-pill px-3 py-2">
+            <i class="fas fa-external-link-alt me-1"></i> OpenStreetMap
+          </a>
+        </div>
+      </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Enhanced Reviews Section -->
     <div class="section" id="reviews">
       <div class="section-header">
@@ -579,29 +695,29 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
       <?php if ($total_reviews > 0): ?>
         <!-- Rating Distribution -->
-        <div class="rating-summary mb-4">
+        <div class="rating-summary mb-4 p-4 rounded-4 shadow-sm bg-white border">
           <div class="row align-items-center">
-            <div class="col-md-4 text-center">
+            <div class="col-md-4 text-center border-end">
               <div class="average-rating">
-                <h1 class="display-3 mb-0"><?= $avg_rating ?></h1>
+                <h1 class="display-3 mb-0 fw-bold text-primary"><?= $avg_rating ?></h1>
                 <div class="stars mb-2">
                   <?php for($i = 0; $i < 5; $i++): ?>
                     <i class="<?= $i < round($avg_rating) ? 'fas' : 'far' ?> fa-star text-warning"></i>
                   <?php endfor; ?>
                 </div>
-                <p class="text-muted mb-0">Based on <?= $total_reviews ?> reviews</p>
+                <p class="text-muted mb-0">Based on <?= $total_reviews ?> verified <?= $total_reviews == 1 ? 'review' : 'reviews' ?></p>
               </div>
             </div>
-            <div class="col-md-8">
+            <div class="col-md-8 px-md-4">
               <?php foreach ([5, 4, 3, 2, 1] as $star): ?>
-                <div class="rating-bar-container">
-                  <span class="rating-label"><?= $star ?> <i class="fas fa-star"></i></span>
-                  <div class="progress rating-progress">
+                <div class="rating-bar-container d-flex align-items-center gap-2 mb-2">
+                  <span class="rating-label fw-semibold" style="width: 50px;"><?= $star ?> <i class="fas fa-star text-warning"></i></span>
+                  <div class="progress flex-grow-1" style="height: 10px; border-radius: 5px;">
                     <div class="progress-bar bg-warning" 
                          style="width: <?= $total_reviews > 0 ? ($rating_distribution[$star] / $total_reviews * 100) : 0 ?>%">
                     </div>
                   </div>
-                  <span class="rating-count"><?= $rating_distribution[$star] ?></span>
+                  <span class="rating-count text-muted small" style="width: 30px; text-align: right;"><?= $rating_distribution[$star] ?></span>
                 </div>
               <?php endforeach; ?>
             </div>
@@ -614,10 +730,10 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
           <div class="empty-state">
             <i class="far fa-comments"></i>
             <h4>No Reviews Yet</h4>
-            <p>Be the first to review this salon!</p>
+            <p>Be the first customer to review this salon!</p>
           </div>
         <?php else: ?>
-                        <?php foreach ($reviews as $r): ?>
+          <?php foreach ($reviews as $r): ?>
             <div class="review-item">
               <div class="review-header">
                 <div class="review-user">
@@ -638,15 +754,6 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 </small>
               </div>
               <p class="review-content"><?= nl2br(htmlspecialchars($r['comment'])) ?></p>
-              
-              <!-- Helpful Review Actions -->
-              <?php if (isset($_SESSION['id']) && $_SESSION['id'] != $r['user_id']): ?>
-              <div class="review-actions mt-2">
-                <button class="btn btn-sm btn-outline-secondary helpful-btn" data-review-id="<?= $r['id'] ?>">
-                  <i class="far fa-thumbs-up"></i> Helpful
-                </button>
-              </div>
-              <?php endif; ?>
             </div>
           <?php endforeach; ?>
 
@@ -664,236 +771,121 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
           <?php endif; ?>
         <?php endif; ?>
 
-        <?php if ($user_can_interact): ?>
-          <div class="text-center mt-4">
+        <div class="text-center mt-4">
+          <?php if ($user_can_interact): ?>
             <?php if ($user_has_reviewed): ?>
-              <p class="text-muted">
-                <i class="fas fa-check-circle text-success"></i> You've already reviewed this salon
+              <p class="text-success fw-semibold">
+                <i class="fas fa-check-circle"></i> You have already reviewed this salon. Thank you!
               </p>
             <?php else: ?>
               <button class="btn-write-review" id="writeReviewBtn">
                 <i class="fas fa-pen"></i> Write a Review
               </button>
             <?php endif; ?>
-          </div>
-        <?php elseif (!isset($_SESSION['id'])): ?>
-          <div class="text-center mt-4">
+          <?php elseif (!$is_logged_in): ?>
             <p class="text-muted">
-              <a href="../login.php">Login</a> to write a review
+              <a href="../login.php" class="btn btn-outline-primary rounded-pill px-4">Login to Write a Review</a>
             </p>
-          </div>
-        <?php endif; ?>
-      </div>
-    </div>
-
-    <!-- Map Section (if lat/lng available) -->
-    <?php if (!empty($salon['lat']) && !empty($salon['lng'])): ?>
-    <div class="section">
-      <div class="section-header">
-        <h2 class="section-title">
-          <i class="fas fa-map-marked-alt"></i>
-          Location
-        </h2>
-      </div>
-      <div class="salon-map">
-        <div id="detailMap" style="width: 100%; height: 400px; border-radius: 12px; z-index: 1;"></div>
-        <div class="mt-3 text-center d-flex justify-content-center gap-2 flex-wrap">
-          <a href="https://www.openstreetmap.org/?mlat=<?= $salon['lat'] ?>&mlon=<?= $salon['lng'] ?>#map=16/<?= $salon['lat'] ?>/<?= $salon['lng'] ?>" 
-             target="_blank" 
-             class="btn btn-outline-primary btn-sm">
-            <i class="fas fa-map-marked-alt"></i> OpenStreetMap
-          </a>
-          <a href="https://www.google.com/maps/search/?api=1&query=<?= $salon['lat'] ?>,<?= $salon['lng'] ?>" 
-             target="_blank" 
-             class="btn btn-primary btn-sm">
-            <i class="fas fa-directions"></i> Get Directions
-          </a>
+          <?php endif; ?>
         </div>
       </div>
     </div>
-    <?php endif; ?>
 
-    <!-- Share & Actions Section -->
+    <!-- Share Salon Section -->
     <div class="section">
-      <div class="text-center">
-        <h5 class="mb-3">Share This Salon</h5>
-        <div class="share-buttons">
-          <button class="btn btn-outline-primary" onclick="shareOnFacebook()">
-            <i class="fab fa-facebook"></i> Facebook
+      <div class="p-4 rounded-4 shadow-sm bg-white border text-center">
+        <h5 class="mb-3 fw-bold">Share This Salon with Friends</h5>
+        <div class="share-buttons d-flex justify-content-center gap-2 flex-wrap">
+          <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="shareOnFacebook()">
+            <i class="fab fa-facebook me-1"></i> Facebook
           </button>
-          <button class="btn btn-outline-info" onclick="shareOnTwitter()">
-            <i class="fab fa-twitter"></i> Twitter
+          <button class="btn btn-outline-info rounded-pill px-3 py-2" onclick="shareOnTwitter()">
+            <i class="fab fa-twitter me-1"></i> Twitter
           </button>
-          <button class="btn btn-outline-success" onclick="shareOnWhatsApp()">
-            <i class="fab fa-whatsapp"></i> WhatsApp
+          <button class="btn btn-outline-success rounded-pill px-3 py-2" onclick="shareOnWhatsApp()">
+            <i class="fab fa-whatsapp me-1"></i> WhatsApp
           </button>
-          <button class="btn btn-outline-secondary" onclick="copyLink()">
-            <i class="fas fa-link"></i> Copy Link
+          <button class="btn btn-outline-secondary rounded-pill px-3 py-2" onclick="copyLink()">
+            <i class="fas fa-link me-1"></i> Copy Link
           </button>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Enhanced Book Appointment Modal -->
-  <div class="modal fade" id="bookModal" tabindex="-1">
+  </div><!-- End .container -->
+
+  <!-- Write Review Modal -->
+  <?php if ($user_can_interact && !$user_has_reviewed): ?>
+  <div class="modal fade" id="reviewModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">
-            <i class="fas fa-calendar-check me-2"></i>Book Appointment
+            <i class="fas fa-star me-2"></i>Write a Review for <?= htmlspecialchars($salon['name']) ?>
           </h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <input type="hidden" id="book_salon_id" value="<?= $salon_id ?>">
-          <input type="hidden" id="book_service_id">
-          
-          <!-- Service Summary -->
-          <div class="booking-summary mb-4">
-            <h6 class="mb-3">Booking Details</h6>
-            <div class="mb-2">
-              <strong>Service:</strong> <span id="book_service_name_display"></span>
-            </div>
-            <div class="mb-2">
-              <strong>Price:</strong> Rs <span id="book_service_price_display"></span>
-            </div>
-            <div>
-              <strong>Duration:</strong> <span id="book_service_duration_display"></span> mins
-            </div>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label">
-              <i class="fas fa-calendar"></i> Appointment Date *
-            </label>
-            <input type="date" 
-                   id="appointment_date" 
-                   class="form-control" 
-                   required 
-                   min="<?= date('Y-m-d') ?>"
-                   max="<?= date('Y-m-d', strtotime('+3 months')) ?>">
-            <small class="form-text text-muted">Select a date within the next 3 months</small>
-          </div>
-          
-          <div class="mb-3">
-            <label class="form-label">
-              <i class="fas fa-clock"></i> Appointment Time *
-            </label>
-            <input type="time" 
-                   id="appointment_time" 
-                   class="form-control" 
-                   required
-                   min="09:00"
-                   max="20:00">
-            <small class="form-text text-muted">Operating hours: <?= htmlspecialchars($operating_hours) ?></small>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label">
-              <i class="fas fa-comment"></i> Special Requests (Optional)
-            </label>
-            <textarea id="booking_notes" 
-                      class="form-control" 
-                      rows="3" 
-                      placeholder="Any special requests or notes for the salon..."></textarea>
-          </div>
-
-          <div id="book_msg" class="alert" style="display: none;"></div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-modal-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button id="bookSubmit" class="btn btn-modal-primary">
-            <i class="fas fa-check me-2"></i>Confirm Booking
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Enhanced Review Modal -->
-  <div class="modal fade" id="reviewModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">
-            <i class="fas fa-star me-2"></i>Write a Review
-          </h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
           <input type="hidden" id="review_salon_id" value="<?= $salon_id ?>">
+          <input type="hidden" id="review_csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
           
-          <div class="mb-4">
-            <label class="form-label">Your Rating *</label>
-            <div class="star-rating-input" id="starRatingInput">
+          <div class="mb-4 text-center">
+            <label class="form-label d-block fw-bold mb-2">Select Your Rating *</label>
+            <div class="star-rating-input fs-3 text-warning" id="starRatingInput" style="cursor: pointer;">
               <i class="far fa-star" data-rating="1"></i>
               <i class="far fa-star" data-rating="2"></i>
               <i class="far fa-star" data-rating="3"></i>
               <i class="far fa-star" data-rating="4"></i>
               <i class="far fa-star" data-rating="5"></i>
             </div>
-            <input type="hidden" id="review_rating" required>
-            <small class="form-text text-muted">Click to rate</small>
+            <input type="hidden" id="review_rating" value="">
+            <small class="form-text text-muted" id="ratingText">Click on stars to rate</small>
           </div>
 
           <div class="mb-3">
-            <label class="form-label">Your Review *</label>
+            <label class="form-label fw-bold">Your Review Feedback *</label>
             <textarea id="review_comment" 
                       class="form-control" 
-                      rows="5" 
-                      placeholder="Share your experience with this salon..." 
+                      rows="4" 
+                      placeholder="Share your experience (staff, service quality, cleanliness)..." 
                       required
                       minlength="10"
                       maxlength="500"></textarea>
-            <small class="form-text text-muted">
-              <span id="charCount">0</span>/500 characters (minimum 10)
-            </small>
+            <div class="d-flex justify-content-between mt-1">
+              <small class="text-muted">Minimum 10 characters</small>
+              <small class="text-muted"><span id="charCount">0</span>/500</small>
+            </div>
           </div>
 
           <div id="review_msg" class="alert" style="display: none;"></div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-modal-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button id="reviewSubmit" class="btn btn-modal-primary">
+          <button type="button" class="btn btn-modal-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" id="reviewSubmit" class="btn btn-modal-primary">
             <i class="fas fa-paper-plane me-2"></i>Submit Review
           </button>
         </div>
       </div>
     </div>
   </div>
-
-  <!-- Loading Overlay -->
-  <div id="loadingOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
-    <div class="spinner-border text-light" role="status">
-      <span class="visually-hidden">Loading...</span>
-    </div>
-  </div>
+  <?php endif; ?>
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  
   <script>
-    // Service Search Functionality
+    // Service Search and Sort
     const serviceSearch = document.getElementById('serviceSearch');
     const serviceSort = document.getElementById('serviceSort');
     const servicesGrid = document.getElementById('servicesGrid');
     
-    if (serviceSearch) {
-      serviceSearch.addEventListener('input', filterAndSortServices);
-    }
-    
-    if (serviceSort) {
-      serviceSort.addEventListener('change', filterAndSortServices);
-    }
-    
     function filterAndSortServices() {
-      const searchTerm = serviceSearch ? serviceSearch.value.toLowerCase() : '';
+      const searchTerm = serviceSearch ? serviceSearch.value.toLowerCase().trim() : '';
       const sortBy = serviceSort ? serviceSort.value : 'name';
-      const serviceCards = Array.from(document.querySelectorAll('.service-card'));
+      const serviceCards = Array.from(document.querySelectorAll('#servicesGrid .service-card'));
       
-      // Filter
       serviceCards.forEach(card => {
-        const serviceName = card.dataset.serviceName;
+        const serviceName = card.dataset.serviceName || '';
         if (serviceName.includes(searchTerm)) {
           card.style.display = 'block';
         } else {
@@ -901,7 +893,6 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
       });
       
-      // Sort visible cards
       const visibleCards = serviceCards.filter(card => card.style.display !== 'none');
       visibleCards.sort((a, b) => {
         switch(sortBy) {
@@ -913,15 +904,17 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
             return parseInt(a.dataset.duration) - parseInt(b.dataset.duration);
           case 'name':
           default:
-            return a.dataset.serviceName.localeCompare(b.dataset.serviceName);
+            return (a.dataset.serviceName || '').localeCompare(b.dataset.serviceName || '');
         }
       });
       
-      // Re-append in sorted order
       if (servicesGrid) {
         visibleCards.forEach(card => servicesGrid.appendChild(card));
       }
     }
+
+    if (serviceSearch) serviceSearch.addEventListener('input', filterAndSortServices);
+    if (serviceSort) serviceSort.addEventListener('change', filterAndSortServices);
 
     // Share Functions
     function shareOnFacebook() {
@@ -931,44 +924,50 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     function shareOnTwitter() {
       const url = encodeURIComponent(window.location.href);
-      const text = encodeURIComponent('Check out this salon!');
+      const text = encodeURIComponent('Check out <?= addslashes($salon['name']) ?> on Salonora!');
       window.open(`https://twitter.com/intent/tweet?url=${url}&text=${text}`, '_blank', 'width=600,height=400');
     }
     
     function shareOnWhatsApp() {
       const url = encodeURIComponent(window.location.href);
-      const text = encodeURIComponent('Check out this salon!');
-      window.open(`https://wa.me/?text=${text} ${url}`, '_blank');
+      const text = encodeURIComponent('Check out <?= addslashes($salon['name']) ?> on Salonora:');
+      window.open(`https://wa.me/?text=${text}%20${url}`, '_blank');
     }
     
     function copyLink() {
       navigator.clipboard.writeText(window.location.href).then(() => {
-        alert('Link copied to clipboard!');
+        alert('Salon link copied to clipboard!');
       }).catch(err => {
         console.error('Failed to copy:', err);
       });
     }
 
-    // Enhanced Star Rating Input
+    // Interactive Star Rating for Review Modal
     const starRatingInput = document.getElementById('starRatingInput');
     if (starRatingInput) {
       const stars = starRatingInput.querySelectorAll('i');
+      const ratingText = document.getElementById('ratingText');
+      const ratingLabels = ['', 'Poor (1 star)', 'Fair (2 stars)', 'Good (3 stars)', 'Very Good (4 stars)', 'Excellent (5 stars)'];
       let selectedRating = 0;
 
       stars.forEach(star => {
         star.addEventListener('click', () => {
-          selectedRating = star.dataset.rating;
+          selectedRating = parseInt(star.dataset.rating, 10);
           document.getElementById('review_rating').value = selectedRating;
           updateStars(selectedRating);
+          if (ratingText) ratingText.textContent = ratingLabels[selectedRating];
         });
 
         star.addEventListener('mouseenter', () => {
-          updateStars(star.dataset.rating);
+          const hoverRating = parseInt(star.dataset.rating, 10);
+          updateStars(hoverRating);
+          if (ratingText) ratingText.textContent = ratingLabels[hoverRating];
         });
       });
 
       starRatingInput.addEventListener('mouseleave', () => {
         updateStars(selectedRating);
+        if (ratingText) ratingText.textContent = selectedRating > 0 ? ratingLabels[selectedRating] : 'Click on stars to rate';
       });
 
       function updateStars(rating) {
@@ -984,7 +983,7 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
       }
     }
 
-    // Character Counter for Review
+    // Character counter for reviews
     const reviewComment = document.getElementById('review_comment');
     const charCount = document.getElementById('charCount');
     if (reviewComment && charCount) {
@@ -993,177 +992,97 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
       });
     }
 
-    // Enhanced Book Modal
-    document.querySelectorAll('.book-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.getElementById('book_service_id').value = btn.dataset.service;
-        document.getElementById('book_service_name_display').textContent = btn.dataset.serviceName;
-        document.getElementById('book_service_price_display').textContent = btn.dataset.servicePrice;
-        document.getElementById('book_service_duration_display').textContent = btn.dataset.serviceDuration;
-        new bootstrap.Modal(document.getElementById('bookModal')).show();
-      });
-    });
-
-    // Enhanced AJAX Book Appointment
-    document.getElementById('bookSubmit').addEventListener('click', function() {
-      const submitBtn = this;
-      const salonId = document.getElementById('book_salon_id').value;
-      const serviceId = document.getElementById('book_service_id').value;
-      const date = document.getElementById('appointment_date').value;
-      const time = document.getElementById('appointment_time').value;
-      const notes = document.getElementById('booking_notes').value;
-
-      if (!date || !time) { 
-        showMessage('book_msg', 'Please select date and time', 'danger');
-        return; 
-      }
-
-      // Validate date is not in the past
-      const selectedDate = new Date(date + 'T' + time);
-      const now = new Date();
-      if (selectedDate < now) {
-        showMessage('book_msg', 'Please select a future date and time', 'danger');
-        return;
-      }
-
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Booking...';
-
-      fetch('../book_appointment.php', {
-        method: 'POST',
-        headers: {'Content-Type':'application/x-www-form-urlencoded'},
-        body: `salon_id=${salonId}&service_id=${serviceId}&appointment_date=${date}&appointment_time=${time}&notes=${encodeURIComponent(notes)}`
-      })
-      .then(res => res.text())
-      .then(data => {
-        showMessage('book_msg', data, 'success');
-        setTimeout(() => {
-          location.reload();
-        }, 1500);
-      })
-      .catch(err => {
-        showMessage('book_msg', 'Booking failed. Please try again.', 'danger');
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-check me-2"></i>Confirm Booking';
-      });
-    });
-
-    // Open Review Modal
-    document.getElementById('writeReviewBtn')?.addEventListener('click', () => {
-      new bootstrap.Modal(document.getElementById('reviewModal')).show();
-    });
-
-    // Enhanced AJAX Post Review
-    document.getElementById('reviewSubmit').addEventListener('click', function() {
-      const submitBtn = this;
-      const salonId = document.getElementById('review_salon_id').value;
-      const rating = document.getElementById('review_rating').value;
-      const comment = document.getElementById('review_comment').value.trim();
-
-      if (!rating) { 
-        showMessage('review_msg', 'Please select a rating', 'warning');
-        return; 
-      }
-
-      if (!comment || comment.length < 10) { 
-        showMessage('review_msg', 'Please write at least 10 characters', 'warning');
-        return; 
-      }
-
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
-
-      fetch('../post_review.php', {
-        method: 'POST',
-        headers: {'Content-Type':'application/x-www-form-urlencoded'},
-        body: `salon_id=${salonId}&rating=${rating}&comment=${encodeURIComponent(comment)}`
-      })
-      .then(res => res.text())
-      .then(data => {
-        showMessage('review_msg', data, 'success');
-        setTimeout(() => {
-          location.reload();
-        }, 1500);
-      })
-      .catch(err => {
-        showMessage('review_msg', 'Review submission failed. Please try again.', 'danger');
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Submit Review';
-      });
-    });
-
-    // Helper function to show messages
-    function showMessage(elementId, message, type) {
-      const msgEl = document.getElementById(elementId);
-      msgEl.textContent = message;
-      msgEl.className = `alert alert-${type}`;
-      msgEl.style.display = 'block';
+    // Modal Trigger Buttons
+    const reviewModalEl = document.getElementById('reviewModal');
+    let reviewModal = null;
+    if (reviewModalEl) {
+      reviewModal = new bootstrap.Modal(reviewModalEl);
+      document.getElementById('writeReviewBtn')?.addEventListener('click', () => reviewModal.show());
+      document.getElementById('topWriteReviewBtn')?.addEventListener('click', () => reviewModal.show());
     }
 
-    // Smooth scroll with offset for fixed headers
+    // AJAX Post Review Submission
+    const reviewSubmit = document.getElementById('reviewSubmit');
+    if (reviewSubmit) {
+      reviewSubmit.addEventListener('click', function() {
+        const submitBtn = this;
+        const salonId = document.getElementById('review_salon_id').value;
+        const csrfToken = document.getElementById('review_csrf_token').value;
+        const rating = document.getElementById('review_rating').value;
+        const comment = (document.getElementById('review_comment').value || '').trim();
+        const msgEl = document.getElementById('review_msg');
+
+        if (!rating || parseInt(rating, 10) < 1) {
+          msgEl.className = 'alert alert-warning';
+          msgEl.textContent = 'Please select a star rating (1 to 5).';
+          msgEl.style.display = 'block';
+          return;
+        }
+
+        if (comment.length < 10) {
+          msgEl.className = 'alert alert-warning';
+          msgEl.textContent = 'Please write at least 10 characters in your review.';
+          msgEl.style.display = 'block';
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
+
+        fetch('post_review.php', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: `salon_id=${encodeURIComponent(salonId)}&rating=${encodeURIComponent(rating)}&comment=${encodeURIComponent(comment)}&csrf_token=${encodeURIComponent(csrfToken)}`
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            msgEl.className = 'alert alert-success';
+            msgEl.textContent = data.message || 'Review submitted successfully!';
+            msgEl.style.display = 'block';
+            setTimeout(() => {
+              location.reload();
+            }, 1200);
+          } else {
+            msgEl.className = 'alert alert-danger';
+            msgEl.textContent = data.message || 'Failed to submit review.';
+            msgEl.style.display = 'block';
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Submit Review';
+          }
+        })
+        .catch(err => {
+          msgEl.className = 'alert alert-danger';
+          msgEl.textContent = 'An error occurred while submitting your review. Please try again.';
+          msgEl.style.display = 'block';
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Submit Review';
+        });
+      });
+    }
+
+    // Smooth Scrolling for section anchors
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-      anchor.addEventListener('click', function (e) {
-        e.preventDefault();
-        const target = document.querySelector(this.getAttribute('href'));
-        if (target) {
-          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      anchor.addEventListener('click', function(e) {
+        const targetId = this.getAttribute('href');
+        if (targetId && targetId !== '#') {
+          const targetEl = document.querySelector(targetId);
+          if (targetEl) {
+            e.preventDefault();
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
         }
       });
     });
 
-    // Auto-scroll to section if hash in URL
-    if (window.location.hash) {
-      setTimeout(() => {
-        const target = document.querySelector(window.location.hash);
-        if (target) {
-          target.scrollIntoView({ behavior: 'smooth' });
-        }
-      }, 100);
-    }
-
-    // Form validation feedback
-    const forms = document.querySelectorAll('.needs-validation');
-    forms.forEach(form => {
-      form.addEventListener('submit', (e) => {
-        if (!form.checkValidity()) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-        form.classList.add('was-validated');
-      });
-    });
-  </script>
-
-  <!-- Leaflet Map JS (100% Free OpenStreetMap) -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      var mapContainer = document.getElementById('detailMap');
-      <?php if (!empty($salon['lat']) && !empty($salon['lng'])): ?>
-      if (mapContainer && typeof L !== 'undefined') {
-        var lat = <?= (float)$salon['lat'] ?>;
-        var lng = <?= (float)$salon['lng'] ?>;
-        var map = L.map('detailMap').setView([lat, lng], 15);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-          maxZoom: 19
-        }).addTo(map);
-
-        var marker = L.marker([lat, lng]).addTo(map);
-        marker.bindPopup("<strong><?= addslashes(htmlspecialchars($salon['name'])) ?></strong><br><?= addslashes(htmlspecialchars($salon['address'])) ?>").openPopup();
-      }
-      <?php endif; ?>
-    });
-  </script>
-
-  <script>
+    // Theme Toggle Handler
     const themeToggleBtn = document.getElementById('themeToggleBtn');
     const themeToggleIcon = document.getElementById('themeToggleIcon');
 
     function updateThemeUI() {
       const isDark = document.body.classList.contains('dark-mode') || document.documentElement.classList.contains('dark-mode');
       if (themeToggleIcon) {
-        themeToggleIcon.className = isDark ? 'fas fa-sun me-1' : 'fas fa-moon me-1';
+        themeToggleIcon.className = isDark ? 'fas fa-sun me-1 text-warning' : 'fas fa-moon me-1';
       }
     }
     updateThemeUI();
@@ -1177,6 +1096,28 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
         updateThemeUI();
       });
     }
+  </script>
+
+  <!-- Leaflet Map JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var mapContainer = document.getElementById('detailMap');
+      <?php if (!empty($salon['lat']) && !empty($salon['lng'])): ?>
+      if (mapContainer && typeof L !== 'undefined') {
+        var lat = <?= (float)$salon['lat'] ?>;
+        var lng = <?= (float)$salon['lng'] ?>;
+        var map = L.map('detailMap').setView([lat, lng], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors',
+          maxZoom: 19
+        }).addTo(map);
+
+        var marker = L.marker([lat, lng]).addTo(map);
+        marker.bindPopup("<strong><?= addslashes(htmlspecialchars($salon['name'])) ?></strong><br><?= addslashes(htmlspecialchars($salon['address'])) ?>").openPopup();
+      }
+      <?php endif; ?>
+    });
   </script>
 </body>
 </html>
