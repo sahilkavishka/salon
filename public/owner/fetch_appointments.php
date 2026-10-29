@@ -2,7 +2,7 @@
 session_start();
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../auth_check.php';
-checkAuth();
+checkAuth('owner');
 
 // Set JSON header
 header('Content-Type: application/json');

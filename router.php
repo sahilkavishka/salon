@@ -17,6 +17,14 @@ if ($uri === '/public' || $uri === '/public/') {
     $uri = '/public/index.php';
 }
 
+if ($uri === '/public/owner' || $uri === '/public/owner/') {
+    $uri = '/public/owner/index.php';
+}
+
+if ($uri === '/public/user' || $uri === '/public/user/') {
+    $uri = '/public/user/index.php';
+}
+
 $file = __DIR__ . $uri;
 
 // If file exists and is not a directory, handle it

@@ -2,12 +2,7 @@
 session_start();
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../auth_check.php';
-checkAuth();
-
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'owner') {
-    header('Location: ../login.php');
-    exit;
-}
+checkAuth('owner');
 
 $owner_id = $_SESSION['id'];
 

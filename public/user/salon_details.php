@@ -79,7 +79,8 @@ if ($total_reviews > 0) {
 $is_logged_in = isset($_SESSION['id']);
 $user_id = $_SESSION['id'] ?? 0;
 $user_role = strtolower($_SESSION['role'] ?? 'guest');
-$is_owner = $is_logged_in && ($user_role === 'owner' || $user_id == $salon['owner_id']);
+$is_this_salon_owner = $is_logged_in && ($user_role === 'owner') && ($user_id == $salon['owner_id']);
+$is_owner = $is_logged_in && ($user_role === 'owner');
 $user_can_interact = $is_logged_in && in_array($user_role, ['user', 'customer']) && ($user_id != $salon['owner_id']);
 
 // Check if user has already reviewed
@@ -397,11 +398,17 @@ if (!empty($salon['image']) && file_exists(__DIR__ . '/../../' . $salon['image']
                 <a href="book_appointment.php?salon_id=<?= $salon_id ?>" class="btn-book-hero">
                   <i class="fas fa-calendar-check"></i> Book an Appointment
                 </a>
-              <?php elseif ($is_owner): ?>
+              <?php elseif ($is_this_salon_owner): ?>
                 <div class="alert alert-info py-2 px-3 mb-0 d-inline-flex align-items-center gap-2 rounded-3">
                   <i class="fas fa-user-shield"></i>
                   <span>You are viewing your own salon profile.</span>
                   <a href="../owner/dashboard.php" class="btn btn-sm btn-primary ms-2 rounded-pill">Owner Dashboard</a>
+                </div>
+              <?php elseif ($is_owner): ?>
+                <div class="alert alert-secondary py-2 px-3 mb-0 d-inline-flex align-items-center gap-2 rounded-3">
+                  <i class="fas fa-store"></i>
+                  <span>Browsing as Salon Owner</span>
+                  <a href="../owner/dashboard.php" class="btn btn-sm btn-outline-dark ms-2 rounded-pill">My Dashboard</a>
                 </div>
               <?php endif; ?>
             </div>
@@ -603,8 +610,10 @@ if (!empty($salon['image']) && file_exists(__DIR__ . '/../../' . $salon['image']
                   <a href="book_appointment.php?salon_id=<?= $salon_id ?>&service_id=<?= $s['id'] ?>" class="btn btn-book">
                     <i class="fas fa-calendar-check me-1"></i> Book Now
                   </a>
-                <?php elseif ($is_owner): ?>
-                  <span class="badge bg-secondary w-100 py-2">Owner View</span>
+                <?php elseif ($is_this_salon_owner): ?>
+                  <a href="../owner/services.php" class="btn btn-sm btn-outline-primary w-100 py-1">Manage Service</a>
+                <?php else: ?>
+                  <span class="badge bg-secondary w-100 py-2">Owner Mode</span>
                 <?php endif; ?>
               </div>
             </div>

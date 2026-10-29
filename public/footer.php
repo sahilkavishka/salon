@@ -17,10 +17,17 @@
       <div class="col-lg-2 col-md-6">
         <h6 class="footer-heading">Quick Links</h6>
         <ul class="footer-links">
-          <li><a href="<?= url('index.php') ?>">Home</a></li>
-          <li><a href="<?= url('user/salon_view.php') ?>">Salons</a></li>
-          <li><a href="<?= url('user/my_appointments.php') ?>">My Appointments</a></li>
-          <li><a href="<?= url('index.php#contact') ?>">Contact</a></li>
+          <?php if (isset($_SESSION['role']) && strtolower($_SESSION['role']) === 'owner'): ?>
+            <li><a href="<?= url('owner/dashboard.php') ?>">Dashboard</a></li>
+            <li><a href="<?= url('owner/appointments.php') ?>">Appointments</a></li>
+            <li><a href="<?= url('user/salon_view.php') ?>">Salons</a></li>
+            <li><a href="<?= url('owner/checkin.php') ?>">QR Check-in</a></li>
+          <?php else: ?>
+            <li><a href="<?= url('index.php') ?>">Home</a></li>
+            <li><a href="<?= url('user/salon_view.php') ?>">Salons</a></li>
+            <li><a href="<?= url('user/my_appointments.php') ?>">My Appointments</a></li>
+            <li><a href="<?= url('index.php#contact') ?>">Contact</a></li>
+          <?php endif; ?>
         </ul>
       </div>
       <div class="col-lg-2 col-md-6">

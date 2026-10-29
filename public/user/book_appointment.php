@@ -2,7 +2,7 @@
 session_start();
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../auth_check.php';
-checkAuth();
+checkAuth('user');
 
 if (!isset($_GET['salon_id']) || !is_numeric($_GET['salon_id'])) {
     $_SESSION['error_message'] = 'Salon not specified.';
@@ -30,6 +30,13 @@ $salon = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$salon) {
     $_SESSION['error_message'] = 'Salon not found.';
     header('Location: salon_view.php');
+    exit;
+}
+
+// Salon owners manage appointments from owner portal
+if (isset($_SESSION['role']) && strtolower($_SESSION['role']) === 'owner') {
+    $_SESSION['flash_error'] = 'Salon owners manage bookings from the Owner Dashboard.';
+    header('Location: ' . url('owner/dashboard.php'));
     exit;
 }
 

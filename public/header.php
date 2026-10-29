@@ -575,7 +575,10 @@ body.dark-mode .btn-nav-back {
           </button>
           <?php endif; ?>
 
-          <a class="navbar-brand" href="<?= url('index.php') ?>">
+          <?php 
+          $brandUrl = (isset($_SESSION['role']) && strtolower($_SESSION['role']) === 'owner') ? url('owner/dashboard.php') : url('index.php');
+          ?>
+          <a class="navbar-brand" href="<?= $brandUrl ?>">
             <i class="fas fa-spa"></i> Salonora
           </a>
         </div>
@@ -642,6 +645,35 @@ body.dark-mode .btn-nav-back {
       </div>
     </nav>
   </header>
+
+  <?php if (!empty($_SESSION['flash_error']) || !empty($_SESSION['flash_success']) || !empty($_SESSION['flash_info'])): ?>
+    <div class="container mt-3">
+      <?php if (!empty($_SESSION['flash_error'])): ?>
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm border-0 d-flex align-items-center" role="alert" style="border-radius: 12px;">
+          <i class="fas fa-exclamation-triangle me-2 fs-5"></i>
+          <div><?= htmlspecialchars($_SESSION['flash_error']) ?></div>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        <?php unset($_SESSION['flash_error']); ?>
+      <?php endif; ?>
+      <?php if (!empty($_SESSION['flash_success'])): ?>
+        <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 d-flex align-items-center" role="alert" style="border-radius: 12px;">
+          <i class="fas fa-check-circle me-2 fs-5"></i>
+          <div><?= htmlspecialchars($_SESSION['flash_success']) ?></div>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        <?php unset($_SESSION['flash_success']); ?>
+      <?php endif; ?>
+      <?php if (!empty($_SESSION['flash_info'])): ?>
+        <div class="alert alert-info alert-dismissible fade show shadow-sm border-0 d-flex align-items-center" role="alert" style="border-radius: 12px;">
+          <i class="fas fa-info-circle me-2 fs-5"></i>
+          <div><?= htmlspecialchars($_SESSION['flash_info']) ?></div>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        <?php unset($_SESSION['flash_info']); ?>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
 
   <script>
     // Dark/Light Mode Toggle Logic
