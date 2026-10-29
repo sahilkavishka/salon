@@ -10,7 +10,10 @@ if (!isset($_SESSION['id'])) {
     exit;
 }
 
-$user_id = $_SESSION['id'];
+$user_id = (int)$_SESSION['id'];
+
+// Set page title for header
+$page_title = 'My Appointments | Salonora';
 
 // CSRF token generation
 if (!isset($_SESSION['csrf_token'])) {
@@ -21,12 +24,13 @@ if (!isset($_SESSION['csrf_token'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_appointment'])) {
     // Validate CSRF token
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
-        $_SESSION['error_message'] = "Invalid security token.";
+        $_SESSION['error_message'] = "Invalid security token. Please refresh and try again.";
         header('Location: my_appointments.php');
         exit;
     }
 
     $appointment_id = filter_input(INPUT_POST, 'appointment_id', FILTER_VALIDATE_INT);
+    $cancel_reason = trim($_POST['cancellation_reason'] ?? 'Cancelled by customer');
 
     if ($appointment_id) {
         try {
@@ -57,9 +61,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_appointment'])
                     $oldStatus = $appointment['status'];
                     $pdo->prepare("
                         UPDATE appointments 
-                        SET status = 'cancelled', updated_at = NOW() 
+                        SET status = 'cancelled', cancellation_reason = :reason, cancelled_at = NOW(), updated_at = NOW() 
                         WHERE id = :id AND user_id = :uid
-                    ")->execute([':id' => $appointment_id, ':uid' => $user_id]);
+                    ")->execute([
+                        ':reason' => $cancel_reason ?: 'Cancelled by customer',
+                        ':id' => $appointment_id, 
+                        ':uid' => $user_id
+                    ]);
 
                     // Add log to appointment_logs
                     $logStmt = $pdo->prepare("
@@ -77,25 +85,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_appointment'])
                     }
 
                     $pdo->commit();
-                    $_SESSION['success_message'] = "Appointment cancelled successfully.";
+                    $_SESSION['success_message'] = "Appointment #{$appointment_id} has been cancelled successfully.";
                 } else {
                     $pdo->rollBack();
                     if ($appointment['status'] === 'confirmed') {
-                        $_SESSION['error_message'] = "Confirmed appointments cannot be cancelled less than 24 hours before the scheduled time.";
+                        $_SESSION['error_message'] = "Confirmed appointments cannot be cancelled less than 24 hours before the scheduled time. Please call the salon directly.";
                     } else {
                         $_SESSION['error_message'] = "Cannot cancel appointments after the scheduled time has passed.";
                     }
                 }
             } else {
                 $pdo->rollBack();
-                $_SESSION['error_message'] = "Cannot cancel this appointment.";
+                $_SESSION['error_message'] = "Cannot cancel this appointment or it has already been processed.";
             }
         } catch (Exception $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
             error_log("Appointment cancellation error: " . $e->getMessage());
-            $_SESSION['error_message'] = "An error occurred. Please try again.";
+            $_SESSION['error_message'] = "An error occurred while cancelling your appointment. Please try again.";
         }
     }
 
@@ -103,20 +111,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_appointment'])
     exit;
 }
 
-// Fetch appointments
+// Fetch all appointments with resilient LEFT JOINs so no booking is ever hidden
 $stmt = $pdo->prepare("
     SELECT 
         a.*, 
-        s.name AS salon_name,
-        s.address AS salon_address,
-        s.phone AS salon_phone,
-        srv.name AS service_name,
-        srv.price AS service_price,
-        srv.duration AS service_duration,
+        COALESCE(s.name, 'Salonora Partner Salon') AS salon_name,
+        COALESCE(s.address, 'Salon Location') AS salon_address,
+        COALESCE(s.phone, '') AS salon_phone,
+        COALESCE(srv.name, 'Beauty Service') AS service_name,
+        COALESCE(srv.price, 0) AS service_price,
+        COALESCE(srv.duration, 30) AS service_duration,
+        COALESCE(srv.category, 'General') AS service_category,
         st.name AS staff_name
     FROM appointments a
-    JOIN salons s ON s.id = a.salon_id
-    JOIN services srv ON srv.id = a.service_id
+    LEFT JOIN salons s ON s.id = a.salon_id
+    LEFT JOIN services srv ON srv.id = a.service_id
     LEFT JOIN salon_staff st ON a.staff_id = st.id
     WHERE a.user_id = :uid
     ORDER BY a.appointment_date DESC, a.appointment_time DESC
@@ -129,590 +138,1055 @@ $now = time();
 $pending = array_filter($appointments, fn($x) => $x['status'] === 'pending');
 $confirmed = array_filter($appointments, fn($x) => $x['status'] === 'confirmed');
 $completed = array_filter($appointments, fn($x) => $x['status'] === 'completed');
-$cancelled = array_filter($appointments, fn($x) => $x['status'] === 'cancelled');
-$rejected = array_filter($appointments, fn($x) => $x['status'] === 'rejected');
 $cancelled_or_rejected = array_filter($appointments, fn($x) => in_array($x['status'], ['cancelled', 'rejected']));
 
 $upcoming = array_filter($appointments, function($a) use ($now) {
     $t = strtotime($a['appointment_date'] . ' ' . $a['appointment_time']);
-    return $t > $now && in_array($a['status'], ['pending','confirmed']);
+    return $t > $now && in_array($a['status'], ['pending', 'confirmed']);
 });
 
-// Function to render appointment card
-function renderAppointmentCard($a, $now, $csrf_token) {
-    $t = strtotime($a['appointment_date'] . ' ' . $a['appointment_time']);
-    $hours = ($t - $now) / 3600;
-    $isPast = $t <= $now;
-    
-    // Pending can be cancelled anytime before appointment time; confirmed requires 24h
-    $canCancel = false;
-    if ($a['status'] === 'pending' && !$isPast) {
-        $canCancel = true;
-    } elseif ($a['status'] === 'confirmed' && $hours >= 24) {
-        $canCancel = true;
-    }
-    
-    ob_start();
-    ?>
-    <div class="appointment-card <?= htmlspecialchars($a['status']) ?>">
-        <div class="d-flex justify-content-between align-items-start">
-            <h5 class="mb-0"><?= htmlspecialchars($a['salon_name']) ?></h5>
-            <span class="status-badge <?= htmlspecialchars($a['status']) ?>">
-                <?= ucfirst(htmlspecialchars($a['status'])) ?>
-            </span>
-        </div>
+// Determine active default tab: if no upcoming, show 'all'
+$defaultTab = (!empty($upcoming)) ? 'upcoming' : 'all';
 
-        <div class="mt-3">
-            <div class="info-row">
-                <i class="fas fa-cut text-primary"></i>
-                <strong><?= htmlspecialchars($a['service_name']) ?></strong>
-            </div>
-            <?php if (!empty($a['staff_name'])): ?>
-            <div class="info-row">
-                <i class="fas fa-user-friends text-info"></i>
-                Stylist: <strong><?= htmlspecialchars($a['staff_name']) ?></strong>
-            </div>
-            <?php endif; ?>
-            <div class="info-row">
-                <i class="fas fa-rupee-sign text-success"></i>
-                Rs <?= number_format($a['service_price'], 2) ?>
-            </div>
-            <div class="info-row">
-                <i class="fas fa-calendar text-danger"></i>
-                <?= date('l, F j, Y', strtotime($a['appointment_date'])) ?>
-            </div>
-            <div class="info-row">
-                <i class="fas fa-clock text-warning"></i>
-                <?= date('h:i A', strtotime($a['appointment_time'])) ?> 
-                (<?= htmlspecialchars($a['service_duration']) ?> mins)
-            </div>
-            <div class="info-row">
-                <i class="fas fa-map-marker-alt text-info"></i>
-                <?= htmlspecialchars($a['salon_address']) ?>
-            </div>
-            <?php if (!empty($a['salon_phone'])): ?>
-            <div class="info-row">
-                <i class="fas fa-phone text-secondary"></i>
-                <a href="tel:<?= htmlspecialchars($a['salon_phone']) ?>">
-                    <?= htmlspecialchars($a['salon_phone']) ?>
-                </a>
-            </div>
-            <?php endif; ?>
-        </div>
-
-        <?php if ($canCancel): ?>
-        <form method="POST" class="mt-3" onsubmit="return confirm('Are you sure you want to cancel this appointment? This action cannot be undone.');">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
-            <input type="hidden" name="appointment_id" value="<?= $a['id'] ?>">
-            <button type="submit" class="btn-cancel" name="cancel_appointment">
-                <i class="fas fa-times-circle me-1"></i>Cancel Appointment
-            </button>
-        </form>
-        <?php elseif ($a['status'] === 'completed'): ?>
-        <div class="mt-3">
-            <a href="salon_view.php?id=<?= $a['salon_id'] ?>" class="btn btn-sm btn-rate-review rounded-pill px-3">
-                <i class="fas fa-star me-1"></i>Rate & Review Salon
-            </a>
-        </div>
-        <?php elseif ($a['status'] === 'rejected'): ?>
-        <div class="mt-3 alert alert-danger py-2 px-3 mb-0" style="font-size: 0.85rem;">
-            <i class="fas fa-ban me-1"></i>Declined by salon. You can book another slot.
-        </div>
-        <?php elseif ($isPast && in_array($a['status'], ['pending', 'confirmed'])): ?>
-        <div class="mt-3">
-            <small class="text-muted"><i class="fas fa-info-circle"></i> This appointment time has passed</small>
-        </div>
-        <?php elseif (!$canCancel && $a['status'] === 'confirmed'): ?>
-        <div class="mt-3">
-            <small class="text-muted"><i class="fas fa-info-circle"></i> Cannot cancel within 24 hours of appointment</small>
-        </div>
-        <?php endif; ?>
-
-        <?php
-        $rawPhone = preg_replace('/[^0-9]/', '', $a['salon_phone'] ?? '');
-        $waPhone = '';
-        if (!empty($rawPhone)) {
-            $waPhone = str_starts_with($rawPhone, '0') ? ('94' . substr($rawPhone, 1)) : $rawPhone;
-        }
-        $waText = urlencode("Hello " . $a['salon_name'] . ", I have an appointment (#" . $a['id'] . ") for " . $a['service_name'] . " on " . date('M d, Y', strtotime($a['appointment_date'])) . " at " . date('h:i A', strtotime($a['appointment_time'])) . ".");
-        ?>
-
-        <div class="d-flex flex-wrap gap-2 mt-3 pt-2 border-top">
-            <?php if (!empty($waPhone)): ?>
-            <a href="https://wa.me/<?= htmlspecialchars($waPhone) ?>?text=<?= $waText ?>" target="_blank" class="btn btn-sm btn-outline-success rounded-pill px-3">
-                <i class="fab fa-whatsapp me-1"></i> WhatsApp
-            </a>
-            <?php endif; ?>
-
-            <a href="invoice.php?id=<?= $a['id'] ?>" target="_blank" class="btn btn-sm btn-outline-info rounded-pill px-3">
-                <i class="fas fa-file-invoice me-1"></i> Receipt
-            </a>
-
-            <button type="button" class="btn btn-sm btn-qr-pass rounded-pill px-3" onclick="showQRModal('<?= $a['id'] ?>', '<?= htmlspecialchars(addslashes($a['salon_name'])) ?>', '<?= htmlspecialchars(addslashes($a['service_name'])) ?>', '<?= date('M d, Y h:i A', strtotime($a['appointment_date'].' '.$a['appointment_time'])) ?>')">
-                <i class="fas fa-qrcode me-1"></i> QR Pass
-            </button>
-        </div>
-
-        <hr>
-        <small class="text-muted">
-            <i class="far fa-clock"></i> Booked: <?= date('M d, Y h:i A', strtotime($a['created_at'])) ?>
-        </small>
-    </div>
-    <?php
-    return ob_get_clean();
-}
+include __DIR__ . '/../header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Appointments - Salonora</title>
-
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
 <style>
-body {
-    font-family: 'Poppins', sans-serif;
-    background: #faf5f8ff;
-}
-.page-header {
-    background: linear-gradient(135deg, #e91e63, #9c27b0);
-    padding: 4rem 0 3rem;
-    color: white;
-    text-align: center;
-    margin-top: 50px;
-}
-.appointment-card {
-    background: white;
-    border-radius: 18px;
-    padding: 1.6rem;
-    margin-bottom: 1.5rem;
-    border-left: 6px solid;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.09);
-    transition: 0.25s ease;
-}
-.appointment-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
-}
-.appointment-card .info-row {
-    display: flex;
-    align-items: center;
-    margin-bottom: 8px;
-}
-.appointment-card .info-row i {
-    width: 22px;
-    margin-right: 10px;
-    font-size: 1rem;
-}
-.status-badge {
-    padding: 0.45rem 1.05rem;
-    font-weight: 600;
-    border-radius: 50px;
-    font-size: 0.8rem;
-}
-.pending {
-    border-left-color: #f39c12;
-}
-.pending .status-badge {
-    color: #f39c12;
-    background: rgba(243,156,18,0.12);
-}
-.confirmed {
-    border-left-color: #27ae60;
-}
-.confirmed .status-badge {
-    color: #27ae60;
-    background: rgba(39,174,96,0.12);
-}
-.cancelled {
-    border-left-color: #95a5a6;
-}
-.cancelled .status-badge {
-    color: #95a5a6;
-    background: rgba(149,165,166,0.12);
-}
-.rejected {
-    border-left-color: #e74c3c;
-}
-.rejected .status-badge {
-    color: #e74c3c;
-    background: rgba(231,76,60,0.12);
-}
-.completed {
-    border-left-color: #3498db;
-}
-.completed .status-badge {
-    color: #3498db;
-    background: rgba(52,152,219,0.12);
-}
-.btn-cancel {
-    background: #e74c3c;
-    color: white;
-    border: none;
-    padding: 8px 15px;
-    border-radius: 50px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: 0.3s;
-}
-.btn-cancel:hover {
-    background: #c0392b;
-    color: white;
-    transform: scale(1.05);
-}
-.btn-qr-pass {
-    background: #ffffff;
-    color: #4338ca;
-    border: 2px solid #6366f1;
-    font-weight: 700;
-    transition: all 0.25s ease;
-}
-.btn-qr-pass:hover {
-    background: #4f46e5;
-    color: #ffffff;
-    border-color: #4f46e5;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
-}
-body.dark-mode .btn-qr-pass {
-    background: rgba(99, 102, 241, 0.2) !important;
-    color: #a5b4fc !important;
-    border-color: #6366f1 !important;
-}
-body.dark-mode .btn-qr-pass:hover {
-    background: #6366f1 !important;
-    color: #ffffff !important;
+/* ========================================================
+   SALONORA MY APPOINTMENTS - LUXURY DASHBOARD STYLES
+   ======================================================== */
+
+.appts-hero {
+  background: linear-gradient(135deg, #180928 0%, #2e083a 45%, #660f58 85%, #831843 100%);
+  color: #ffffff;
+  border-radius: 24px;
+  padding: 2.5rem 2rem;
+  margin-bottom: 2rem;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 15px 35px -10px rgba(102, 15, 88, 0.4);
 }
 
-.btn-rate-review {
-    background: #ffffff;
-    color: #b45309;
-    border: 2px solid #f59e0b;
-    font-weight: 700;
-    transition: all 0.25s ease;
-}
-.btn-rate-review:hover {
-    background: #f59e0b;
-    color: #ffffff;
-    border-color: #f59e0b;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
-}
-body.dark-mode .btn-rate-review {
-    background: rgba(245, 158, 11, 0.2) !important;
-    color: #fbbf24 !important;
-    border-color: #f59e0b !important;
-}
-body.dark-mode .btn-rate-review:hover {
-    background: #f59e0b !important;
-    color: #1e1b4b !important;
+.appts-hero::before {
+  content: '';
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.3) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
 }
 
-.nav-pills .nav-link {
-    color: #4b5563;
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    margin: 0 0.25rem;
-    border-radius: 50px;
-    font-weight: 500;
-    transition: 0.3s;
-}
-.nav-pills .nav-link:hover {
-    background: #fdf2f8;
-    color: #e91e63;
-    border-color: #fbcfe8;
-}
-.nav-pills .nav-link.active {
-    background: linear-gradient(135deg, #e91e63, #9c27b0) !important;
-    color: white !important;
-    border-color: transparent !important;
-    box-shadow: 0 4px 12px rgba(233, 30, 99, 0.25);
-}
-body.dark-mode .nav-pills .nav-link {
-    background: #1e1e38 !important;
-    color: #cbd5e1 !important;
-    border-color: #2d2d48 !important;
-}
-body.dark-mode .nav-pills .nav-link:hover {
-    background: #2a2a4a !important;
-    color: #ffffff !important;
-}
-body.dark-mode .nav-pills .nav-link.active {
-    background: linear-gradient(135deg, #e91e63, #9c27b0) !important;
-    color: white !important;
-}
-body.dark-mode .pending .status-badge {
-    color: #fbbf24 !important;
-    background: rgba(251, 191, 36, 0.2) !important;
-}
-body.dark-mode .confirmed .status-badge {
-    color: #4ade80 !important;
-    background: rgba(74, 222, 128, 0.2) !important;
-}
-body.dark-mode .cancelled .status-badge {
-    color: #cbd5e1 !important;
-    background: rgba(203, 213, 225, 0.15) !important;
-}
-body.dark-mode .rejected .status-badge {
-    color: #f87171 !important;
-    background: rgba(248, 113, 113, 0.2) !important;
-}
-body.dark-mode .completed .status-badge {
-    color: #60a5fa !important;
-    background: rgba(96, 165, 250, 0.2) !important;
-}
-body.dark-mode .info-row a {
-    color: #93c5fd !important;
-}
-.tab-content {
-    display: none;
-}
-.tab-content.active {
-    display: block;
-}
-.empty-state {
-    text-align: center;
-    background: white;
-    padding: 3rem;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    border-radius: 18px;
-}
-.empty-state i {
-    font-size: 4rem;
-    color: #c20784ff;
-    margin-bottom: 1rem;
+/* Quick Summary Stat Badges */
+.summary-stat-chip {
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 16px;
+  padding: 0.6rem 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #ffffff;
+  font-size: 0.9rem;
 }
 
+.summary-stat-chip .stat-number {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #fbcfe8;
+}
 
+/* Tab Navigation Pills */
+.nav-pills-appts {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+  scrollbar-width: thin;
+  justify-content: flex-start;
+}
+
+.nav-pills-appts::-webkit-scrollbar {
+  height: 4px;
+}
+.nav-pills-appts::-webkit-scrollbar-thumb {
+  background: rgba(233, 30, 99, 0.3);
+  border-radius: 4px;
+}
+
+.nav-pills-appts .nav-link {
+  background: #ffffff;
+  color: #475569;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 50px;
+  padding: 0.55rem 1.25rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.25s ease;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+.nav-pills-appts .nav-link:hover {
+  background: #fdf2f8;
+  color: #db2777;
+  border-color: #fbcfe8;
+  transform: translateY(-1px);
+}
+
+.nav-pills-appts .nav-link.active {
+  background: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+  box-shadow: 0 6px 18px rgba(233, 30, 99, 0.35);
+}
+
+.nav-pills-appts .nav-link .badge-count {
+  background: rgba(0, 0, 0, 0.06);
+  color: #475569;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 50px;
+  font-weight: 700;
+}
+
+.nav-pills-appts .nav-link.active .badge-count {
+  background: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+
+/* Appointment Cards */
+.appt-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 1.6rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid #e2e8f0;
+  border-left: 6px solid #cbd5e1;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+  transition: all 0.25s ease;
+  position: relative;
+}
+
+.appt-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+}
+
+/* Status Border Colors */
+.appt-card.confirmed { border-left-color: #10b981; }
+.appt-card.pending { border-left-color: #f59e0b; }
+.appt-card.completed { border-left-color: #3b82f6; }
+.appt-card.cancelled { border-left-color: #94a3b8; }
+.appt-card.rejected { border-left-color: #ef4444; }
+
+/* Status Badges */
+.badge-status-pill {
+  padding: 0.45rem 1rem;
+  font-weight: 700;
+  border-radius: 50px;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  letter-spacing: 0.3px;
+}
+
+.badge-status-confirmed {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-status-pending {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-status-completed {
+  background: rgba(59, 130, 246, 0.12);
+  color: #2563eb;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.badge-status-cancelled {
+  background: rgba(100, 116, 139, 0.12);
+  color: #475569;
+  border: 1px solid rgba(100, 116, 139, 0.3);
+}
+
+.badge-status-rejected {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Detail Info Rows */
+.appt-detail-row {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 0.65rem;
+  font-size: 0.92rem;
+  color: #334155;
+}
+
+.appt-detail-row i {
+  width: 22px;
+  margin-right: 0.75rem;
+  margin-top: 3px;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.appt-detail-row a {
+  color: #e91e63;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.appt-detail-row a:hover {
+  text-decoration: underline;
+}
+
+/* Notes callout inside card */
+.appt-notes-box {
+  background: #f8fafc;
+  border-left: 3px solid #cbd5e1;
+  padding: 0.65rem 1rem;
+  border-radius: 0 10px 10px 0;
+  font-size: 0.86rem;
+  color: #475569;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.appt-reason-box {
+  background: #fef2f2;
+  border-left: 3px solid #ef4444;
+  padding: 0.65rem 1rem;
+  border-radius: 0 10px 10px 0;
+  font-size: 0.86rem;
+  color: #991b1b;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Tab panes */
+.tab-pane-content {
+  display: none;
+}
+
+.tab-pane-content.active {
+  display: block;
+  animation: fadeIn 0.25s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Empty State */
+.empty-appts-box {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 4rem 2rem;
+  text-align: center;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+}
+
+.empty-appts-icon {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: #fdf2f8;
+  color: #e91e63;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Live Search Filter Input */
+.search-filter-box {
+  position: relative;
+  max-width: 320px;
+}
+
+.search-filter-box input {
+  padding-left: 2.5rem;
+  border-radius: 50px;
+  border: 1.5px solid #e2e8f0;
+  font-size: 0.88rem;
+}
+
+.search-filter-box i {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+}
+
+/* ========================================================
+   DARK MODE ADAPTATIONS
+   ======================================================== */
+body.dark-mode .appts-hero {
+  background: linear-gradient(135deg, #11051c 0%, #1c0524 45%, #3d0534 85%, #4c051e 100%) !important;
+  box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.6) !important;
+}
+
+body.dark-mode .nav-pills-appts .nav-link {
+  background: #1e1e38 !important;
+  color: #cbd5e1 !important;
+  border-color: #2d2d48 !important;
+}
+
+body.dark-mode .nav-pills-appts .nav-link:hover {
+  background: #2a2a4c !important;
+  color: #f472b6 !important;
+}
+
+body.dark-mode .nav-pills-appts .nav-link.active {
+  background: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+
+body.dark-mode .nav-pills-appts .nav-link .badge-count {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #cbd5e1 !important;
+}
+
+body.dark-mode .appt-card {
+  background: #1a1a2e !important;
+  border-color: #2d2d48 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+body.dark-mode .appt-card h5 {
+  color: #f8fafc !important;
+}
+
+body.dark-mode .appt-detail-row {
+  color: #cbd5e1 !important;
+}
+
+body.dark-mode .appt-detail-row strong {
+  color: #f8fafc !important;
+}
+
+body.dark-mode .appt-notes-box {
+  background: #151528 !important;
+  border-left-color: #475569 !important;
+  color: #94a3b8 !important;
+}
+
+body.dark-mode .appt-reason-box {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-left-color: #ef4444 !important;
+  color: #fca5a5 !important;
+}
+
+body.dark-mode .empty-appts-box {
+  background: #1a1a2e !important;
+  border-color: #2d2d48 !important;
+  color: #e2e8f0 !important;
+}
+
+body.dark-mode .empty-appts-icon {
+  background: rgba(233, 30, 99, 0.15) !important;
+  color: #f472b6 !important;
+}
+
+body.dark-mode .search-filter-box input {
+  background: #1e1e38 !important;
+  border-color: #2d2d48 !important;
+  color: #f8fafc !important;
+}
+
+body.dark-mode .badge-status-confirmed {
+  background: rgba(16, 185, 129, 0.2) !important;
+  color: #34d399 !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
+}
+
+body.dark-mode .badge-status-pending {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #fbbf24 !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+}
+
+body.dark-mode .badge-status-completed {
+  background: rgba(59, 130, 246, 0.2) !important;
+  color: #60a5fa !important;
+  border-color: rgba(59, 130, 246, 0.4) !important;
+}
+
+body.dark-mode .badge-status-cancelled {
+  background: rgba(148, 163, 184, 0.2) !important;
+  color: #94a3b8 !important;
+  border-color: rgba(148, 163, 184, 0.4) !important;
+}
+
+body.dark-mode .badge-status-rejected {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #f87171 !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
 </style>
-</head>
 
-<body>
+<div class="container py-4 pb-5">
 
-<?php include __DIR__.'/../header.php'; ?>
+  <!-- ==========================================
+       HERO BANNER & STATS BAR
+       ========================================== -->
+  <div class="appts-hero">
+    <div class="row align-items-center">
+      <div class="col-lg-7">
+        <span class="badge bg-white bg-opacity-20 text-white px-3 py-2 rounded-pill fw-bold mb-3 shadow-sm">
+          <i class="fas fa-calendar-check me-1 text-warning"></i> Customer Booking Portal
+        </span>
+        <h1 class="display-6 fw-bold mb-2">My Salon Appointments</h1>
+        <p class="lead mb-3 text-white-50" style="font-size: 1.05rem;">
+          Track your upcoming salon visits, access digital QR passes, review invoices, and manage your beauty schedule with ease.
+        </p>
 
-<div class="page-header">
-    <h1><i class="fas fa-calendar-alt me-2"></i>My Appointments</h1>
-    <p>Track and manage your salon bookings</p>
-</div>
+        <!-- Summary Stat Chips -->
+        <div class="d-flex flex-wrap gap-2">
+          <div class="summary-stat-chip">
+            <i class="fas fa-calendar text-info"></i>
+            <div>
+              <span class="stat-number"><?= count($upcoming) ?></span>
+              <span class="d-block small text-white-50">Upcoming</span>
+            </div>
+          </div>
+          <div class="summary-stat-chip">
+            <i class="fas fa-hourglass-half text-warning"></i>
+            <div>
+              <span class="stat-number"><?= count($pending) ?></span>
+              <span class="d-block small text-white-50">Pending</span>
+            </div>
+          </div>
+          <div class="summary-stat-chip">
+            <i class="fas fa-check-circle text-success"></i>
+            <div>
+              <span class="stat-number"><?= count($completed) ?></span>
+              <span class="d-block small text-white-50">Completed</span>
+            </div>
+          </div>
+          <div class="summary-stat-chip">
+            <i class="fas fa-history text-secondary"></i>
+            <div>
+              <span class="stat-number"><?= count($appointments) ?></span>
+              <span class="d-block small text-white-50">Total Bookings</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
-<div class="container pb-5 mt-4">
+      <div class="col-lg-5 text-lg-end mt-4 mt-lg-0">
+        <a href="<?= url('user/salon_view.php') ?>" class="btn btn-light btn-lg rounded-pill px-4 py-3 fw-bold text-dark shadow-lg">
+          <i class="fas fa-plus-circle text-primary me-2"></i> Book New Service
+        </a>
+      </div>
+    </div>
+  </div>
 
-<?php if(isset($_SESSION['success_message'])): ?>
-<div class="alert alert-success alert-dismissible fade show" role="alert">
-    <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($_SESSION['success_message']); ?>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-<?php unset($_SESSION['success_message']); endif; ?>
+  <!-- Global Action Messages -->
+  <?php if (!empty($_SESSION['success_message'])): ?>
+    <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 rounded-4 d-flex align-items-center mb-4" role="alert">
+      <i class="fas fa-check-circle me-3 fs-5"></i>
+      <div><?= htmlspecialchars($_SESSION['success_message']); ?></div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  <?php unset($_SESSION['success_message']); endif; ?>
 
-<?php if(isset($_SESSION['error_message'])): ?>
-<div class="alert alert-danger alert-dismissible fade show" role="alert">
-    <i class="fas fa-exclamation-circle me-2"></i><?= htmlspecialchars($_SESSION['error_message']); ?>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-<?php unset($_SESSION['error_message']); endif; ?>
+  <?php if (!empty($_SESSION['error_message'])): ?>
+    <div class="alert alert-danger alert-dismissible fade show shadow-sm border-0 rounded-4 d-flex align-items-center mb-4" role="alert">
+      <i class="fas fa-exclamation-triangle me-3 fs-5"></i>
+      <div><?= htmlspecialchars($_SESSION['error_message']); ?></div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  <?php unset($_SESSION['error_message']); endif; ?>
 
-<!-- Tabs -->
-<ul class="nav nav-pills justify-content-center mb-4">
-    <li class="nav-item">
-        <button data-tab="upcoming" class="nav-link active">
-            Upcoming <span class="badge bg-light text-dark"><?= count($upcoming) ?></span>
-        </button>
-    </li>
-    <li class="nav-item">
-        <button data-tab="all" class="nav-link">
-            All <span class="badge bg-light text-dark"><?= count($appointments) ?></span>
-        </button>
-    </li>
-    <li class="nav-item">
-        <button data-tab="pending" class="nav-link">
-            Pending <span class="badge bg-light text-dark"><?= count($pending) ?></span>
-        </button>
-    </li>
-    <li class="nav-item">
-        <button data-tab="confirmed" class="nav-link">
-            Confirmed <span class="badge bg-light text-dark"><?= count($confirmed) ?></span>
-        </button>
-    </li>
-    <li class="nav-item">
-        <button data-tab="completed" class="nav-link">
-            Completed <span class="badge bg-light text-dark"><?= count($completed) ?></span>
-        </button>
-    </li>
-    <li class="nav-item">
-        <button data-tab="cancelled" class="nav-link">
-            Cancelled / Declined <span class="badge bg-light text-dark"><?= count($cancelled_or_rejected) ?></span>
-        </button>
-    </li>
-</ul>
+  <!-- ==========================================
+       TABS NAVIGATION & SEARCH FILTER BAR
+       ========================================== -->
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    
+    <!-- Tab Navigation Pills -->
+    <div class="nav-pills-appts">
+      <button type="button" data-tab="upcoming" class="nav-link <?= ($defaultTab === 'upcoming') ? 'active' : '' ?>">
+        <i class="fas fa-clock"></i> Upcoming 
+        <span class="badge-count"><?= count($upcoming) ?></span>
+      </button>
 
-<!-- TAB: UPCOMING -->
-<div class="tab-content active" id="upcoming">
-    <?php if(empty($upcoming)): ?>
-        <div class="empty-state">
-            <i class="far fa-calendar"></i>
-            <h4>No Upcoming Appointments</h4>
-            <p class="text-muted">Book your next salon appointment now.</p>
-            <a href="salon_view.php" class="btn btn-primary mt-3">
-                <i class="fas fa-search me-2"></i>Browse Salons
+      <button type="button" data-tab="all" class="nav-link <?= ($defaultTab === 'all') ? 'active' : '' ?>">
+        <i class="fas fa-list-ul"></i> All 
+        <span class="badge-count"><?= count($appointments) ?></span>
+      </button>
+
+      <button type="button" data-tab="pending" class="nav-link">
+        <i class="fas fa-hourglass-half"></i> Pending 
+        <span class="badge-count"><?= count($pending) ?></span>
+      </button>
+
+      <button type="button" data-tab="confirmed" class="nav-link">
+        <i class="fas fa-check-circle"></i> Confirmed 
+        <span class="badge-count"><?= count($confirmed) ?></span>
+      </button>
+
+      <button type="button" data-tab="completed" class="nav-link">
+        <i class="fas fa-calendar-check"></i> Completed 
+        <span class="badge-count"><?= count($completed) ?></span>
+      </button>
+
+      <button type="button" data-tab="cancelled" class="nav-link">
+        <i class="fas fa-ban"></i> Cancelled / Declined 
+        <span class="badge-count"><?= count($cancelled_or_rejected) ?></span>
+      </button>
+    </div>
+
+    <!-- Live Search Filter -->
+    <div class="search-filter-box">
+      <i class="fas fa-search"></i>
+      <input type="text" id="apptSearchInput" class="form-control" placeholder="Search salon or service...">
+    </div>
+
+  </div>
+
+  <!-- ==========================================
+       APPOINTMENT RENDER FUNCTION
+       ========================================== -->
+  <?php
+  function renderApptCardHTML($a, $now, $csrf_token) {
+      $apptDateTime = strtotime($a['appointment_date'] . ' ' . $a['appointment_time']);
+      $hoursUntil = ($apptDateTime - $now) / 3600;
+      $isPast = ($apptDateTime <= $now);
+
+      // Cancellation eligibility rule
+      $canCancel = false;
+      if ($a['status'] === 'pending' && !$isPast) {
+          $canCancel = true;
+      } elseif ($a['status'] === 'confirmed' && $hoursUntil >= 24) {
+          $canCancel = true;
+      }
+
+      // Format WhatsApp Phone
+      $rawPhone = preg_replace('/[^0-9]/', '', $a['salon_phone'] ?? '');
+      $waPhone = '';
+      if (!empty($rawPhone)) {
+          $waPhone = str_starts_with($rawPhone, '0') ? ('94' . substr($rawPhone, 1)) : $rawPhone;
+      }
+      $waText = urlencode("Hello {$a['salon_name']}, I have an appointment (#{$a['id']}) for {$a['service_name']} on " . date('M d, Y', strtotime($a['appointment_date'])) . " at " . date('h:i A', strtotime($a['appointment_time'])) . ".");
+
+      // Status labels & badges
+      $statusConfig = [
+          'confirmed' => ['label' => 'Confirmed', 'icon' => 'fa-check-circle', 'class' => 'badge-status-confirmed'],
+          'pending'   => ['label' => 'Pending Approval', 'icon' => 'fa-hourglass-half', 'class' => 'badge-status-pending'],
+          'completed' => ['label' => 'Completed', 'icon' => 'fa-flag-checkered', 'class' => 'badge-status-completed'],
+          'cancelled' => ['label' => 'Cancelled', 'icon' => 'fa-ban', 'class' => 'badge-status-cancelled'],
+          'rejected'  => ['label' => 'Declined by Salon', 'icon' => 'fa-times-circle', 'class' => 'badge-status-rejected']
+      ];
+      $st = $statusConfig[$a['status']] ?? ['label' => ucfirst($a['status']), 'icon' => 'fa-circle', 'class' => 'badge-status-cancelled'];
+
+      ob_start();
+      ?>
+      <div class="appt-card <?= htmlspecialchars($a['status']) ?>" data-search="<?= strtolower(htmlspecialchars($a['salon_name'] . ' ' . $a['service_name'] . ' ' . $a['salon_address'])) ?>">
+        
+        <!-- Card Top Bar: Salon & Status -->
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+          <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <span class="badge bg-secondary-subtle text-secondary rounded-pill px-2 py-1 small fw-bold">
+                #APT-<?= str_pad($a['id'], 5, '0', STR_PAD_LEFT) ?>
+              </span>
+              <?php if (!empty($a['service_category'])): ?>
+                <span class="badge bg-light text-muted border rounded-pill px-2 py-1 small">
+                  <?= htmlspecialchars($a['service_category']) ?>
+                </span>
+              <?php endif; ?>
+            </div>
+            <h5 class="fw-bold mb-0 text-dark"><?= htmlspecialchars($a['salon_name']) ?></h5>
+          </div>
+
+          <span class="badge-status-pill <?= $st['class'] ?>">
+            <i class="fas <?= $st['icon'] ?>"></i>
+            <?= $st['label'] ?>
+          </span>
+        </div>
+
+        <!-- Appointment Details Grid -->
+        <div class="row g-2 mb-2">
+          
+          <div class="col-md-6">
+            <div class="appt-detail-row">
+              <i class="fas fa-cut text-primary"></i>
+              <div>
+                <span class="text-muted small d-block">Service</span>
+                <strong><?= htmlspecialchars($a['service_name']) ?></strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="appt-detail-row">
+              <i class="fas fa-tag text-success"></i>
+              <div>
+                <span class="text-muted small d-block">Total Price</span>
+                <strong class="text-success">Rs. <?= number_format($a['service_price'], 2) ?></strong>
+                <?php if (!empty($a['discount_amount']) && $a['discount_amount'] > 0): ?>
+                  <span class="badge bg-danger-subtle text-danger rounded-pill ms-1 small">
+                    -Rs. <?= number_format($a['discount_amount'], 2) ?> Promo
+                  </span>
+                <?php endif; ?>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="appt-detail-row">
+              <i class="fas fa-calendar-alt text-danger"></i>
+              <div>
+                <span class="text-muted small d-block">Appointment Date</span>
+                <strong><?= date('l, M d, Y', strtotime($a['appointment_date'])) ?></strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="appt-detail-row">
+              <i class="fas fa-clock text-warning"></i>
+              <div>
+                <span class="text-muted small d-block">Scheduled Time</span>
+                <strong><?= date('h:i A', strtotime($a['appointment_time'])) ?></strong>
+                <span class="text-muted small">(~<?= htmlspecialchars($a['service_duration']) ?> mins)</span>
+              </div>
+            </div>
+          </div>
+
+          <?php if (!empty($a['staff_name'])): ?>
+          <div class="col-md-6">
+            <div class="appt-detail-row">
+              <i class="fas fa-user-friends text-info"></i>
+              <div>
+                <span class="text-muted small d-block">Assigned Stylist</span>
+                <strong><?= htmlspecialchars($a['staff_name']) ?></strong>
+              </div>
+            </div>
+          </div>
+          <?php endif; ?>
+
+          <div class="col-md-6">
+            <div class="appt-detail-row">
+              <i class="fas fa-map-marker-alt text-secondary"></i>
+              <div>
+                <span class="text-muted small d-block">Salon Location</span>
+                <span><?= htmlspecialchars($a['salon_address']) ?></span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Client Notes Callout (if any) -->
+        <?php if (!empty($a['notes'])): ?>
+          <div class="appt-notes-box">
+            <i class="fas fa-sticky-note me-1 text-primary"></i>
+            <strong>My Notes:</strong> <?= htmlspecialchars($a['notes']) ?>
+          </div>
+        <?php endif; ?>
+
+        <!-- Cancellation/Decline Reason (if any) -->
+        <?php if (!empty($a['cancellation_reason'])): ?>
+          <div class="appt-reason-box">
+            <i class="fas fa-info-circle me-1"></i>
+            <strong>Reason:</strong> <?= htmlspecialchars($a['cancellation_reason']) ?>
+          </div>
+        <?php endif; ?>
+
+        <!-- Policy Alerts & Context -->
+        <?php if ($isPast && in_array($a['status'], ['pending', 'confirmed'])): ?>
+          <div class="alert alert-secondary py-2 px-3 mb-3 small d-flex align-items-center rounded-3">
+            <i class="fas fa-history me-2"></i>
+            This appointment date and time has passed.
+          </div>
+        <?php elseif (!$canCancel && $a['status'] === 'confirmed'): ?>
+          <div class="text-muted small mb-3">
+            <i class="fas fa-info-circle me-1"></i> Confirmed bookings within 24 hours cannot be cancelled online. Please call the salon directly.
+          </div>
+        <?php endif; ?>
+
+        <!-- Action Buttons Bar -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 pt-3 border-top mt-2">
+          
+          <!-- Left Actions -->
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            
+            <!-- WhatsApp Button -->
+            <?php if (!empty($waPhone)): ?>
+              <a href="https://wa.me/<?= htmlspecialchars($waPhone) ?>?text=<?= $waText ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success rounded-pill px-3">
+                <i class="fab fa-whatsapp me-1"></i> WhatsApp
+              </a>
+            <?php endif; ?>
+
+            <!-- Phone Call Button -->
+            <?php if (!empty($a['salon_phone'])): ?>
+              <a href="tel:<?= htmlspecialchars($a['salon_phone']) ?>" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                <i class="fas fa-phone-alt me-1"></i> Call Salon
+              </a>
+            <?php endif; ?>
+
+            <!-- Receipt / Invoice Button -->
+            <a href="invoice.php?id=<?= $a['id'] ?>" target="_blank" class="btn btn-sm btn-outline-info rounded-pill px-3">
+              <i class="fas fa-file-invoice me-1"></i> Receipt
             </a>
+
+            <!-- QR Pass Button -->
+            <?php if (in_array($a['status'], ['pending', 'confirmed'])): ?>
+              <button type="button" class="btn btn-sm btn-qr-pass rounded-pill px-3" 
+                data-id="<?= $a['id'] ?>"
+                data-salon="<?= htmlspecialchars($a['salon_name']) ?>"
+                data-service="<?= htmlspecialchars($a['service_name']) ?>"
+                data-datetime="<?= date('l, M d, Y - h:i A', strtotime($a['appointment_date'] . ' ' . $a['appointment_time'])) ?>"
+                onclick="openQRModalFromBtn(this)">
+                <i class="fas fa-qrcode me-1"></i> QR Pass
+              </button>
+            <?php endif; ?>
+
+            <!-- Review Button (for completed appointments) -->
+            <?php if ($a['status'] === 'completed'): ?>
+              <a href="salon_details.php?id=<?= $a['salon_id'] ?>#reviews" class="btn btn-sm btn-rate-review rounded-pill px-3">
+                <i class="fas fa-star me-1"></i> Rate & Review
+              </a>
+            <?php endif; ?>
+
+            <!-- Re-book Button (for completed or cancelled) -->
+            <?php if (in_array($a['status'], ['completed', 'cancelled', 'rejected'])): ?>
+              <a href="book_appointment.php?salon_id=<?= $a['salon_id'] ?>&service_id=<?= $a['service_id'] ?>" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                <i class="fas fa-redo-alt me-1"></i> Book Again
+              </a>
+            <?php endif; ?>
+
+          </div>
+
+          <!-- Right Action: Cancel Button (if eligible) -->
+          <?php if ($canCancel): ?>
+            <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3" 
+              data-id="<?= $a['id'] ?>"
+              data-salon="<?= htmlspecialchars($a['salon_name']) ?>"
+              data-service="<?= htmlspecialchars($a['service_name']) ?>"
+              data-datetime="<?= date('M d, Y h:i A', strtotime($a['appointment_date'] . ' ' . $a['appointment_time'])) ?>"
+              onclick="openCancelModalFromBtn(this)">
+              <i class="fas fa-times-circle me-1"></i> Cancel Booking
+            </button>
+          <?php endif; ?>
+
         </div>
-    <?php else: ?>
-        <?php foreach($upcoming as $a): ?>
-            <?= renderAppointmentCard($a, $now, $_SESSION['csrf_token']) ?>
-        <?php endforeach; ?>
-    <?php endif; ?>
-</div>
 
-<!-- TAB: ALL -->
-<div class="tab-content" id="all">
-    <?php if(empty($appointments)): ?>
-        <div class="empty-state">
-            <i class="far fa-calendar"></i>
-            <h4>No Appointments Yet</h4>
-            <p class="text-muted">Start booking your salon services.</p>
-            <a href="salon_view.php" class="btn btn-primary mt-3">
-                <i class="fas fa-search me-2"></i>Browse Salons
-            </a>
+        <!-- Footer Meta -->
+        <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center text-muted small">
+          <span><i class="far fa-clock me-1"></i> Booked on: <?= date('M d, Y h:i A', strtotime($a['created_at'])) ?></span>
+          <a href="salon_details.php?id=<?= $a['salon_id'] ?>" class="text-muted text-decoration-none hover-primary">
+            View Salon Profile <i class="fas fa-external-link-alt ms-1 small"></i>
+          </a>
         </div>
+
+      </div>
+      <?php
+      return ob_get_clean();
+  }
+  ?>
+
+  <!-- ==========================================
+       TAB CONTENT PANES
+       ========================================== -->
+
+  <!-- TAB: UPCOMING -->
+  <div class="tab-pane-content <?= ($defaultTab === 'upcoming') ? 'active' : '' ?>" id="tab-upcoming">
+    <?php if (empty($upcoming)): ?>
+      <div class="empty-appts-box">
+        <div class="empty-appts-icon"><i class="far fa-calendar-check"></i></div>
+        <h4 class="fw-bold mb-2">No Upcoming Appointments</h4>
+        <p class="text-muted mx-auto mb-4" style="max-width: 440px;">
+          You don't have any pending or confirmed bookings coming up. Browse our certified salons and schedule your next pampering session today!
+        </p>
+        <a href="<?= url('user/salon_view.php') ?>" class="btn btn-gradient rounded-pill px-4 py-2 fw-semibold">
+          <i class="fas fa-search me-1"></i> Explore Salons
+        </a>
+      </div>
     <?php else: ?>
-        <?php foreach($appointments as $a): ?>
-            <?= renderAppointmentCard($a, $now, $_SESSION['csrf_token']) ?>
-        <?php endforeach; ?>
+      <?php foreach ($upcoming as $a): ?>
+        <?= renderApptCardHTML($a, $now, $_SESSION['csrf_token']) ?>
+      <?php endforeach; ?>
     <?php endif; ?>
-</div>
+  </div>
 
-<!-- TAB: PENDING -->
-<div class="tab-content" id="pending">
-    <?php if(empty($pending)): ?>
-        <div class="empty-state">
-            <i class="far fa-hourglass"></i>
-            <h4>No Pending Appointments</h4>
-            <p class="text-muted">All your appointments have been processed.</p>
-        </div>
+  <!-- TAB: ALL -->
+  <div class="tab-pane-content <?= ($defaultTab === 'all') ? 'active' : '' ?>" id="tab-all">
+    <?php if (empty($appointments)): ?>
+      <div class="empty-appts-box">
+        <div class="empty-appts-icon"><i class="far fa-calendar-alt"></i></div>
+        <h4 class="fw-bold mb-2">No Appointments Found</h4>
+        <p class="text-muted mx-auto mb-4" style="max-width: 440px;">
+          You haven't made any salon appointments yet. Start your beauty journey now.
+        </p>
+        <a href="<?= url('user/salon_view.php') ?>" class="btn btn-gradient rounded-pill px-4 py-2 fw-semibold">
+          <i class="fas fa-search me-1"></i> Explore Salons
+        </a>
+      </div>
     <?php else: ?>
-        <?php foreach($pending as $a): ?>
-            <?= renderAppointmentCard($a, $now, $_SESSION['csrf_token']) ?>
-        <?php endforeach; ?>
+      <?php foreach ($appointments as $a): ?>
+        <?= renderApptCardHTML($a, $now, $_SESSION['csrf_token']) ?>
+      <?php endforeach; ?>
     <?php endif; ?>
-</div>
+  </div>
 
-<!-- TAB: CONFIRMED -->
-<div class="tab-content" id="confirmed">
-    <?php if(empty($confirmed)): ?>
-        <div class="empty-state">
-            <i class="far fa-check-circle"></i>
-            <h4>No Confirmed Appointments</h4>
-            <p class="text-muted">Your confirmed appointments will appear here.</p>
-        </div>
+  <!-- TAB: PENDING -->
+  <div class="tab-pane-content" id="tab-pending">
+    <?php if (empty($pending)): ?>
+      <div class="empty-appts-box">
+        <div class="empty-appts-icon"><i class="far fa-hourglass"></i></div>
+        <h4 class="fw-bold mb-2">No Pending Appointments</h4>
+        <p class="text-muted mx-auto mb-3" style="max-width: 420px;">
+          All your booking requests have been reviewed by salons.
+        </p>
+      </div>
     <?php else: ?>
-        <?php foreach($confirmed as $a): ?>
-            <?= renderAppointmentCard($a, $now, $_SESSION['csrf_token']) ?>
-        <?php endforeach; ?>
+      <?php foreach ($pending as $a): ?>
+        <?= renderApptCardHTML($a, $now, $_SESSION['csrf_token']) ?>
+      <?php endforeach; ?>
     <?php endif; ?>
-</div>
+  </div>
 
-<!-- TAB: COMPLETED -->
-<div class="tab-content" id="completed">
-    <?php if(empty($completed)): ?>
-        <div class="empty-state">
-            <i class="far fa-check-square"></i>
-            <h4>No Completed Appointments</h4>
-            <p class="text-muted">Your appointment history will appear here.</p>
-        </div>
+  <!-- TAB: CONFIRMED -->
+  <div class="tab-pane-content" id="tab-confirmed">
+    <?php if (empty($confirmed)): ?>
+      <div class="empty-appts-box">
+        <div class="empty-appts-icon"><i class="far fa-check-circle"></i></div>
+        <h4 class="fw-bold mb-2">No Confirmed Appointments</h4>
+        <p class="text-muted mx-auto mb-3" style="max-width: 420px;">
+          Your confirmed appointments will appear here as soon as the salon accepts your booking.
+        </p>
+      </div>
     <?php else: ?>
-        <?php foreach($completed as $a): ?>
-            <?= renderAppointmentCard($a, $now, $_SESSION['csrf_token']) ?>
-        <?php endforeach; ?>
+      <?php foreach ($confirmed as $a): ?>
+        <?= renderApptCardHTML($a, $now, $_SESSION['csrf_token']) ?>
+      <?php endforeach; ?>
     <?php endif; ?>
-</div>
+  </div>
 
-<!-- TAB: CANCELLED / DECLINED -->
-<div class="tab-content" id="cancelled">
-    <?php if(empty($cancelled_or_rejected)): ?>
-        <div class="empty-state">
-            <i class="far fa-times-circle"></i>
-            <h4>No Cancelled or Declined Appointments</h4>
-            <p class="text-muted">You have no cancelled or declined bookings.</p>
-        </div>
+  <!-- TAB: COMPLETED -->
+  <div class="tab-pane-content" id="tab-completed">
+    <?php if (empty($completed)): ?>
+      <div class="empty-appts-box">
+        <div class="empty-appts-icon"><i class="fas fa-flag-checkered"></i></div>
+        <h4 class="fw-bold mb-2">No Completed Appointments Yet</h4>
+        <p class="text-muted mx-auto mb-3" style="max-width: 420px;">
+          After visiting the salon and checking in, your past history and invoices will show up here.
+        </p>
+      </div>
     <?php else: ?>
-        <?php foreach($cancelled_or_rejected as $a): ?>
-            <?= renderAppointmentCard($a, $now, $_SESSION['csrf_token']) ?>
-        <?php endforeach; ?>
+      <?php foreach ($completed as $a): ?>
+        <?= renderApptCardHTML($a, $now, $_SESSION['csrf_token']) ?>
+      <?php endforeach; ?>
     <?php endif; ?>
-</div>
+  </div>
+
+  <!-- TAB: CANCELLED / DECLINED -->
+  <div class="tab-pane-content" id="tab-cancelled">
+    <?php if (empty($cancelled_or_rejected)): ?>
+      <div class="empty-appts-box">
+        <div class="empty-appts-icon"><i class="far fa-smile"></i></div>
+        <h4 class="fw-bold mb-2">No Cancelled Bookings</h4>
+        <p class="text-muted mx-auto mb-3" style="max-width: 420px;">
+          You don't have any cancelled or declined appointments. Everything is on schedule!
+        </p>
+      </div>
+    <?php else: ?>
+      <?php foreach ($cancelled_or_rejected as $a): ?>
+        <?= renderApptCardHTML($a, $now, $_SESSION['csrf_token']) ?>
+      <?php endforeach; ?>
+    <?php endif; ?>
+  </div>
 
 </div>
 
-<!-- QR Pass Modal -->
+<!-- ==========================================
+     MODAL: QR CHECK-IN PASS
+     ========================================== -->
 <div class="modal fade" id="appointmentQrModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content text-center p-4 rounded-4 shadow border-0">
       <div class="modal-header border-0 pb-0">
-        <h5 class="modal-title fw-bold text-dark" id="qrModalSalonName">Salon Name</h5>
+        <div>
+          <h5 class="modal-title fw-bold text-dark mb-0" id="qrModalSalonName">Salon Name</h5>
+          <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-1 small fw-bold mt-1" id="qrModalAptId">Appointment #</span>
+        </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
-        <p class="text-muted small mb-3">Show this QR pass at the salon reception for fast check-in</p>
-        <div class="p-3 bg-white rounded-3 shadow-sm d-inline-block border">
-          <img id="qrModalImage" src="" alt="Appointment QR Code" style="width:200px; height:200px; object-fit:contain;">
+      <div class="modal-body py-4">
+        <p class="text-muted small mb-3">Present this QR pass to the salon receptionist upon arrival for instant contact-free check-in.</p>
+        
+        <div class="p-3 bg-white rounded-4 shadow-sm d-inline-block border">
+          <img id="qrModalImage" src="" alt="Appointment QR Code" style="width:210px; height:210px; object-fit:contain;" class="rounded-3">
         </div>
-        <h6 class="mt-3 fw-bold text-dark mb-1" id="qrModalService">Service Name</h6>
-        <p class="text-muted small mb-2" id="qrModalDateTime">Date & Time</p>
-        <span class="badge bg-primary px-3 py-2" id="qrModalAptId">Appointment #</span>
+
+        <div class="mt-3">
+          <h6 class="fw-bold text-dark mb-1" id="qrModalService">Service Name</h6>
+          <p class="text-muted small mb-0" id="qrModalDateTime">Date & Time</p>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-center">
+        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
 </div>
 
-<?php include __DIR__ . '/../footer.php'; ?>
+<!-- ==========================================
+     MODAL: CANCELLATION CONFIRMATION
+     ========================================== -->
+<div class="modal fade" id="cancelAppointmentModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content p-4 rounded-4 shadow border-0">
+      <form method="POST" action="my_appointments.php">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+        <input type="hidden" name="appointment_id" id="cancelModalApptId" value="">
+        <input type="hidden" name="cancel_appointment" value="1">
 
-<!-- Bootstrap JS -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold text-danger">
+            <i class="fas fa-exclamation-triangle me-2"></i> Cancel Appointment?
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
 
-<!-- Tab switching & QR Pass Modal logic -->
+        <div class="modal-body py-3">
+          <p class="text-muted small mb-2">
+            Are you sure you want to cancel your scheduled appointment at <strong id="cancelModalSalon"></strong>?
+          </p>
+
+          <div class="bg-light p-3 rounded-3 mb-3 small">
+            <div><strong>Service:</strong> <span id="cancelModalService"></span></div>
+            <div><strong>Date & Time:</strong> <span id="cancelModalDateTime"></span></div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Reason for Cancellation (Optional):</label>
+            <select class="form-select rounded-3 small" name="cancellation_reason">
+              <option value="Schedule Conflict / Plan Changed">Schedule Conflict / Plan Changed</option>
+              <option value="Booked by Mistake">Booked by Mistake</option>
+              <option value="Emergency or Illness">Emergency or Illness</option>
+              <option value="Decided to change salon or service">Decided to change salon or service</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div class="alert alert-warning py-2 px-3 small mb-0 rounded-3">
+            <i class="fas fa-info-circle me-1"></i> This cancellation cannot be undone. You will need to book a new appointment if you change your mind.
+          </div>
+        </div>
+
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Keep Booking</button>
+          <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold">Confirm Cancellation</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <script>
+// ==========================================
+// TAB SWITCHING LOGIC
+// ==========================================
 document.addEventListener('DOMContentLoaded', function() {
-    const tabs = document.querySelectorAll('[data-tab]');
-    const contents = document.querySelectorAll('.tab-content');
-    
-    tabs.forEach(button => {
-        button.addEventListener('click', function() {
-            const targetTab = this.getAttribute('data-tab');
-            
-            // Remove active class from all tabs and contents
-            tabs.forEach(t => t.classList.remove('active'));
-            contents.forEach(c => c.classList.remove('active'));
-            
-            // Add active class to clicked tab and corresponding content
-            this.classList.add('active');
-            const targetContent = document.getElementById(targetTab);
-            if (targetContent) {
-                targetContent.classList.add('active');
-            }
-        });
+  const tabButtons = document.querySelectorAll('.nav-pills-appts .nav-link');
+  const tabPanes = document.querySelectorAll('.tab-pane-content');
+
+  tabButtons.forEach(btn => {
+    btn.addEventListener('click', function() {
+      const target = this.getAttribute('data-tab');
+
+      tabButtons.forEach(b => b.classList.remove('active'));
+      tabPanes.forEach(p => p.classList.remove('active'));
+
+      this.classList.add('active');
+      const pane = document.getElementById('tab-' + target);
+      if (pane) {
+        pane.classList.add('active');
+      }
     });
+  });
+
+  // Real-time search filter across cards in active pane
+  const searchInput = document.getElementById('apptSearchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', function() {
+      const q = this.value.trim().toLowerCase();
+      document.querySelectorAll('.appt-card').forEach(card => {
+        const text = card.getAttribute('data-search') || '';
+        if (!q || text.includes(q)) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+  }
 });
 
-function showQRModal(aptId, salonName, serviceName, dateTime) {
-    document.getElementById('qrModalSalonName').innerText = salonName;
-    document.getElementById('qrModalService').innerText = serviceName;
-    document.getElementById('qrModalDateTime').innerText = dateTime;
-    document.getElementById('qrModalAptId').innerText = 'Appointment #' + aptId;
-    
-    const qrData = 'SALONORA_APT:' + aptId;
-    document.getElementById('qrModalImage').src = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(qrData);
-    
-    const modalEl = document.getElementById('appointmentQrModal');
-    const modal = new bootstrap.Modal(modalEl);
-    modal.show();
+// ==========================================
+// QR PASS MODAL
+// ==========================================
+function openQRModalFromBtn(btn) {
+  const aptId = btn.getAttribute('data-id');
+  const salonName = btn.getAttribute('data-salon');
+  const serviceName = btn.getAttribute('data-service');
+  const dateTime = btn.getAttribute('data-datetime');
+
+  document.getElementById('qrModalSalonName').innerText = salonName;
+  document.getElementById('qrModalService').innerText = serviceName;
+  document.getElementById('qrModalDateTime').innerText = dateTime;
+  document.getElementById('qrModalAptId').innerText = 'Appointment #APT-' + String(aptId).padStart(5, '0');
+
+  const qrData = 'SALONORA_APT:' + aptId;
+  document.getElementById('qrModalImage').src = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(qrData);
+
+  const modal = new bootstrap.Modal(document.getElementById('appointmentQrModal'));
+  modal.show();
+}
+
+// ==========================================
+// CANCELLATION MODAL
+// ==========================================
+function openCancelModalFromBtn(btn) {
+  const aptId = btn.getAttribute('data-id');
+  const salonName = btn.getAttribute('data-salon');
+  const serviceName = btn.getAttribute('data-service');
+  const dateTime = btn.getAttribute('data-datetime');
+
+  document.getElementById('cancelModalApptId').value = aptId;
+  document.getElementById('cancelModalSalon').innerText = salonName;
+  document.getElementById('cancelModalService').innerText = serviceName;
+  document.getElementById('cancelModalDateTime').innerText = dateTime;
+
+  const modal = new bootstrap.Modal(document.getElementById('cancelAppointmentModal'));
+  modal.show();
 }
 </script>
 
-</body>
-</html>
+<?php include __DIR__ . '/../footer.php'; ?>
