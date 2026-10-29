@@ -73,8 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_appointment'])
                     $ownerStmt->execute([$appointment['salon_id']]);
                     $ownerId = $ownerStmt->fetchColumn();
                     if ($ownerId) {
-                        $notif = $pdo->prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, 'appointment')");
-                        $notif->execute([$ownerId, "An appointment for " . date('M d, Y', strtotime($appointment['appointment_date'])) . " was cancelled by the customer."]);
+                        notifyUser($pdo, (int)$ownerId, "An appointment for " . date('M d, Y', strtotime($appointment['appointment_date'])) . " was cancelled by the customer.");
                     }
 
                     $pdo->commit();
@@ -367,42 +366,45 @@ body {
     transform: scale(1.05);
 }
 .btn-qr-pass {
-    background: #f1f5f9;
-    color: #1e293b;
-    border: 1.5px solid #94a3b8;
-    font-weight: 600;
-    transition: all 0.2s ease;
+    background: #ffffff;
+    color: #4338ca;
+    border: 2px solid #6366f1;
+    font-weight: 700;
+    transition: all 0.25s ease;
 }
 .btn-qr-pass:hover {
-    background: #1e293b;
+    background: #4f46e5;
     color: #ffffff;
-    border-color: #1e293b;
+    border-color: #4f46e5;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
 }
 body.dark-mode .btn-qr-pass {
-    background: rgba(255, 255, 255, 0.12) !important;
-    color: #f8fafc !important;
-    border-color: rgba(255, 255, 255, 0.4) !important;
+    background: rgba(99, 102, 241, 0.2) !important;
+    color: #a5b4fc !important;
+    border-color: #6366f1 !important;
 }
 body.dark-mode .btn-qr-pass:hover {
-    background: #ffffff !important;
-    color: #0f172a !important;
-    border-color: #ffffff !important;
+    background: #6366f1 !important;
+    color: #ffffff !important;
 }
 
 .btn-rate-review {
-    background: #fef3c7;
+    background: #ffffff;
     color: #b45309;
-    border: 1.5px solid #f59e0b;
-    font-weight: 600;
-    transition: all 0.2s ease;
+    border: 2px solid #f59e0b;
+    font-weight: 700;
+    transition: all 0.25s ease;
 }
 .btn-rate-review:hover {
     background: #f59e0b;
     color: #ffffff;
     border-color: #f59e0b;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
 }
 body.dark-mode .btn-rate-review {
-    background: rgba(245, 158, 11, 0.15) !important;
+    background: rgba(245, 158, 11, 0.2) !important;
     color: #fbbf24 !important;
     border-color: #f59e0b !important;
 }

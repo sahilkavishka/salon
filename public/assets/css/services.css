@@ -437,7 +437,7 @@
 
     .empty-state i {
       font-size: 5rem;
-      color: #dfe6e9;
+      color: var(--primary);
       margin-bottom: 1.5rem;
     }
 

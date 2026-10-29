@@ -335,22 +335,44 @@ body {
     flex: 1;
     min-width: 150px;
     padding: 1rem;
-    background: var(--gradient-light);
-    border-radius: 10px;
+    background: #fdf2f8;
+    border: 1.5px solid #fbcfe8;
+    border-radius: 12px;
     text-align: center;
+    transition: all 0.25s ease;
 }
 
 .stat-item .stat-number {
     font-size: 2rem;
-    font-weight: 700;
-    color: var(--dark-purple);
+    font-weight: 800;
+    color: #831843;
 }
 
 .stat-item .stat-label {
-    font-size: 0.9rem;
-    color: #666;
+    font-size: 0.85rem;
+    color: #9d174d;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+}
+
+.nav-tabs .badge {
+    padding: 0.25rem 0.6rem;
+    border-radius: 50px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.3) !important;
+    color: #ffffff !important;
+}
+
+.nav-tabs .nav-link:not(.active) .badge {
+    background: #e2e8f0 !important;
+    color: #475569 !important;
+}
+
+body.dark-mode .nav-tabs .nav-link:not(.active) .badge {
+    background: #2d2d48 !important;
+    color: #cbd5e1 !important;
 }
 
 @media (max-width: 768px) {
@@ -736,6 +758,9 @@ function renderAppointments(status, appointments) {
                     <button class="btn btn-confirm btn-sm" data-action="confirm" data-id="${apt.id}" title="Confirm appointment">
                         <i class="fas fa-check me-1"></i>Confirm
                     </button>
+                    <button class="btn btn-complete btn-sm" data-action="complete" data-id="${apt.id}" title="Mark as completed">
+                        <i class="fas fa-check-double me-1"></i>Complete
+                    </button>
                     <button class="btn btn-reject btn-sm" data-action="reject" data-id="${apt.id}" title="Reject appointment">
                         <i class="fas fa-times me-1"></i>Reject
                     </button>
@@ -889,8 +914,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (themeToggleBtn) {
         themeToggleBtn.addEventListener('click', () => {
-            const isDark = document.body.classList.toggle('dark-mode');
+            const isDark = !document.documentElement.classList.contains('dark-mode');
             document.documentElement.classList.toggle('dark-mode', isDark);
+            document.body.classList.toggle('dark-mode', isDark);
             localStorage.setItem('salonora_theme', isDark ? 'dark' : 'light');
             updateThemeUI();
         });

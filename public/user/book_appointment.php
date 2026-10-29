@@ -325,7 +325,7 @@ if (!isset($_SESSION['csrf_token'])) {
 
 body {
     font-family: 'Poppins', sans-serif;
-    background: linear-gradient(to bottom, #eba0c27c, #f8f0fc9d);
+    background: linear-gradient(135deg, #fdf2f8 0%, #f5f3ff 100%);
     min-height: 100vh;
     padding: 20px 0;
 }
@@ -965,11 +965,12 @@ body {
 
 /* Booking Summary */
 .booking-summary {
-    background: linear-gradient(135deg, #ec337170 0%, #9b27b077 100%);
+    background: linear-gradient(135deg, #fdf4f8 0%, #f3e8ff 100%);
     border-radius: 20px;
     padding: 2rem;
     margin-top: 2rem;
-    border: 3px solid var(--primary-purple);
+    border: 2px solid var(--primary-purple);
+    box-shadow: var(--shadow-md);
     display: none;
     animation: slideIn 0.5s ease-out;
 }
@@ -1630,9 +1631,14 @@ body.dark-mode .coupon-box {
         <a href="salon_details.php?id=<?= $salon_id ?>" class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm bg-white">
             <i class="fas fa-arrow-left me-1"></i> Back to Salon Details
         </a>
-        <a href="salon_view.php" class="btn btn-sm btn-light rounded-pill px-3 text-muted">
-            <i class="fas fa-cut me-1"></i> All Salons
-        </a>
+        <div class="d-flex gap-2 align-items-center">
+            <button type="button" id="themeToggleBtn" class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm bg-white" title="Toggle Theme">
+                <i class="fas fa-moon me-1" id="themeToggleIcon"></i> Theme
+            </button>
+            <a href="salon_view.php" class="btn btn-sm btn-light rounded-pill px-3 text-muted">
+                <i class="fas fa-cut me-1"></i> All Salons
+            </a>
+        </div>
     </div>
 
     <?php if ($has_pending): ?>
@@ -2571,6 +2577,28 @@ document.getElementById('bookingForm').addEventListener('submit', function(e) {
         return false;
     }
 });
+
+// Theme toggle logic
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+const themeToggleIcon = document.getElementById('themeToggleIcon');
+
+function updateThemeUI() {
+    const isDark = document.body.classList.contains('dark-mode') || document.documentElement.classList.contains('dark-mode');
+    if (themeToggleIcon) {
+        themeToggleIcon.className = isDark ? 'fas fa-sun me-1' : 'fas fa-moon me-1';
+    }
+}
+updateThemeUI();
+
+if (themeToggleBtn) {
+    themeToggleBtn.addEventListener('click', () => {
+        const isDark = !document.documentElement.classList.contains('dark-mode');
+        document.documentElement.classList.toggle('dark-mode', isDark);
+        document.body.classList.toggle('dark-mode', isDark);
+        localStorage.setItem('salonora_theme', isDark ? 'dark' : 'light');
+        updateThemeUI();
+    });
+}
 </script>
 
 </body>

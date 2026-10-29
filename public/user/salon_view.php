@@ -225,7 +225,8 @@ $logged_user_role = $_SESSION['role'] ?? '';
       display: block;
       font-size: 3.5rem;
       font-weight: 800;
-      color: var(--primary-pink);
+      color: #ffffff !important;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
       margin-bottom: 0.5rem;
     }
 
@@ -464,14 +465,16 @@ $logged_user_role = $_SESSION['role'] ?? '';
     }
 
     .btn-view {
-      background: var(--gradient-secondary);
-      color: var(--dark-purple);
-      border: 2px solid var(--primary-purple);
+      background: #ffffff;
+      color: #6a1b9a;
+      border: 2px solid #8b5cf6;
+      font-weight: 700;
     }
 
     .btn-view:hover {
       background: var(--gradient-primary);
       color: white;
+      border-color: transparent;
       transform: translateY(-2px);
       box-shadow: var(--shadow-md);
     }
@@ -479,20 +482,21 @@ $logged_user_role = $_SESSION['role'] ?? '';
     .btn-primary {
       background: var(--gradient-primary);
       color: white;
+      font-weight: 700;
     }
 
     .btn-primary:hover {
       transform: translateY(-2px);
       box-shadow: var(--shadow-md);
-      opacity: 0.9;
+      opacity: 0.95;
     }
 
     .btn-review {
       grid-column: 1 / -1;
-      background: #fff0f6;
-      color: #d63384;
-      border: 2px solid #f783ac;
-      font-weight: 600;
+      background: #ffffff;
+      color: #c2185b;
+      border: 2px solid #e91e63;
+      font-weight: 700;
     }
 
     .btn-review:hover {

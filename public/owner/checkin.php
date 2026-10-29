@@ -84,8 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $log->execute([$appt_id, $appt['user_id'], $owner_id, $oldStatus]);
 
             // Notify user
-            $notif = $pdo->prepare("INSERT INTO notifications (user_id, message, created_at) VALUES (?, ?, NOW())");
-            $notif->execute([$appt['user_id'], "You have successfully checked in for your appointment at {$appt['salon_name']}. We hope you enjoyed your service!"]);
+            notifyUser($pdo, (int)$appt['user_id'], "You have successfully checked in for your appointment at {$appt['salon_name']}. We hope you enjoyed your service!");
 
             $pdo->commit();
             echo json_encode(['success' => true, 'message' => "Appointment #{$appt_id} successfully marked as Completed!"]);

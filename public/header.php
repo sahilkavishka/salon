@@ -33,6 +33,25 @@
 
   <style>
   /* ================================
+     LIGHT MODE THEME (Base Variables)
+     ================================ */
+  :root {
+    --primary: #e91e63;
+    --primary-dark: #c2185b;
+    --primary-purple: #7b1fa2;
+    --dark-purple: #4a148c;
+    --primary-pink: #c2185b;
+    --light-purple: #f3e5f5;
+    --light-pink: #fce4ec;
+    --gradient-primary: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);
+    --gradient-secondary: linear-gradient(135deg, #fce4ec 0%, #f3e5f5 100%);
+    --gradient-light: linear-gradient(135deg, #fce4ec 0%, #f3e5f5 100%);
+    --gradient-dark: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    --text-dark: #1e293b;
+    --text-muted: #64748b;
+  }
+
+  /* ================================
      DARK MODE THEME
      ================================ */
   html.dark-mode, body.dark-mode {
@@ -42,7 +61,11 @@
     --primary-purple: #c084fc !important;
     --primary-pink: #f472b6 !important;
     --light-purple: #3b2d54 !important;
+    --light-pink: #252542 !important;
     --gradient-light: linear-gradient(135deg, rgba(233, 30, 99, 0.2) 0%, rgba(156, 39, 176, 0.25) 100%) !important;
+    --gradient-secondary: linear-gradient(135deg, rgba(233, 30, 99, 0.15) 0%, rgba(156, 39, 176, 0.25) 100%) !important;
+    --text-dark: #f8fafc !important;
+    --text-muted: #94a3b8 !important;
   }
   body.dark-mode .card,
   body.dark-mode .appointment-card,
@@ -194,14 +217,141 @@
     background-color: #475569 !important;
     color: #ffffff !important;
   }
+  /* Crisp Light Mode Button Visibility */
+  .btn-outline-info {
+    color: #0284c7 !important;
+    border-color: #0284c7 !important;
+    font-weight: 600 !important;
+  }
+  .btn-outline-info:hover {
+    background-color: #0284c7 !important;
+    color: #ffffff !important;
+  }
+  .btn-outline-success {
+    color: #16a34a !important;
+    border-color: #16a34a !important;
+    font-weight: 600 !important;
+  }
+  .btn-outline-success:hover {
+    background-color: #16a34a !important;
+    color: #ffffff !important;
+  }
   .btn-outline-warning {
-    color: #d97706 !important;
+    color: #b45309 !important;
     border-color: #d97706 !important;
+    font-weight: 600 !important;
   }
   .btn-outline-warning:hover {
     background-color: #d97706 !important;
     color: #ffffff !important;
   }
+  .btn-outline-primary {
+    color: #7b1fa2 !important;
+    border-color: #9c27b0 !important;
+    font-weight: 600 !important;
+  }
+  .btn-outline-primary:hover {
+    background-color: #9c27b0 !important;
+    color: #ffffff !important;
+  }
+
+  /* Universal High-Contrast Buttons */
+  .btn-qr-pass {
+    background: #ffffff !important;
+    color: #4338ca !important;
+    border: 2px solid #6366f1 !important;
+    font-weight: 700 !important;
+    transition: all 0.25s ease !important;
+  }
+  .btn-qr-pass:hover {
+    background: #4f46e5 !important;
+    color: #ffffff !important;
+    border-color: #4f46e5 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+  }
+  body.dark-mode .btn-qr-pass {
+    background: rgba(99, 102, 241, 0.2) !important;
+    color: #a5b4fc !important;
+    border-color: #6366f1 !important;
+  }
+  body.dark-mode .btn-qr-pass:hover {
+    background: #6366f1 !important;
+    color: #ffffff !important;
+  }
+
+  .btn-rate-review {
+    background: #ffffff !important;
+    color: #b45309 !important;
+    border: 2px solid #f59e0b !important;
+    font-weight: 700 !important;
+    transition: all 0.25s ease !important;
+  }
+  .btn-rate-review:hover {
+    background: #f59e0b !important;
+    color: #ffffff !important;
+    border-color: #f59e0b !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+  }
+  body.dark-mode .btn-rate-review {
+    background: rgba(245, 158, 11, 0.2) !important;
+    color: #fbbf24 !important;
+    border-color: #f59e0b !important;
+  }
+  body.dark-mode .btn-rate-review:hover {
+    background: #f59e0b !important;
+    color: #1e1b4b !important;
+  }
+
+  .btn-review {
+    background: #ffffff !important;
+    color: #c2185b !important;
+    border: 2px solid #e91e63 !important;
+    font-weight: 700 !important;
+    transition: all 0.25s ease !important;
+  }
+  .btn-review:hover {
+    background: var(--gradient-primary) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(233, 30, 99, 0.35);
+  }
+  body.dark-mode .btn-review {
+    background: rgba(233, 30, 99, 0.2) !important;
+    color: #f472b6 !important;
+    border-color: #ec4899 !important;
+  }
+  body.dark-mode .btn-review:hover {
+    background: var(--gradient-primary) !important;
+    color: #ffffff !important;
+  }
+
+  .btn-view {
+    background: #ffffff !important;
+    color: #6a1b9a !important;
+    border: 2px solid #9c27b0 !important;
+    font-weight: 700 !important;
+    transition: all 0.25s ease !important;
+  }
+  .btn-view:hover {
+    background: var(--gradient-primary) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(156, 39, 176, 0.35);
+  }
+  body.dark-mode .btn-view {
+    background: rgba(156, 39, 176, 0.2) !important;
+    color: #c084fc !important;
+    border-color: #a855f7 !important;
+  }
+  body.dark-mode .btn-view:hover {
+    background: var(--gradient-primary) !important;
+    color: #ffffff !important;
+  }
+
   body.dark-mode .btn-outline-warning {
     color: #fbbf24 !important;
     border-color: #fbbf24 !important;
@@ -501,8 +651,9 @@ body.dark-mode .btn-back {
 
       if (toggleBtn) {
         toggleBtn.addEventListener('click', function() {
-          const isDark = document.body.classList.toggle('dark-mode');
+          const isDark = !document.documentElement.classList.contains('dark-mode');
           document.documentElement.classList.toggle('dark-mode', isDark);
+          document.body.classList.toggle('dark-mode', isDark);
           localStorage.setItem('salonora_theme', isDark ? 'dark' : 'light');
           updateIcon(isDark);
         });

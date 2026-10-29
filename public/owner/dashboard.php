@@ -455,7 +455,8 @@ $page_title = "Owner Dashboard - Salonora";
             gap: 1.5rem;
             margin-bottom: 1.5rem;
             padding: 1rem;
-            background: var(--gradient-light);
+            background: #fdf4f8;
+            border: 1px solid #f3d2e2;
             border-radius: 10px;
         }
 
@@ -466,13 +467,14 @@ $page_title = "Owner Dashboard - Salonora";
 
         .salon-stat-value {
             font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--dark-purple);
+            font-weight: 800;
+            color: #4a148c;
         }
 
         .salon-stat-label {
             font-size: 0.75rem;
-            color: #666;
+            color: #64748b;
+            font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -487,7 +489,7 @@ $page_title = "Owner Dashboard - Salonora";
             padding: 0.65rem 1rem;
             border-radius: 50px;
             text-decoration: none;
-            font-weight: 600;
+            font-weight: 700;
             font-size: 0.9rem;
             text-align: center;
             transition: all 0.3s;
@@ -507,35 +509,35 @@ $page_title = "Owner Dashboard - Salonora";
         }
 
         .btn-services {
-            background: white;
-            color: var(--primary-purple);
-            border-color: var(--primary-purple);
+            background: #ffffff;
+            color: #7b1fa2;
+            border-color: #9c27b0;
         }
 
         .btn-services:hover {
-            background: var(--primary-purple);
+            background: #9c27b0;
             color: white;
         }
 
         .btn-appointments {
-            background: white;
-            color: var(--primary-pink);
-            border-color: var(--primary-pink);
+            background: #ffffff;
+            color: #c2185b;
+            border-color: #e91e63;
         }
 
         .btn-appointments:hover {
-            background: var(--primary-pink);
+            background: #e91e63;
             color: white;
         }
 
         .btn-delete {
-            background: white;
-            color: #e74c3c;
-            border-color: #e74c3c;
+            background: #ffffff;
+            color: #dc2626;
+            border-color: #ef4444;
         }
 
         .btn-delete:hover {
-            background: #e74c3c;
+            background: #ef4444;
             color: white;
         }
 
@@ -652,15 +654,12 @@ $page_title = "Owner Dashboard - Salonora";
         .empty-state {
             text-align: center;
             padding: 3rem 2rem;
-            color: #999;
+            color: #64748b;
         }
 
         .empty-state i {
             font-size: 4rem;
-            background: var(--gradient-light);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: var(--primary-purple);
             margin-bottom: 1rem;
         }
 
@@ -946,11 +945,29 @@ $page_title = "Owner Dashboard - Salonora";
                     <i class="fas fa-plus-circle me-2"></i>Add Salon
                 </a>
                 <a href="appointments.php" class="btn-action">
-                    <i class="fas fa-calendar-check me-2"></i>Manage Bookings
+                    <i class="fas fa-calendar-check me-2"></i>Bookings
                 </a>
                 <a href="checkin.php" class="btn-action">
                     <i class="fas fa-qrcode me-2"></i>QR Check-in
                 </a>
+                <div class="dropdown d-inline-block">
+                    <button class="btn-action dropdown-toggle" type="button" id="ownerToolsDrop" data-bs-toggle="dropdown" aria-expanded="false" style="border: 2px solid white; cursor: pointer;">
+                        <i class="fas fa-tools me-2"></i>Manage
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-dark shadow" aria-labelledby="ownerToolsDrop">
+                        <?php if (!empty($salons)): ?>
+                        <li><a class="dropdown-item" href="services.php?salon_id=<?= $salons[0]['salon_id'] ?>"><i class="fas fa-cut me-2"></i>Services</a></li>
+                        <li><a class="dropdown-item" href="staff.php?salon_id=<?= $salons[0]['salon_id'] ?>"><i class="fas fa-user-friends me-2"></i>Staff & Stylists</a></li>
+                        <li><a class="dropdown-item" href="promos.php?salon_id=<?= $salons[0]['salon_id'] ?>"><i class="fas fa-tags me-2"></i>Promo Codes</a></li>
+                        <li><a class="dropdown-item" href="gallery.php?salon_id=<?= $salons[0]['salon_id'] ?>"><i class="fas fa-images me-2"></i>Gallery Portfolio</a></li>
+                        <?php else: ?>
+                        <li><a class="dropdown-item" href="salon_add.php"><i class="fas fa-plus me-2"></i>Register Salon First</a></li>
+                        <?php endif; ?>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="../notifications.php"><i class="far fa-bell me-2"></i>Notifications</a></li>
+                        <li><a class="dropdown-item" href="../user/salon_view.php"><i class="fas fa-store me-2"></i>Customer View</a></li>
+                    </ul>
+                </div>
                 <a href="../logout.php" class="btn-action btn-logout">
                     <i class="fas fa-sign-out-alt me-2"></i>Logout
                 </a>
@@ -1427,8 +1444,9 @@ updateThemeUI();
 
 if (themeToggleBtn) {
     themeToggleBtn.addEventListener('click', () => {
-        const isDark = document.body.classList.toggle('dark-mode');
+        const isDark = !document.documentElement.classList.contains('dark-mode');
         document.documentElement.classList.toggle('dark-mode', isDark);
+        document.body.classList.toggle('dark-mode', isDark);
         localStorage.setItem('salonora_theme', isDark ? 'dark' : 'light');
         updateThemeUI();
     });

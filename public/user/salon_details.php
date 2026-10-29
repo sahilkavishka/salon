@@ -197,7 +197,11 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
       <a href="salon_view.php" class="btn-back">
         <i class="fas fa-arrow-left"></i> Back to Salons
       </a>
-      <div class="d-none d-md-flex gap-3">
+      <div class="d-flex gap-2 align-items-center">
+        <button type="button" id="themeToggleBtn" class="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-sm bg-white" title="Toggle Theme">
+          <i class="fas fa-moon me-1" id="themeToggleIcon"></i> Theme
+        </button>
+        <div class="d-none d-md-flex gap-2">
         <a href="#services" class="btn btn-outline-primary btn-sm">
           <i class="fas fa-cut"></i> Services
         </a>
@@ -206,8 +210,6 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </a>
       </div>
     </div>
-
-    <!-- Salon Description Section -->
     <?php if ($description): ?>
     <div class="section">
       <div class="section-header">
@@ -1152,6 +1154,29 @@ $popular_services = $stmt->fetchAll(PDO::FETCH_ASSOC);
       }
       <?php endif; ?>
     });
+  </script>
+
+  <script>
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const themeToggleIcon = document.getElementById('themeToggleIcon');
+
+    function updateThemeUI() {
+      const isDark = document.body.classList.contains('dark-mode') || document.documentElement.classList.contains('dark-mode');
+      if (themeToggleIcon) {
+        themeToggleIcon.className = isDark ? 'fas fa-sun me-1' : 'fas fa-moon me-1';
+      }
+    }
+    updateThemeUI();
+
+    if (themeToggleBtn) {
+      themeToggleBtn.addEventListener('click', () => {
+        const isDark = !document.documentElement.classList.contains('dark-mode');
+        document.documentElement.classList.toggle('dark-mode', isDark);
+        document.body.classList.toggle('dark-mode', isDark);
+        localStorage.setItem('salonora_theme', isDark ? 'dark' : 'light');
+        updateThemeUI();
+      });
+    }
   </script>
 </body>
 </html>

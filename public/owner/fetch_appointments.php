@@ -46,7 +46,7 @@ try {
     foreach ($statuses as $status) {
         $placeholders = implode(',', array_fill(0, count($salons), '?'));
         
-        // Special handling for confirmed appointments (only show upcoming)
+        // Handling for confirmed appointments (keep visible until completed)
         if ($status === 'confirmed') {
             $sql = "SELECT 
                         a.id,
@@ -71,8 +71,35 @@ try {
                     LEFT JOIN salon_staff st ON a.staff_id = st.id
                     WHERE a.status = 'confirmed' 
                     AND a.salon_id IN ($placeholders)
-                    AND CONCAT(a.appointment_date, ' ', a.appointment_time) >= NOW()
                     ORDER BY a.appointment_date ASC, a.appointment_time ASC";
+            
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($salons);
+        } elseif ($status === 'completed') {
+            $sql = "SELECT 
+                        a.id,
+                        a.user_id,
+                        a.service_id,
+                        a.salon_id,
+                        a.appointment_date,
+                        a.appointment_time,
+                        a.status,
+                        a.created_at,
+                        u.username AS user_name,
+                        u.email AS user_email,
+                        s.name AS service_name,
+                        s.price AS service_price,
+                        s.duration AS service_duration,
+                        sal.name AS salon_name,
+                        st.name AS staff_name
+                    FROM appointments a
+                    JOIN users u ON u.id = a.user_id
+                    JOIN services s ON s.id = a.service_id
+                    JOIN salons sal ON sal.id = a.salon_id
+                    LEFT JOIN salon_staff st ON a.staff_id = st.id
+                    WHERE a.status = 'completed'
+                    AND a.salon_id IN ($placeholders)
+                    ORDER BY a.updated_at DESC, a.appointment_date DESC";
             
             $stmt = $pdo->prepare($sql);
             $stmt->execute($salons);
@@ -100,7 +127,7 @@ try {
                     LEFT JOIN salon_staff st ON a.staff_id = st.id
                     WHERE a.status IN ('cancelled', 'rejected')
                     AND a.salon_id IN ($placeholders)
-                    ORDER BY a.created_at DESC";
+                    ORDER BY a.updated_at DESC, a.created_at DESC";
             
             $stmt = $pdo->prepare($sql);
             $stmt->execute($salons);
@@ -128,7 +155,7 @@ try {
                     LEFT JOIN salon_staff st ON a.staff_id = st.id
                     WHERE a.status = ?
                     AND a.salon_id IN ($placeholders)
-                    ORDER BY a.created_at DESC";
+                    ORDER BY a.appointment_date ASC, a.appointment_time ASC, a.created_at ASC";
             
             $stmt = $pdo->prepare($sql);
             $params = array_merge([$status], $salons);
