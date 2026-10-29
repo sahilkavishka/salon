@@ -503,40 +503,57 @@
   box-shadow: none;
 }
 
-.btn-back {
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+body {
+  padding-top: 80px;
+}
+
+.btn-nav-back {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: #ffffff !important;
-  border-radius: 50px;
-  padding: 0.35rem 0.85rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  transition: all 0.25s ease;
-  backdrop-filter: blur(5px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
   text-decoration: none;
   cursor: pointer;
-  line-height: 1.2;
 }
 
-.btn-back:hover {
+.btn-nav-back:hover {
   background: var(--gradient-primary);
   border-color: transparent;
-  color: #ffffff !important;
-  transform: translateX(-3px);
-  box-shadow: 0 4px 12px rgba(233, 30, 99, 0.4);
-}
-
-.btn-back i {
-  transition: transform 0.2s ease;
-}
-
-.btn-back:hover i {
   transform: translateX(-2px);
+  box-shadow: 0 4px 12px rgba(233, 30, 99, 0.4);
+  color: #ffffff !important;
 }
 
-body.dark-mode .btn-back {
+body.dark-mode .btn-nav-back {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.18);
+}
+
+.navbar-nav {
+  flex-wrap: nowrap !important;
+}
+
+.navbar-nav .nav-link {
+  font-size: 0.88rem !important;
+  padding: 0.45rem 0.65rem !important;
+  margin: 0 0.1rem !important;
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+.navbar-nav .btn-outline-light {
+  padding: 0.35rem 0.85rem !important;
+  font-size: 0.85rem !important;
+  white-space: nowrap !important;
 }
 
   </style>
@@ -553,9 +570,8 @@ body.dark-mode .btn-back {
           $isHome = ($currentScript === 'index.php' || empty($currentScript));
           ?>
           <?php if (!$isHome): ?>
-          <button type="button" onclick="handleGlobalBack()" class="btn btn-back me-3 d-inline-flex align-items-center justify-content-center shadow-sm" title="Go Back">
-            <i class="fas fa-arrow-left me-1"></i>
-            <span class="d-none d-sm-inline">Back</span>
+          <button type="button" onclick="handleGlobalBack()" class="btn btn-nav-back me-2 shadow-sm" title="Go Back">
+            <i class="fas fa-arrow-left"></i>
           </button>
           <?php endif; ?>
 
@@ -569,9 +585,6 @@ body.dark-mode .btn-back {
 
         <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
           <ul class="navbar-nav align-items-center">
-            <li class="nav-item"><a href="<?= url('index.php') ?>" class="nav-link">Home</a></li>
-            <li class="nav-item"><a href="<?= url('user/salon_view.php') ?>" class="nav-link"><i class="fas fa-cut me-1"></i> Salons</a></li>
-            
             <?php if (isset($_SESSION['id'])): ?>
               <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'owner'): ?>
                 <li class="nav-item"><a href="<?= url('owner/dashboard.php') ?>" class="nav-link"><i class="fas fa-chart-line me-1"></i> Dashboard</a></li>
@@ -588,31 +601,36 @@ body.dark-mode .btn-back {
                     <li><a class="dropdown-item" href="<?= url('owner/gallery.php') ?>"><i class="fas fa-images me-2"></i> Gallery Portfolio</a></li>
                   </ul>
                 </li>
+                <li class="nav-item"><a href="<?= url('user/salon_view.php') ?>" class="nav-link"><i class="fas fa-store me-1"></i> Salons</a></li>
               <?php else: ?>
+                <li class="nav-item"><a href="<?= url('index.php') ?>" class="nav-link"><i class="fas fa-home me-1"></i> Home</a></li>
+                <li class="nav-item"><a href="<?= url('user/salon_view.php') ?>" class="nav-link"><i class="fas fa-cut me-1"></i> Salons</a></li>
                 <li class="nav-item"><a href="<?= url('user/my_appointments.php') ?>" class="nav-link"><i class="far fa-calendar-check me-1"></i> Appointments</a></li>
               <?php endif; ?>
               
               <li class="nav-item"><a href="<?= url('notifications.php') ?>" class="nav-link"><i class="far fa-bell me-1"></i> Notifications</a></li>
               <li class="nav-item"><a href="<?= url('user/profile.php') ?>" class="nav-link"><i class="far fa-user me-1"></i> Profile</a></li>
               <li class="nav-item ms-2">
-                <button type="button" id="themeToggleBtn" class="btn btn-outline-light btn-sm rounded-circle d-flex align-items-center justify-content-center" style="width:36px;height:36px;" title="Toggle Theme">
+                <button type="button" id="themeToggleBtn" class="btn btn-outline-light btn-sm rounded-circle d-flex align-items-center justify-content-center" style="width:34px;height:34px;" title="Toggle Theme">
                   <i class="fas fa-moon" id="themeToggleIcon"></i>
                 </button>
               </li>
-              <li class="nav-item ms-3">
-                <a href="<?= url('logout.php') ?>" class="btn btn-outline-light btn-sm">
+              <li class="nav-item ms-2">
+                <a href="<?= url('logout.php') ?>" class="btn btn-outline-light btn-sm rounded-pill">
                   <i class="fas fa-sign-out-alt me-1"></i> Logout
                 </a>
               </li>
             <?php else: ?>
-              <li class="nav-item"><a href="<?= url('index.php#contact') ?>" class="nav-link">Contact</a></li>
+              <li class="nav-item"><a href="<?= url('index.php') ?>" class="nav-link"><i class="fas fa-home me-1"></i> Home</a></li>
+              <li class="nav-item"><a href="<?= url('user/salon_view.php') ?>" class="nav-link"><i class="fas fa-cut me-1"></i> Salons</a></li>
+              <li class="nav-item"><a href="<?= url('index.php#contact') ?>" class="nav-link"><i class="far fa-envelope me-1"></i> Contact</a></li>
               <li class="nav-item ms-2">
-                <button type="button" id="themeToggleBtn" class="btn btn-outline-light btn-sm rounded-circle d-flex align-items-center justify-content-center" style="width:36px;height:36px;" title="Toggle Theme">
+                <button type="button" id="themeToggleBtn" class="btn btn-outline-light btn-sm rounded-circle d-flex align-items-center justify-content-center" style="width:34px;height:34px;" title="Toggle Theme">
                   <i class="fas fa-moon" id="themeToggleIcon"></i>
                 </button>
               </li>
               <li class="nav-item ms-3">
-                <a href="<?= url('login.php') ?>" class="btn btn-gradient">
+                <a href="<?= url('login.php') ?>" class="btn btn-gradient rounded-pill">
                   <i class="fas fa-sign-in-alt me-1"></i> Login
                 </a>
               </li>
