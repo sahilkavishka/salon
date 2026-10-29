@@ -27,9 +27,9 @@ if (
     $comment = trim($_POST['comment']);
     $errors = [];
 
-    // Enhanced validation
-    if ($rating < 1 || $rating > 5) $errors[] = "Please select a valid rating.";
-    if ($comment === '') $errors[] = "Review cannot be empty.";
+    // Validation
+    if ($rating < 1 || $rating > 5) $errors[] = "Please select a valid rating between 1 and 5 stars.";
+    if ($comment === '') $errors[] = "Review message cannot be empty.";
     if (strlen($comment) < 10) $errors[] = "Review must be at least 10 characters.";
     if (strlen($comment) > 1000) $errors[] = "Review must not exceed 1000 characters.";
 
@@ -45,7 +45,7 @@ if (
             );
             $stmt->execute([$salon_id, $user_id, $rating, $comment]);
 
-            // Recalculate and update salon's average rating and total_reviews
+            // Recalculate average rating
             $avgStmt = $pdo->prepare("SELECT AVG(rating) as avg_rating, COUNT(*) as total_reviews FROM reviews WHERE salon_id = ?");
             $avgStmt->execute([$salon_id]);
             $avgData = $avgStmt->fetch(PDO::FETCH_ASSOC);
@@ -55,7 +55,7 @@ if (
             $updateSalon = $pdo->prepare("UPDATE salons SET rating = ?, total_reviews = ? WHERE id = ?");
             $updateSalon->execute([$newRating, $newTotal, $salon_id]);
 
-            $_SESSION['success_message'] = "Review submitted successfully!";
+            $_SESSION['success_message'] = "Your review has been published successfully!";
         } catch (PDOException $e) {
             $_SESSION['error_message'] = "Failed to submit review. Please try again.";
         }
@@ -73,10 +73,10 @@ $offset = ($page - 1) * $per_page;
 
 // Fetch total count
 $countStmt = $pdo->query("SELECT COUNT(*) FROM salons");
-$total_salons = $countStmt->fetchColumn();
+$total_salons = (int)$countStmt->fetchColumn();
 $total_pages = ceil($total_salons / $per_page);
 
-// Fetch salons with pagination
+// Fetch salons with pagination & aggregated service/review stats
 $stmt = $pdo->prepare("
     SELECT 
         s.id AS salon_id,
@@ -84,6 +84,8 @@ $stmt = $pdo->prepare("
         s.address,
         s.image,
         s.owner_id,
+        s.lat,
+        s.lng,
         u.username AS owner_name,
         COUNT(DISTINCT sr.id) AS service_count,
         COALESCE(AVG(r.rating), 0) AS avg_rating,
@@ -92,7 +94,7 @@ $stmt = $pdo->prepare("
     LEFT JOIN users u ON s.owner_id = u.id
     LEFT JOIN services sr ON s.id = sr.salon_id
     LEFT JOIN reviews r ON s.id = r.salon_id
-    GROUP BY s.id, s.name, s.address, s.image, s.owner_id, u.username
+    GROUP BY s.id, s.name, s.address, s.image, s.owner_id, s.lat, s.lng, u.username
     ORDER BY s.name ASC
     LIMIT :limit OFFSET :offset
 ");
@@ -101,7 +103,7 @@ $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $salons = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Calculate overall stats (from all salons)
+// Calculate overall stats
 $statsStmt = $pdo->query("
     SELECT 
         COUNT(DISTINCT s.id) as total_salons,
@@ -113,1317 +115,838 @@ $statsStmt = $pdo->query("
 ");
 $stats = $statsStmt->fetch(PDO::FETCH_ASSOC);
 
-// Determine logged-in user
+// Determine user context
 $logged_user_id = $_SESSION['id'] ?? 0;
-$logged_user_role = $_SESSION['role'] ?? '';
+$logged_user_role = strtolower($_SESSION['role'] ?? '');
+
+$page_title = 'Explore Salons | Salonora';
+include __DIR__ . '/../header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>All Salons - Salonora</title>
-  <meta name="description" content="Discover premium beauty salons and book appointments online">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <style>
-    :root {
-      --primary-pink: #ff6b9d;
-      --primary-purple: #8b5cf6;
-      --dark-purple: #6b21a8;
-      --light-pink: #fce7f3;
-      --gradient-primary: linear-gradient(135deg, #ff6b9d 0%, #8b5cf6 100%);
-      --gradient-secondary: linear-gradient(135deg, #fce7f3 0%, #ede9fe 100%);
-      --shadow-sm: 0 2px 8px rgba(139, 92, 246, 0.1);
-      --shadow-md: 0 4px 16px rgba(139, 92, 246, 0.15);
-      --shadow-lg: 0 8px 32px rgba(139, 92, 246, 0.2);
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'Poppins', sans-serif;
-      background: linear-gradient(to bottom, #fef3f8, #ffffff);
-      color: #333;
-      min-height: 100vh;
-    }
-
-    /* Page Header */
-    .page-header {
-      background: var(--gradient-primary);
-      color: white;
-      padding: 4rem 0 3rem;
-      margin-bottom: 3rem;
-      position: relative;
-      overflow: hidden;
-      margin-top: 50px;
-    }
-
-    .page-header::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="rgba(255,255,255,0.1)" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,138.7C960,139,1056,117,1152,106.7C1248,96,1344,96,1392,96L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') bottom center no-repeat;
-      background-size: cover;
-      opacity: 0.3;
-    }
-
-    .page-header-content {
-      position: relative;
-      z-index: 1;
-      text-align: center;
-    }
-
-    .page-title {
-      font-size: 3rem;
-      font-weight: 800;
-      margin-bottom: 1rem;
-      text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-      animation: fadeInDown 0.8s ease;
-    }
-
-    .page-subtitle {
-      font-size: 1.25rem;
-      font-weight: 300;
-      opacity: 0.95;
-      animation: fadeInUp 0.8s ease 0.2s both;
-    }
-
-    /* Stats Bar */
-    .stats-bar {
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-      background: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);
-      border-radius: 20px;
-      padding: 2rem;
-      margin-bottom: 2rem;
-      box-shadow: var(--shadow-md);
-      animation: fadeInUp 0.8s ease 0.4s both;
-    }
-
-    .stat-item {
-      text-align: center;
-      flex: 1;
-      padding: 0 1rem;
-      border-right: 2px solid rgba(255, 255, 255, 0.2);
-    }
-
-    .stat-item:last-child {
-      border-right: none;
-    }
-
-    .stat-number {
-      display: block;
-      font-size: 3.5rem;
-      font-weight: 800;
-      color: #ffffff !important;
-      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
-      margin-bottom: 0.5rem;
-    }
-
-    .stat-label {
-      display: block;
-      font-size: 1rem;
-      color: #fce7f3;
-      font-weight: 500;
-    }
-
-    /* Filter Bar */
-    .filter-bar {
-      background: white;
-      padding: 1.5rem;
-      border-radius: 15px;
-      margin-bottom: 2rem;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .search-box {
-      position: relative;
-    }
-
-    .search-box i {
-      position: absolute;
-      left: 1rem;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--primary-purple);
-      font-size: 1.1rem;
-    }
-
-    .search-box input {
-      padding-left: 3rem;
-      border: 2px solid #e5e7eb;
-      border-radius: 12px;
-      transition: all 0.3s ease;
-    }
-
-    .search-box input:focus {
-      border-color: var(--primary-purple);
-      box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
-      outline: none;
-    }
-
-    .form-select {
-      border: 2px solid #e5e7eb;
-      border-radius: 12px;
-      padding: 0.75rem 1rem;
-      transition: all 0.3s ease;
-    }
-
-    .form-select:focus {
-      border-color: var(--primary-pink);
-      box-shadow: 0 0 0 4px rgba(255, 107, 157, 0.1);
-      outline: none;
-    }
-
-    /* View Toggle */
-    .view-toggle {
-      display: flex;
-      gap: 0.5rem;
-      background: #f3f4f6;
-      padding: 0.25rem;
-      border-radius: 10px;
-    }
-
-    .view-btn {
-      padding: 0.5rem 1rem;
-      border: none;
-      background: transparent;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      color: #666;
-    }
-
-    .view-btn.active {
-      background: white;
-      color: var(--primary-purple);
-      box-shadow: var(--shadow-sm);
-    }
-
-    /* Salon Card */
-    .salon-card {
-      background: white;
-      border-radius: 20px;
-      overflow: hidden;
-      box-shadow: var(--shadow-sm);
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .salon-card:hover {
-      transform: translateY(-8px);
-      box-shadow: var(--shadow-lg);
-    }
-
-    .salon-img-wrapper {
-      position: relative;
-      overflow: hidden;
-      padding-top: 66.67%;
-      background: var(--gradient-secondary);
-    }
-
-    .salon-img {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transition: transform 0.6s ease;
-    }
-
-    .salon-card:hover .salon-img {
-      transform: scale(1.1);
-    }
-
-    .salon-badge {
-      position: absolute;
-      top: 1rem;
-      right: 1rem;
-      background: var(--gradient-primary);
-      color: white;
-      padding: 0.5rem 1rem;
-      border-radius: 50px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      box-shadow: var(--shadow-md);
-      animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% {
-        transform: scale(1);
-      }
-      50% {
-        transform: scale(1.05);
-      }
-    }
-
-    .salon-card-body {
-      padding: 1.5rem;
-      flex-grow: 1;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .salon-title {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--dark-purple);
-      margin-bottom: 1rem;
-    }
-
-    .salon-info {
-      margin-bottom: 1.5rem;
-      flex-grow: 1;
-    }
-
-    .info-row {
-      display: flex;
-      align-items: center;
-      margin-bottom: 0.75rem;
-      color: #666;
-      font-size: 0.9rem;
-    }
-
-    .info-row i {
-      width: 20px;
-      color: var(--primary-pink);
-      margin-right: 0.75rem;
-    }
-
-    .rating-display {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .stars {
-      color: #fbbf24;
-      font-size: 1rem;
-    }
-
-    .rating-text {
-      color: #666;
-      font-size: 0.85rem;
-    }
-
-    /* List View */
-    .list-view .salon-card {
-      flex-direction: row;
-      height: auto;
-    }
-
-    .list-view .salon-img-wrapper {
-      width: 250px;
-      padding-top: 0;
-      height: auto;
-      min-height: 200px;
-    }
-
-    .list-view .salon-card-body {
-      flex: 1;
-    }
-
-    .list-view .salon-actions {
-      flex-direction: row;
-    }
-
-    /* Buttons */
-    .salon-actions {
-      display: flex;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-    }
-
-    .btn {
-      border-radius: 12px;
-      padding: 0.75rem 1.25rem;
-      font-weight: 600;
-      transition: all 0.3s ease;
-      border: none;
-      font-size: 0.9rem;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      text-decoration: none;
-      flex: 1;
-      min-width: fit-content;
-    }
-
-    .btn-view {
-      background: #ffffff;
-      color: #6a1b9a;
-      border: 2px solid #8b5cf6;
-      font-weight: 700;
-    }
-
-    .btn-view:hover {
-      background: var(--gradient-primary);
-      color: white;
-      border-color: transparent;
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-md);
-    }
-
-    .btn-primary {
-      background: var(--gradient-primary);
-      color: white;
-      font-weight: 700;
-    }
-
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-md);
-      opacity: 0.95;
-    }
-
-    .btn-review {
-      grid-column: 1 / -1;
-      background: #ffffff;
-      color: #c2185b;
-      border: 2px solid #e91e63;
-      font-weight: 700;
-    }
-
-    .btn-review:hover {
-      background: var(--gradient-primary);
-      color: white;
-      border-color: transparent;
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-md);
-    }
-
-    body.dark-mode .btn-view {
-      background: rgba(139, 92, 246, 0.18) !important;
-      color: #c4b5fd !important;
-      border: 2px solid #8b5cf6 !important;
-    }
-
-    body.dark-mode .btn-view:hover {
-      background: var(--gradient-primary) !important;
-      color: #ffffff !important;
-      border-color: transparent !important;
-    }
-
-    body.dark-mode .btn-review {
-      background: rgba(233, 30, 99, 0.18) !important;
-      color: #ff80ab !important;
-      border: 2px solid #ff80ab !important;
-    }
-
-    body.dark-mode .btn-review:hover {
-      background: var(--gradient-primary) !important;
-      color: #ffffff !important;
-      border-color: transparent !important;
-    }
-
-    body.dark-mode .view-toggle {
-      background: #1e1e38 !important;
-    }
-
-    body.dark-mode .view-btn {
-      color: #94a3b8 !important;
-    }
-
-    body.dark-mode .view-btn.active {
-      background: #2d2d48 !important;
-      color: #f8fafc !important;
-    }
-
-    body.dark-mode .rating-text {
-      color: #94a3b8 !important;
-    }
-
-    /* Pagination */
-    .pagination-wrapper {
-      display: flex;
-      justify-content: center;
-      margin-top: 3rem;
-    }
-
-    .pagination {
-      display: flex;
-      gap: 0.5rem;
-      list-style: none;
-    }
-
-    .page-link {
-      padding: 0.75rem 1.25rem;
-      border-radius: 10px;
-      background: white;
-      color: var(--primary-purple);
-      border: 2px solid #e5e7eb;
-      text-decoration: none;
-      font-weight: 600;
-      transition: all 0.3s ease;
-    }
-
-    .page-link:hover {
-      background: var(--gradient-primary);
-      color: white;
-      border-color: transparent;
-      transform: translateY(-2px);
-    }
-
-    .page-item.active .page-link {
-      background: var(--gradient-primary);
-      color: white;
-      border-color: transparent;
-    }
-
-    .page-item.disabled .page-link {
-      opacity: 0.5;
-      cursor: not-allowed;
-      pointer-events: none;
-    }
-
-    /* Modal */
-    .modal-content {
-      border-radius: 20px;
-      border: none;
-      overflow: hidden;
-    }
-
-    .modal-header {
-      background: var(--gradient-primary);
-      color: white;
-      border: none;
-      padding: 1.5rem;
-    }
-
-    .modal-title {
-      font-weight: 700;
-      font-size: 1.5rem;
-    }
-
-    .modal-body {
-      padding: 2rem;
-    }
-
-    .form-label {
-      font-weight: 600;
-      color: var(--dark-purple);
-      margin-bottom: 0.5rem;
-    }
-
-    .form-control, .form-select {
-      border-radius: 12px;
-      border: 2px solid #e5e7eb;
-      padding: 0.75rem 1rem;
-    }
-
-    .form-control:focus, .form-select:focus {
-      border-color: var(--primary-purple);
-      box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
-    }
-
-    .modal-footer {
-      border: none;
-      padding: 1.5rem 2rem;
-      background: var(--gradient-secondary);
-    }
-
-    .btn-modal-secondary {
-      background: white;
-      color: #666;
-      border: 2px solid #e5e7eb;
-    }
-
-    .btn-modal-primary {
-      background: var(--gradient-primary);
-      color: white;
-    }
-
-    /* Alerts */
-    .alert {
-      border-radius: 12px;
-      border: none;
-      padding: 1rem 1.5rem;
-      margin-bottom: 1.5rem;
-      animation: slideInDown 0.5s ease;
-    }
-
-    .alert-success {
-      background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-      color: #065f46;
-    }
-
-    .alert-danger {
-      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-      color: #991b1b;
-    }
-
-    /* Empty State */
-    .empty-state {
-      text-align: center;
-      padding: 4rem 2rem;
-      animation: fadeIn 0.8s ease;
-    }
-
-    .empty-state i {
-      font-size: 5rem;
-      color: var(--primary-purple);
-      opacity: 0.3;
-      margin-bottom: 1.5rem;
-    }
-
-    .empty-state h4 {
-      color: var(--dark-purple);
-      font-weight: 700;
-      margin-bottom: 0.5rem;
-    }
-
-    .empty-state p {
-      color: #666;
-    }
-
-    /* Loading Skeleton */
-    .skeleton {
-      animation: skeleton-loading 1s linear infinite alternate;
-    }
-
-    @keyframes skeleton-loading {
-      0% {
-        background-color: hsl(200, 20%, 80%);
-      }
-      100% {
-        background-color: hsl(200, 20%, 95%);
-      }
-    }
-
-    .skeleton-card {
-      height: 400px;
-      border-radius: 20px;
-    }
-
-    /* Animations */
-    @keyframes fadeInDown {
-      from {
-        opacity: 0;
-        transform: translateY(-30px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(30px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-      }
-      to {
-        opacity: 1;
-      }
-    }
-
-    @keyframes slideInDown {
-      from {
-        transform: translateY(-100%);
-        opacity: 0;
-      }
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
-    }
-
-    /* Responsive */
-    @media (max-width: 768px) {
-      .page-title {
-        font-size: 2rem;
-      }
-
-      .page-subtitle {
-        font-size: 1rem;
-      }
-
-      .stats-bar {
-        flex-direction: column;
-        gap: 1.5rem;
-      }
-
-      .stat-item {
-        border-right: none;
-        border-bottom: 2px solid rgba(255, 255, 255, 0.2);
-        padding-bottom: 1rem;
-      }
-
-      .stat-item:last-child {
-        border-bottom: none;
-        padding-bottom: 0;
-      }
-
-      .salon-actions {
-        flex-direction: column;
-      }
-
-      .btn {
-        width: 100%;
-      }
-
-      .list-view .salon-card {
-        flex-direction: column;
-      }
-
-      .list-view .salon-img-wrapper {
-        width: 100%;
-        padding-top: 66.67%;
-      }
-    }
-
-    /* Character counter */
-    .char-counter {
-      font-size: 0.875rem;
-      color: #666;
-      text-align: right;
-      margin-top: 0.25rem;
-    }
-
-    .char-counter.warning {
-      color: #f59e0b;
-    }
-
-    .char-counter.danger {
-      color: #ef4444;
-    }
-
-    /* Filter chips */
-    .filter-chips {
-      display: flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-      margin-top: 1rem;
-    }
-
-    .filter-chip {
-      padding: 0.5rem 1rem;
-      background: var(--gradient-secondary);
-      border-radius: 50px;
-      font-size: 0.875rem;
-      color: var(--dark-purple);
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      border: 2px solid transparent;
-    }
-
-    .filter-chip:hover {
-      border-color: var(--primary-purple);
-      transform: translateY(-2px);
-    }
-
-    .filter-chip.active {
-      background: var(--gradient-primary);
-      color: white;
-    }
-  </style>
-  <?php include __DIR__ . '/../header.php'; ?>
-</head>
-<body>
-  <div class="page-header">
-    <div class="container">
-      <div class="page-header-content">
-        <h1 class="page-title">✨ Discover Amazing Salons</h1>
-        <p class="page-subtitle">Browse through our curated collection of premium beauty destinations</p>
+
+<style>
+/* ========================================================
+   SALONORA EXPLORE SALONS - LUXURY DIRECTORY STYLES
+   ======================================================== */
+
+.salons-hero {
+  background: linear-gradient(135deg, #180928 0%, #2f083b 45%, #620f54 85%, #881337 100%);
+  color: #ffffff;
+  border-radius: 28px;
+  padding: 3rem 2.25rem;
+  margin-bottom: 2rem;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 15px 35px -10px rgba(98, 15, 84, 0.45);
+}
+
+.salons-hero::before {
+  content: '';
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 250px;
+  height: 250px;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.35) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Quick Summary Stat Chips */
+.salon-stat-chip {
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 16px;
+  padding: 0.6rem 1.15rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #ffffff;
+  font-size: 0.9rem;
+}
+
+.salon-stat-chip .stat-number {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #fbcfe8;
+}
+
+/* Filter Studio Bar */
+.salon-filter-card {
+  background: #ffffff;
+  border-radius: 22px;
+  border: 1.5px solid #e2e8f0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.search-input-wrap {
+  position: relative;
+}
+
+.search-input-wrap i {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+}
+
+.search-input-wrap input {
+  padding-left: 2.6rem;
+  border-radius: 50px;
+  border: 1.5px solid #cbd5e1;
+  font-size: 0.92rem;
+}
+
+/* Quick Filter Chips Bar */
+.filter-chips-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.salon-chip {
+  background: #f8fafc;
+  color: #1e293b;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 50px;
+  padding: 0.45rem 1.1rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.salon-chip:hover {
+  background: #fdf2f8;
+  color: #db2777;
+  border-color: #fbcfe8;
+}
+
+.salon-chip.active {
+  background: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 12px rgba(233, 30, 99, 0.3);
+}
+
+/* View Switcher */
+.view-toggle-wrap {
+  display: flex;
+  gap: 0.35rem;
+  background: #f1f5f9;
+  padding: 0.3rem;
+  border-radius: 50px;
+  border: 1px solid #e2e8f0;
+}
+
+.view-toggle-btn {
+  border: none;
+  background: transparent;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.view-toggle-btn.active {
+  background: #ffffff;
+  color: #e91e63;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Salon Card */
+.salon-card-box {
+  background: #ffffff;
+  border-radius: 24px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.salon-card-box:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 35px rgba(233, 30, 99, 0.12);
+  border-color: #fbcfe8;
+}
+
+.salon-card-thumb-wrap {
+  position: relative;
+  width: 100%;
+  height: 210px;
+  background: #1a1a2e;
+  overflow: hidden;
+}
+
+.salon-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.salon-card-box:hover .salon-card-img {
+  transform: scale(1.05);
+}
+
+.salon-services-pill {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  background: rgba(18, 8, 38, 0.75);
+  backdrop-filter: blur(8px);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 0.35rem 0.85rem;
+  border-radius: 50px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.salon-card-body {
+  padding: 1.5rem;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.salon-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+}
+
+.salon-info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  font-size: 0.88rem;
+  color: #475569;
+  margin-bottom: 0.5rem;
+}
+
+.salon-info-row i {
+  color: #e91e63;
+  margin-top: 3px;
+  font-size: 0.95rem;
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.rating-stars {
+  color: #f59e0b;
+  font-size: 0.9rem;
+  letter-spacing: 1px;
+}
+
+/* Card Button Actions */
+.salon-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 1.25rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+/* List View Variant */
+#salonsGrid.list-view .salon-card-box {
+  flex-direction: row;
+}
+
+#salonsGrid.list-view .salon-card-thumb-wrap {
+  width: 320px;
+  height: auto;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  #salonsGrid.list-view .salon-card-box {
+    flex-direction: column;
+  }
+  #salonsGrid.list-view .salon-card-thumb-wrap {
+    width: 100%;
+    height: 200px;
+  }
+}
+
+/* ========================================================
+   DARK MODE ADAPTATIONS
+   ======================================================== */
+body.dark-mode .salons-hero {
+  background: linear-gradient(135deg, #11051c 0%, #1c0524 45%, #3d0534 85%, #4c051e 100%) !important;
+  box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.6) !important;
+}
+
+body.dark-mode .salon-filter-card {
+  background: #1a1a2e !important;
+  border-color: #2d2d48 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+body.dark-mode .search-input-wrap input {
+  background: #1e1e38 !important;
+  border-color: #2d2d48 !important;
+  color: #f8fafc !important;
+}
+
+body.dark-mode .salon-chip {
+  background: #1e1e38 !important;
+  color: #f8fafc !important;
+  border-color: #3b3b5e !important;
+}
+
+body.dark-mode .salon-chip:hover {
+  background: #2a2a4c !important;
+  color: #f472b6 !important;
+}
+
+body.dark-mode .salon-chip.active {
+  background: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+
+body.dark-mode .view-toggle-wrap {
+  background: #1e1e38 !important;
+  border-color: #2d2d48 !important;
+}
+
+body.dark-mode .view-toggle-btn.active {
+  background: #2a2a4c !important;
+  color: #f472b6 !important;
+}
+
+body.dark-mode .salon-card-box {
+  background: #1a1a2e !important;
+  border-color: #2d2d48 !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+body.dark-mode .salon-title {
+  color: #f8fafc !important;
+}
+
+body.dark-mode .salon-info-row {
+  color: #cbd5e1 !important;
+}
+
+body.dark-mode .salon-card-actions {
+  border-top-color: #2d2d48 !important;
+}
+</style>
+
+<div class="container py-4 pb-5">
+
+  <!-- ==========================================
+       HERO BANNER & PLATFORM STATS
+       ========================================== -->
+  <div class="salons-hero">
+    <div class="row align-items-center">
+      <div class="col-lg-8">
+        <span class="badge bg-white bg-opacity-20 text-white px-3 py-2 rounded-pill fw-bold mb-3 shadow-sm">
+          <i class="fas fa-gem me-1 text-warning"></i> Certified Beauty Directory
+        </span>
+        <h1 class="display-6 fw-bold mb-2">Explore Luxury & Boutique Salons</h1>
+        <p class="lead mb-4 text-white-50" style="font-size: 1.05rem; max-width: 650px;">
+          Find verified hair stylists, beauty salons, aesthetic spas, and nail bars across Sri Lanka. Browse menus, inspect verified ratings, and book your appointments online.
+        </p>
+
+        <!-- Stats row -->
+        <div class="d-flex flex-wrap gap-2">
+          <div class="salon-stat-chip">
+            <i class="fas fa-store text-info"></i>
+            <div>
+              <span class="stat-number"><?= $stats['total_salons'] ?></span>
+              <span class="d-block small text-white-50">Verified Salons</span>
+            </div>
+          </div>
+
+          <div class="salon-stat-chip">
+            <i class="fas fa-star text-warning"></i>
+            <div>
+              <span class="stat-number"><?= number_format($stats['avg_rating'], 1) ?> ★</span>
+              <span class="d-block small text-white-50">Average Rating</span>
+            </div>
+          </div>
+
+          <div class="salon-stat-chip">
+            <i class="fas fa-cut text-success"></i>
+            <div>
+              <span class="stat-number"><?= $stats['total_services'] ?>+</span>
+              <span class="d-block small text-white-50">Bookable Services</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-4 text-lg-end mt-4 mt-lg-0">
+        <a href="ai_advisor.php" class="btn btn-light btn-lg rounded-pill px-4 py-3 fw-bold text-dark shadow-lg">
+          <i class="fas fa-magic text-warning me-2"></i> AI Style Advisor
+        </a>
       </div>
     </div>
   </div>
 
-  <div class="container pb-5">
-    <?php if (isset($_SESSION['success_message'])): ?>
-      <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($_SESSION['success_message']) ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-      </div>
-      <?php unset($_SESSION['success_message']); ?>
-    <?php endif; ?>
+  <!-- Global Flash Messages -->
+  <?php if (isset($_SESSION['success_message'])): ?>
+    <div class="alert alert-success alert-dismissible fade show rounded-4 border-0 shadow-sm d-flex align-items-center mb-4" role="alert">
+      <i class="fas fa-check-circle me-3 fs-5"></i>
+      <div><?= htmlspecialchars($_SESSION['success_message']) ?></div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    <?php unset($_SESSION['success_message']); ?>
+  <?php endif; ?>
 
-    <?php if (isset($_SESSION['error_message'])): ?>
-      <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="fas fa-exclamation-circle me-2"></i><?= htmlspecialchars($_SESSION['error_message']) ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-      </div>
-      <?php unset($_SESSION['error_message']); ?>
-    <?php endif; ?>
+  <?php if (isset($_SESSION['error_message'])): ?>
+    <div class="alert alert-danger alert-dismissible fade show rounded-4 border-0 shadow-sm d-flex align-items-center mb-4" role="alert">
+      <i class="fas fa-exclamation-triangle me-3 fs-5"></i>
+      <div><?= htmlspecialchars($_SESSION['error_message']) ?></div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    <?php unset($_SESSION['error_message']); ?>
+  <?php endif; ?>
 
-    <div class="stats-bar">
-      <div class="stat-item">
-        <span class="stat-number"><?= $stats['total_salons'] ?></span>
-        <span class="stat-label">Total Salons</span>
+  <!-- ==========================================
+       SEARCH, SORT & FILTERS CARD
+       ========================================== -->
+  <div class="salon-filter-card">
+    <div class="row g-3 align-items-center">
+      
+      <!-- Live Search -->
+      <div class="col-lg-6 col-md-6">
+        <div class="search-input-wrap">
+          <i class="fas fa-search"></i>
+          <input type="text" id="searchInput" placeholder="Search salons by name, address, or owner..." class="form-control" aria-label="Search salons">
+        </div>
       </div>
-      <div class="stat-item">
-        <span class="stat-number"><?= number_format($stats['avg_rating'], 1) ?></span>
-        <span class="stat-label">Average Rating</span>
+
+      <!-- Sort Dropdown -->
+      <div class="col-lg-4 col-md-4">
+        <select id="sortSelect" class="form-select rounded-pill px-3 py-2" aria-label="Sort salons">
+          <option value="name">Sort by: Name (A-Z)</option>
+          <option value="distance">📍 Distance: Nearest First (GPS)</option>
+          <option value="rating">Sort by: Highest Rated</option>
+          <option value="services">Sort by: Most Services</option>
+          <option value="location">Sort by: Location</option>
+        </select>
       </div>
-      <div class="stat-item">
-        <span class="stat-number"><?= $stats['total_services'] ?>+</span>
-        <span class="stat-label">Total Services</span>
+
+      <!-- Grid / List Switcher -->
+      <div class="col-lg-2 col-md-2 text-md-end">
+        <div class="view-toggle-wrap d-inline-flex">
+          <button type="button" class="view-toggle-btn active" data-view="grid" title="Grid View">
+            <i class="fas fa-th-large"></i>
+          </button>
+          <button type="button" class="view-toggle-btn" data-view="list" title="List View">
+            <i class="fas fa-list"></i>
+          </button>
+        </div>
       </div>
+
     </div>
 
-    <div class="filter-bar">
-      <div class="row align-items-center">
-        <div class="col-md-6 mb-3 mb-md-0">
-          <div class="search-box">
-            <i class="fas fa-search"></i>
-            <input type="text" id="searchInput" placeholder="Search salons by name, location, or owner..." class="form-control" aria-label="Search salons">
-          </div>
-        </div>
-        <div class="col-md-3 mb-3 mb-md-0">
-          <select id="sortSelect" class="form-select" aria-label="Sort salons">
-            <option value="name">Sort by Name</option>
-            <option value="distance">📍 Distance: Nearest First</option>
-            <option value="rating">Sort by Rating</option>
-            <option value="services">Sort by Services</option>
-            <option value="location">Sort by Location</option>
-          </select>
-        </div>
-        <div class="col-md-3">
-          <div class="view-toggle">
-            <button class="view-btn active" data-view="grid" aria-label="Grid view">
-              <i class="fas fa-th"></i>
-            </button>
-            <button class="view-btn" data-view="list" aria-label="List view">
-              <i class="fas fa-list"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Quick Filter Chips -->
-      <div class="filter-chips">
-        <span class="filter-chip" data-filter="all">
-          <i class="fas fa-globe"></i> All Salons
-        </span>
-        <span class="filter-chip" id="chipNearMe" data-filter="near-me">
-          <i class="fas fa-location-arrow text-primary"></i> Near Me (GPS)
-        </span>
-        <span class="filter-chip" data-filter="top-rated">
-          <i class="fas fa-star"></i> Top Rated (4+)
-        </span>
-        <span class="filter-chip" data-filter="most-services">
-          <i class="fas fa-concierge-bell"></i> Most Services (5+)
-        </span>
-        <span class="filter-chip" data-filter="most-reviewed">
-          <i class="fas fa-comments"></i> Most Reviewed
-        </span>
-      </div>
+    <!-- Quick Filter Chips -->
+    <div class="filter-chips-bar">
+      <span class="salon-chip active" data-filter="all">
+        <i class="fas fa-globe"></i> All Salons
+      </span>
+      <span class="salon-chip" id="chipNearMe" data-filter="near-me" onclick="activateNearMe()">
+        <i class="fas fa-location-arrow text-primary"></i> Near Me (GPS)
+      </span>
+      <span class="salon-chip" data-filter="top-rated">
+        <i class="fas fa-star text-warning"></i> Top Rated (4+ ★)
+      </span>
+      <span class="salon-chip" data-filter="most-services">
+        <i class="fas fa-concierge-bell text-info"></i> Most Services (3+)
+      </span>
+      <span class="salon-chip" data-filter="most-reviewed">
+        <i class="fas fa-comments text-success"></i> Most Reviewed
+      </span>
     </div>
+  </div>
 
-    <?php if (empty($salons)): ?>
-      <div class="empty-state">
-        <i class="fas fa-store-slash"></i>
-        <h4>No Salons Available</h4>
-        <p>Check back later for new salon listings</p>
-      </div>
-    <?php else: ?>
-      <div class="row g-4" id="salonsGrid">
-        <?php foreach ($salons as $salon):
-          $can_interact = in_array($logged_user_role, ['user', 'customer']) && $logged_user_id != $salon['owner_id'];
-          $image_path = '../../' . ($salon['image'] ?: 'assets/img/default_salon.jpg');
-          $avg_rating = number_format($salon['avg_rating'], 1);
-          $stars_full = floor($salon['avg_rating']);
-          $stars_half = ($salon['avg_rating'] - $stars_full) >= 0.5 ? 1 : 0;
-          $stars_empty = 5 - $stars_full - $stars_half;
-        ?>
-          <div class="col-lg-4 col-md-6 salon-item"
-               data-name="<?= strtolower(htmlspecialchars($salon['name'])) ?>"
-               data-location="<?= strtolower(htmlspecialchars($salon['address'])) ?>"
-               data-owner="<?= strtolower(htmlspecialchars($salon['owner_name'])) ?>"
-               data-services="<?= $salon['service_count'] ?>"
-               data-rating="<?= $salon['avg_rating'] ?>"
-               data-reviews="<?= $salon['review_count'] ?>"
-               data-lat="<?= htmlspecialchars($salon['lat'] ?? '') ?>"
-               data-lng="<?= htmlspecialchars($salon['lng'] ?? '') ?>">
-            <div class="salon-card">
-              <div class="salon-img-wrapper">
-                <img src="<?= htmlspecialchars($image_path) ?>" class="salon-img" alt="<?= htmlspecialchars($salon['name']) ?>" loading="lazy">
-                <div class="salon-badge">
-                  <i class="fas fa-concierge-bell me-1"></i>
-                  <?= $salon['service_count'] ?> Services
+  <!-- ==========================================
+       SALONS GRID
+       ========================================== -->
+  <?php if (empty($salons)): ?>
+    <div class="text-center py-5 bg-white rounded-4 border p-4 shadow-sm">
+      <i class="fas fa-store-slash display-4 text-muted mb-3 opacity-50"></i>
+      <h4 class="fw-bold">No Salons Listed Yet</h4>
+      <p class="text-muted small">Check back soon as new verified beauty studios join Salonora.</p>
+    </div>
+  <?php else: ?>
+    <div class="row g-4" id="salonsGrid">
+      <?php foreach ($salons as $salon):
+        $is_owner_of_this_salon = ($logged_user_role === 'owner' && $logged_user_id == $salon['owner_id']);
+        $can_book = ($logged_user_role !== 'owner');
+
+        // Robust image resolution
+        $img = !empty($salon['image']) ? $salon['image'] : 'assets/images/salon_default.jpg';
+        $full_img_path = url($img);
+
+        $avg_rating = round($salon['avg_rating'], 1);
+        $stars_full = floor($salon['avg_rating']);
+        $stars_half = ($salon['avg_rating'] - $stars_full) >= 0.5 ? 1 : 0;
+        $stars_empty = max(0, 5 - $stars_full - $stars_half);
+      ?>
+        <div class="col-lg-4 col-md-6 salon-item"
+             data-name="<?= strtolower(htmlspecialchars($salon['name'])) ?>"
+             data-location="<?= strtolower(htmlspecialchars($salon['address'])) ?>"
+             data-owner="<?= strtolower(htmlspecialchars($salon['owner_name'] ?? '')) ?>"
+             data-services="<?= $salon['service_count'] ?>"
+             data-rating="<?= $salon['avg_rating'] ?>"
+             data-reviews="<?= $salon['review_count'] ?>"
+             data-lat="<?= htmlspecialchars($salon['lat'] ?? '') ?>"
+             data-lng="<?= htmlspecialchars($salon['lng'] ?? '') ?>">
+          
+          <div class="salon-card-box">
+            
+            <!-- Thumbnail Image & Badges -->
+            <div class="salon-card-thumb-wrap">
+              <img src="<?= htmlspecialchars($full_img_path) ?>" class="salon-card-img" alt="<?= htmlspecialchars($salon['name']) ?>" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=600&q=80'">
+              
+              <div class="salon-services-pill">
+                <i class="fas fa-concierge-bell me-1"></i>
+                <?= $salon['service_count'] ?> Services
+              </div>
+
+              <div class="distance-badge-container position-absolute top-0 end-0 m-2"></div>
+            </div>
+
+            <!-- Card Details -->
+            <div class="salon-card-body">
+              <h5 class="salon-title"><?= htmlspecialchars($salon['name']) ?></h5>
+
+              <div class="salon-info-row">
+                <i class="fas fa-map-marker-alt"></i>
+                <span><?= htmlspecialchars($salon['address']) ?></span>
+              </div>
+
+              <div class="salon-info-row">
+                <i class="fas fa-user-check"></i>
+                <span>Owner: <strong><?= htmlspecialchars(!empty($salon['owner_name']) ? $salon['owner_name'] : 'Verified Stylist') ?></strong></span>
+              </div>
+
+              <div class="salon-info-row align-items-center">
+                <i class="fas fa-star text-warning"></i>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="rating-stars">
+                    <?php for($i = 0; $i < $stars_full; $i++) echo '★'; ?>
+                    <?php if($stars_half) echo '⯨'; ?>
+                    <?php for($i = 0; $i < $stars_empty; $i++) echo '☆'; ?>
+                  </span>
+                  <span class="fw-bold text-dark small"><?= number_format($avg_rating, 1) ?></span>
+                  <span class="text-muted small">(<?= $salon['review_count'] ?> reviews)</span>
                 </div>
               </div>
-              <div class="salon-card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                  <h5 class="salon-title mb-1"><?= htmlspecialchars($salon['name']) ?></h5>
-                  <div class="distance-badge-container"></div>
-                </div>
-                <div class="salon-info">
-                  <div class="info-row">
-                    <i class="fas fa-map-marker-alt"></i>
-                    <span><?= htmlspecialchars($salon['address']) ?></span>
-                  </div>
-                  <div class="info-row">
-                    <i class="fas fa-user-tie"></i>
-                    <span>Owner: <strong><?= htmlspecialchars(!empty($salon['owner_name']) ? $salon['owner_name'] : 'Verified Stylist') ?></strong></span>
-                  </div>
-                  <div class="info-row">
-                    <i class="fas fa-star"></i>
-                    <div class="rating-display">
-                      <span class="stars">
-                        <?php for($i = 0; $i < $stars_full; $i++) echo '★'; ?>
-                        <?php if($stars_half) echo '⯨'; ?>
-                        <?php for($i = 0; $i < $stars_empty; $i++) echo '☆'; ?>
-                      </span>
-                      <span class="rating-text"><?= $avg_rating ?> (<?= $salon['review_count'] ?> reviews)</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="salon-actions">
-                  <a href="salon_details.php?id=<?= $salon['salon_id'] ?>" class="btn btn-view">
-                    <i class="fas fa-eye"></i> View Details
+
+              <!-- Action Buttons -->
+              <div class="salon-card-actions">
+                <a href="salon_details.php?id=<?= $salon['salon_id'] ?>" class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold">
+                  <i class="fas fa-eye me-1"></i> Details
+                </a>
+
+                <?php if ($can_book): ?>
+                  <a href="book_appointment.php?salon_id=<?= $salon['salon_id']; ?>" class="btn btn-sm btn-gradient rounded-pill px-3 py-2 fw-semibold">
+                    <i class="fas fa-calendar-check me-1"></i> Book Now
                   </a>
-                  <a href="book_appointment.php?salon_id=<?= $salon['salon_id']; ?>" class="btn btn-primary">
-                    <i class="fas fa-calendar-check"></i> Book Now
-                  </a>
-                  <button class="btn btn-review"
+                  <button type="button" class="btn btn-sm btn-outline-warning rounded-pill px-3 py-2 fw-semibold"
                           data-bs-toggle="modal"
                           data-bs-target="#reviewModal"
                           data-salon="<?= $salon['salon_id'] ?>"
-                          data-name="<?= htmlspecialchars($salon['name']) ?>">
-                    <i class="fas fa-star"></i> Write Review
+                          data-name="<?= htmlspecialchars($salon['name']) ?>"
+                          onclick="openReviewModal(this)">
+                    <i class="fas fa-star me-1"></i> Review
                   </button>
-                </div>
+                <?php elseif ($is_owner_of_this_salon): ?>
+                  <a href="../owner/dashboard.php" class="btn btn-sm btn-primary rounded-pill px-3 py-2 fw-semibold">
+                    <i class="fas fa-user-shield me-1"></i> My Dashboard
+                  </a>
+                <?php else: ?>
+                  <span class="badge bg-secondary-subtle text-secondary rounded-pill px-3 py-2 small align-self-center">
+                    Owner Mode
+                  </span>
+                <?php endif; ?>
               </div>
+
             </div>
+
           </div>
-        <?php endforeach; ?>
+        </div>
+      <?php endforeach; ?>
+    </div>
+
+    <!-- Pagination -->
+    <?php if ($total_pages > 1): ?>
+      <div class="d-flex justify-content-center mt-5">
+        <ul class="pagination pagination-lg">
+          <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+            <a class="page-link rounded-circle mx-1" href="?page=<?= $page - 1 ?>" aria-label="Previous">
+              <i class="fas fa-chevron-left"></i>
+            </a>
+          </li>
+          
+          <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+            <li class="page-item <?= $i == $page ? 'active' : '' ?>">
+              <a class="page-link rounded-circle mx-1" href="?page=<?= $i ?>"><?= $i ?></a>
+            </li>
+          <?php endfor; ?>
+
+          <li class="page-item <?= $page >= $total_pages ? 'disabled' : '' ?>">
+            <a class="page-link rounded-circle mx-1" href="?page=<?= $page + 1 ?>" aria-label="Next">
+              <i class="fas fa-chevron-right"></i>
+            </a>
+          </li>
+        </ul>
+      </div>
+    <?php endif; ?>
+
+  <?php endif; ?>
+
+</div>
+
+<!-- ==========================================
+     WRITE REVIEW MODAL
+     ========================================== -->
+<div class="modal fade" id="reviewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="POST" action="salon_view.php" class="modal-content rounded-4 border-0 shadow-lg p-3" id="reviewForm">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+      <input type="hidden" name="salon_id" id="reviewSalonId">
+
+      <div class="modal-header border-0 pb-0">
+        <div>
+          <h5 class="modal-title fw-bold text-dark">
+            <i class="fas fa-star text-warning me-2"></i>Write a Salon Review
+          </h5>
+          <p class="text-muted small mb-0" id="reviewSalonName">Salon Name</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
 
-      <!-- Pagination -->
-      <?php if ($total_pages > 1): ?>
-        <div class="pagination-wrapper">
-          <ul class="pagination">
-            <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
-              <a class="page-link" href="?page=<?= $page - 1 ?>" aria-label="Previous">
-                <i class="fas fa-chevron-left"></i>
-              </a>
-            </li>
-            
-            <?php
-            $start = max(1, $page - 2);
-            $end = min($total_pages, $page + 2);
-            
-            if ($start > 1): ?>
-              <li class="page-item">
-                <a class="page-link" href="?page=1">1</a>
-              </li>
-              <?php if ($start > 2): ?>
-                <li class="page-item disabled">
-                  <span class="page-link">...</span>
-                </li>
-              <?php endif; ?>
-            <?php endif; ?>
-            
-            <?php for ($i = $start; $i <= $end; $i++): ?>
-              <li class="page-item <?= $i == $page ? 'active' : '' ?>">
-                <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
-              </li>
-            <?php endfor; ?>
-            
-            <?php if ($end < $total_pages): ?>
-              <?php if ($end < $total_pages - 1): ?>
-                <li class="page-item disabled">
-                  <span class="page-link">...</span>
-                </li>
-              <?php endif; ?>
-              <li class="page-item">
-                <a class="page-link" href="?page=<?= $total_pages ?>"><?= $total_pages ?></a>
-              </li>
-            <?php endif; ?>
-            
-            <li class="page-item <?= $page >= $total_pages ? 'disabled' : '' ?>">
-              <a class="page-link" href="?page=<?= $page + 1 ?>" aria-label="Next">
-                <i class="fas fa-chevron-right"></i>
-              </a>
-            </li>
-          </ul>
+      <div class="modal-body py-3">
+        <div class="mb-3">
+          <label class="form-label fw-semibold small">Star Rating</label>
+          <select name="rating" class="form-select rounded-3 py-2" required>
+            <option value="">Select your rating</option>
+            <option value="5">★★★★★ 5 Stars (Excellent Experience)</option>
+            <option value="4">★★★★☆ 4 Stars (Very Good)</option>
+            <option value="3">★★★☆☆ 3 Stars (Good / Average)</option>
+            <option value="2">★★☆☆☆ 2 Stars (Fair)</option>
+            <option value="1">★☆☆☆☆ 1 Star (Needs Improvement)</option>
+          </select>
         </div>
-      <?php endif; ?>
-    <?php endif; ?>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold small">Your Honest Feedback</label>
+          <textarea name="comment" id="reviewComment" class="form-control rounded-3" rows="4" placeholder="Share your experience with services, atmosphere, cleanliness, and staff (min. 10 characters)..." required minlength="10" maxlength="1000" oninput="updateCharCount(this)"></textarea>
+          <div class="d-flex justify-content-between text-muted small mt-1">
+            <span>Minimum 10 characters</span>
+            <span id="charCount">0 / 1000</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-gradient rounded-pill px-4 fw-bold">
+          <i class="fas fa-paper-plane me-1"></i> Submit Review
+        </button>
+      </div>
+    </form>
   </div>
+</div>
 
-  <!-- Review Modal -->
-  <div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <form method="post" action="salon_view.php" class="modal-content" id="reviewForm">
-        <div class="modal-header">
-          <h5 class="modal-title" id="reviewModalLabel">
-            <i class="fas fa-star me-2"></i>Write a Review
-          </h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
-          <input type="hidden" name="salon_id" id="reviewSalonId">
-          <div class="mb-3">
-            <label class="form-label"><i class="fas fa-store me-2"></i>Salon</label>
-            <input type="text" id="reviewSalonName" class="form-control" readonly>
-          </div>
-          <div class="mb-3">
-            <label class="form-label"><i class="fas fa-star me-2"></i>Rating</label>
-            <select name="rating" class="form-select" required>
-              <option value="">Select Rating</option>
-              <option value="5">★★★★★ Excellent</option>
-              <option value="4">★★★★☆ Very Good</option>
-              <option value="3">★★★☆☆ Good</option>
-              <option value="2">★★☆☆☆ Fair</option>
-              <option value="1">★☆☆☆☆ Poor</option>
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label"><i class="fas fa-comment me-2"></i>Your Review</label>
-            <textarea name="comment" id="reviewComment" class="form-control" rows="4" placeholder="Share your experience... (minimum 10 characters)" required minlength="10" maxlength="1000"></textarea>
-            <div class="char-counter">
-              <span id="charCount">0</span> / 1000 characters
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-modal-secondary" data-bs-dismiss="modal">
-            <i class="fas fa-times me-2"></i>Cancel
-          </button>
-          <button type="submit" class="btn btn-modal-primary">
-            <i class="fas fa-paper-plane me-2"></i>Submit Review
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
+<script>
+// Search & Filter
+const searchInput = document.getElementById('searchInput');
+const sortSelect = document.getElementById('sortSelect');
+const salonItems = document.querySelectorAll('.salon-item');
+const salonsGrid = document.getElementById('salonsGrid');
+let activeFilter = 'all';
+let userLocation = null;
 
-  <?php include __DIR__ . '/../footer.php'; ?>
+if (searchInput) {
+  searchInput.addEventListener('input', filterAndSortSalons);
+}
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    // Search functionality with debouncing
-    const searchInput = document.getElementById('searchInput');
-    const salonItems = document.querySelectorAll('.salon-item');
-    const salonsGrid = document.getElementById('salonsGrid');
-    let searchTimeout;
-
-    searchInput.addEventListener('input', function() {
-      clearTimeout(searchTimeout);
-      const searchTerm = this.value.toLowerCase();
-      
-      searchTimeout = setTimeout(() => {
-        filterSalons();
-      }, 300);
-    });
-
-    // Geolocation & Distance Calculation (Haversine Formula)
-    let userLocation = null;
-
-    function getDistanceKm(lat1, lon1, lat2, lon2) {
-      const R = 6371; // km
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      return R * c;
+if (sortSelect) {
+  sortSelect.addEventListener('change', function() {
+    if (this.value === 'distance' && !userLocation) {
+      activateNearMe();
+    } else {
+      filterAndSortSalons();
     }
+  });
+}
 
-    function calculateDistances(lat, lng) {
-      userLocation = { lat, lng };
+// Quick filter chips
+document.querySelectorAll('.salon-chip').forEach(chip => {
+  chip.addEventListener('click', function() {
+    if (this.dataset.filter === 'near-me') return; // Handled by activateNearMe
+    document.querySelectorAll('.salon-chip').forEach(c => c.classList.remove('active'));
+    this.classList.add('active');
+    activeFilter = this.dataset.filter;
+    filterAndSortSalons();
+  });
+});
+
+function filterAndSortSalons() {
+  const q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  const sortBy = sortSelect ? sortSelect.value : 'name';
+
+  salonItems.forEach(item => {
+    const name = item.dataset.name || '';
+    const location = item.dataset.location || '';
+    const owner = item.dataset.owner || '';
+    const rating = parseFloat(item.dataset.rating || 0);
+    const services = parseInt(item.dataset.services || 0);
+    const reviews = parseInt(item.dataset.reviews || 0);
+
+    let matchesSearch = !q || name.includes(q) || location.includes(q) || owner.includes(q);
+    let matchesChip = true;
+
+    if (activeFilter === 'top-rated') matchesChip = (rating >= 4.0);
+    if (activeFilter === 'most-services') matchesChip = (services >= 3);
+    if (activeFilter === 'most-reviewed') matchesChip = (reviews >= 1);
+
+    if (matchesSearch && matchesChip) {
+      item.style.display = '';
+    } else {
+      item.style.display = 'none';
+    }
+  });
+
+  // Sort
+  const itemsArr = Array.from(salonItems);
+  itemsArr.sort((a, b) => {
+    if (sortBy === 'distance') {
+      return parseFloat(a.dataset.distance || 99999) - parseFloat(b.dataset.distance || 99999);
+    } else if (sortBy === 'name') {
+      return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+    } else if (sortBy === 'rating') {
+      return parseFloat(b.dataset.rating || 0) - parseFloat(a.dataset.rating || 0);
+    } else if (sortBy === 'services') {
+      return parseInt(b.dataset.services || 0) - parseInt(a.dataset.services || 0);
+    } else if (sortBy === 'location') {
+      return (a.dataset.location || '').localeCompare(b.dataset.location || '');
+    }
+    return 0;
+  });
+
+  if (salonsGrid) {
+    itemsArr.forEach(item => salonsGrid.appendChild(item));
+  }
+}
+
+// Geolocation
+function getDistanceKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+}
+
+function activateNearMe() {
+  if (!navigator.geolocation) {
+    alert("Geolocation is not supported by your browser.");
+    return;
+  }
+  const chipNearMe = document.getElementById('chipNearMe');
+  if (chipNearMe) chipNearMe.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Locating...';
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      if (chipNearMe) chipNearMe.innerHTML = '<i class="fas fa-location-arrow text-primary"></i> Near Me (Active)';
+      
       salonItems.forEach(item => {
         const sLat = parseFloat(item.dataset.lat);
         const sLng = parseFloat(item.dataset.lng);
-        const badgeContainer = item.querySelector('.distance-badge-container');
+        const badgeCont = item.querySelector('.distance-badge-container');
         if (!isNaN(sLat) && !isNaN(sLng) && sLat !== 0) {
-          const dist = getDistanceKm(lat, lng, sLat, sLng);
+          const dist = getDistanceKm(userLocation.lat, userLocation.lng, sLat, sLng);
           item.dataset.distance = dist;
-          if (badgeContainer) {
-            badgeContainer.innerHTML = `<span class="badge bg-primary text-white rounded-pill px-2 py-1 small shadow-sm"><i class="fas fa-location-arrow me-1"></i>${dist < 1 ? (dist * 1000).toFixed(0) + ' m' : dist.toFixed(1) + ' km'}</span>`;
+          if (badgeCont) {
+            badgeCont.innerHTML = `<span class="badge bg-primary text-white rounded-pill px-2 py-1 small shadow-sm"><i class="fas fa-location-arrow me-1"></i>${dist < 1 ? (dist * 1000).toFixed(0) + ' m' : dist.toFixed(1) + ' km'}</span>`;
           }
         } else {
           item.dataset.distance = 99999;
-          if (badgeContainer) badgeContainer.innerHTML = '';
         }
       });
-    }
 
-    function activateNearMe() {
-      if (!navigator.geolocation) {
-        alert("Geolocation is not supported by your browser.");
-        return;
-      }
-      const chipNearMe = document.getElementById('chipNearMe');
-      if (chipNearMe) chipNearMe.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Locating...';
+      if (sortSelect) sortSelect.value = 'distance';
+      filterAndSortSalons();
+    },
+    err => {
+      if (chipNearMe) chipNearMe.innerHTML = '<i class="fas fa-location-arrow text-primary"></i> Near Me (GPS)';
+      alert("Could not access your location. Please check browser location permissions.");
+    },
+    { timeout: 10000, enableHighAccuracy: true }
+  );
+}
 
-      navigator.geolocation.getCurrentPosition(
-        pos => {
-          if (chipNearMe) chipNearMe.innerHTML = '<i class="fas fa-location-arrow text-primary"></i> Near Me (GPS)';
-          calculateDistances(pos.coords.latitude, pos.coords.longitude);
-          sortSelect.value = 'distance';
-          sortSalons('distance');
-        },
-        err => {
-          if (chipNearMe) chipNearMe.innerHTML = '<i class="fas fa-location-arrow text-primary"></i> Near Me (GPS)';
-          alert("Could not access your location. Please check browser location permissions.");
-        },
-        { timeout: 10000, enableHighAccuracy: true }
-      );
-    }
+// View toggle (Grid / List)
+document.querySelectorAll('.view-toggle-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.view-toggle-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    const view = this.dataset.view;
 
-    function sortSalons(sortBy) {
-      const items = Array.from(salonItems);
-      items.sort((a, b) => {
-        if (sortBy === 'distance') {
-          const distA = parseFloat(a.dataset.distance || 99999);
-          const distB = parseFloat(b.dataset.distance || 99999);
-          return distA - distB;
-        } else if (sortBy === 'name') {
-          return a.dataset.name.localeCompare(b.dataset.name);
-        } else if (sortBy === 'services') {
-          return parseInt(b.dataset.services) - parseInt(a.dataset.services);
-        } else if (sortBy === 'location') {
-          return a.dataset.location.localeCompare(b.dataset.location);
-        } else if (sortBy === 'rating') {
-          return parseFloat(b.dataset.rating) - parseFloat(a.dataset.rating);
-        }
-      });
-      items.forEach(item => salonsGrid.appendChild(item));
-    }
-
-    // Sort functionality
-    const sortSelect = document.getElementById('sortSelect');
-    
-    sortSelect.addEventListener('change', function() {
-      const sortBy = this.value;
-      if (sortBy === 'distance' && !userLocation) {
-        activateNearMe();
-      } else {
-        sortSalons(sortBy);
-      }
-    });
-
-    // View toggle
-    const viewBtns = document.querySelectorAll('.view-btn');
-    const gridContainer = document.getElementById('salonsGrid');
-
-    viewBtns.forEach(btn => {
-      btn.addEventListener('click', function() {
-        viewBtns.forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        
-        const view = this.dataset.view;
-        if (view === 'list') {
-          gridContainer.classList.add('list-view');
-          salonItems.forEach(item => {
-            item.classList.remove('col-lg-4', 'col-md-6');
-            item.classList.add('col-12');
-          });
-        } else {
-          gridContainer.classList.remove('list-view');
-          salonItems.forEach(item => {
-            item.classList.remove('col-12');
-            item.classList.add('col-lg-4', 'col-md-6');
-          });
-        }
-      });
-    });
-
-    // Filter chips
-    const filterChips = document.querySelectorAll('.filter-chip');
-    let activeFilter = 'all';
-
-    filterChips.forEach(chip => {
-      chip.addEventListener('click', function() {
-        if (this.dataset.filter === 'near-me') {
-          activateNearMe();
-          return;
-        }
-        filterChips.forEach(c => c.classList.remove('active'));
-        this.classList.add('active');
-        activeFilter = this.dataset.filter;
-        filterSalons();
-      });
-    });
-
-    function filterSalons() {
-      const searchTerm = searchInput.value.toLowerCase();
-      let visibleCount = 0;
-
+    if (view === 'list') {
+      salonsGrid.classList.add('list-view');
       salonItems.forEach(item => {
-        const name = item.dataset.name;
-        const location = item.dataset.location;
-        const owner = item.dataset.owner;
-        const rating = parseFloat(item.dataset.rating);
-        const services = parseInt(item.dataset.services);
-        const reviews = parseInt(item.dataset.reviews);
-
-        // Search filter
-        const matchesSearch = searchTerm === '' || 
-          name.includes(searchTerm) || 
-          location.includes(searchTerm) || 
-          owner.includes(searchTerm);
-
-        // Quick filter
-        let matchesFilter = true;
-        if (activeFilter === 'top-rated') {
-          matchesFilter = rating >= 4;
-        } else if (activeFilter === 'most-services') {
-          matchesFilter = services >= 5;
-        } else if (activeFilter === 'most-reviewed') {
-          matchesFilter = reviews >= 5;
-        }
-
-        if (matchesSearch && matchesFilter) {
-          item.style.display = 'block';
-          visibleCount++;
-        } else {
-          item.style.display = 'none';
-        }
+        item.classList.remove('col-lg-4', 'col-md-6');
+        item.classList.add('col-12');
       });
-
-      // Show no results message
-      const existingMsg = document.querySelector('.no-results-msg');
-      if (existingMsg) existingMsg.remove();
-      
-      if (visibleCount === 0) {
-        const noResults = document.createElement('div');
-        noResults.className = 'col-12 no-results-msg';
-        noResults.innerHTML = `
-          <div class="empty-state">
-            <i class="fas fa-search"></i>
-            <h4>No Salons Found</h4>
-            <p>Try adjusting your search terms or filters</p>
-          </div>
-        `;
-        salonsGrid.appendChild(noResults);
-      }
-    }
-
-    // Review Modal
-    const reviewModal = document.getElementById('reviewModal');
-    const reviewComment = document.getElementById('reviewComment');
-    const charCount = document.getElementById('charCount');
-
-    reviewModal.addEventListener('show.bs.modal', function (event) {
-      const button = event.relatedTarget;
-      const salonId = button.getAttribute('data-salon');
-      const salonName = button.getAttribute('data-name');
-      document.getElementById('reviewSalonId').value = salonId;
-      document.getElementById('reviewSalonName').value = salonName;
-      reviewComment.value = '';
-      charCount.textContent = '0';
-      charCount.parentElement.classList.remove('warning', 'danger');
-    });
-
-    // Character counter
-    reviewComment.addEventListener('input', function() {
-      const length = this.value.length;
-      charCount.textContent = length;
-      
-      const counter = charCount.parentElement;
-      counter.classList.remove('warning', 'danger');
-      
-      if (length > 900) {
-        counter.classList.add('danger');
-      } else if (length > 750) {
-        counter.classList.add('warning');
-      }
-    });
-
-    // Form validation
-    const reviewForm = document.getElementById('reviewForm');
-    reviewForm.addEventListener('submit', function(e) {
-      const comment = reviewComment.value;
-      const rating = this.querySelector('select[name="rating"]').value;
-      
-      if (!rating) {
-        e.preventDefault();
-        alert('Please select a rating');
-        return;
-      }
-      
-      if (comment.length < 10) {
-        e.preventDefault();
-        alert('Review must be at least 10 characters long');
-        return;
-      }
-      
-      if (comment.length > 1000) {
-        e.preventDefault();
-        alert('Review must not exceed 1000 characters');
-        return;
-      }
-    });
-
-    // Auto-dismiss alerts after 5 seconds
-    const alerts = document.querySelectorAll('.alert');
-    alerts.forEach(alert => {
-      setTimeout(() => {
-        const bsAlert = new bootstrap.Alert(alert);
-        bsAlert.close();
-      }, 5000);
-    });
-
-    // Animate cards on scroll
-    const observerOptions = {
-      threshold: 0.1,
-      rootMargin: '0px 0px -50px 0px'
-    };
-
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry, index) => {
-        if (entry.isIntersecting) {
-          setTimeout(() => {
-            entry.target.style.animation = 'fadeInUp 0.6s ease forwards';
-          }, index * 100);
-          observer.unobserve(entry.target);
-        }
+    } else {
+      salonsGrid.classList.remove('list-view');
+      salonItems.forEach(item => {
+        item.classList.remove('col-12');
+        item.classList.add('col-lg-4', 'col-md-6');
       });
-    }, observerOptions);
-
-    salonItems.forEach(item => {
-      item.style.opacity = '0';
-      observer.observe(item);
-    });
-
-    // Preserve scroll position on page reload
-    if ('scrollRestoration' in history) {
-      history.scrollRestoration = 'manual';
     }
-    
-    const scrollPos = sessionStorage.getItem('scrollPos');
-    if (scrollPos) {
-      window.scrollTo(0, parseInt(scrollPos));
-      sessionStorage.removeItem('scrollPos');
-    }
+  });
+});
 
-    window.addEventListener('beforeunload', () => {
-      sessionStorage.setItem('scrollPos', window.scrollY);
-    });
-  </script>
-</body>
-</html>
+function openReviewModal(btn) {
+  const salonId = btn.getAttribute('data-salon');
+  const salonName = btn.getAttribute('data-name');
+  document.getElementById('reviewSalonId').value = salonId;
+  document.getElementById('reviewSalonName').innerText = salonName;
+}
+
+function updateCharCount(el) {
+  document.getElementById('charCount').innerText = el.value.length + ' / 1000';
+}
+</script>
+
+<?php include __DIR__ . '/../footer.php'; ?>
