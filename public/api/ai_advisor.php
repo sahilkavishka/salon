@@ -35,11 +35,11 @@ if ($salon_id > 0) {
         $salon_name = $salon['name'];
     }
 
-    $servStmt = $pdo->prepare("SELECT id, name, category, price, duration, description FROM services WHERE salon_id = ? AND is_active = 1");
+    $servStmt = $pdo->prepare("SELECT id, salon_id, name, category, price, duration, description FROM services WHERE salon_id = ? AND is_active = 1");
     $servStmt->execute([$salon_id]);
     $services = $servStmt->fetchAll(PDO::FETCH_ASSOC);
 } else {
-    $servStmt = $pdo->query("SELECT id, name, category, price, duration, description FROM services WHERE is_active = 1 LIMIT 15");
+    $servStmt = $pdo->query("SELECT id, salon_id, name, category, price, duration, description FROM services WHERE is_active = 1 LIMIT 15");
     $services = $servStmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -94,7 +94,25 @@ foreach ($services as $s) {
     if (stripos($aiResponse, $s['name']) !== false || stripos($aiResponse, "ID: {$s['id']}") !== false) {
         $matchedServices[] = [
             'id' => $s['id'],
+            'salon_id' => $s['salon_id'] ?? $salon_id,
             'name' => $s['name'],
+            'category' => $s['category'] ?? 'General',
+            'price' => $s['price'],
+            'duration' => $s['duration']
+        ];
+    }
+}
+
+// Fallback if none explicitly detected
+if (empty($matchedServices) && !empty($services)) {
+    $fallbackCount = min(2, count($services));
+    for ($i = 0; $i < $fallbackCount; $i++) {
+        $s = $services[$i];
+        $matchedServices[] = [
+            'id' => $s['id'],
+            'salon_id' => $s['salon_id'] ?? $salon_id,
+            'name' => $s['name'],
+            'category' => $s['category'] ?? 'General',
             'price' => $s['price'],
             'duration' => $s['duration']
         ];
