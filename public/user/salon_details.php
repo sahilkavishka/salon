@@ -514,6 +514,24 @@ if (!empty($salon['image']) && file_exists(__DIR__ . '/../../' . $salon['image']
     </div>
     <?php endif; ?>
 
+    <!-- AI Advisor Banner -->
+    <div class="card border-0 rounded-4 shadow-sm mb-4" style="background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 100%); color: #fff;">
+      <div class="card-body p-3 p-md-4 d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div class="d-flex align-items-center gap-3">
+          <div class="rounded-circle bg-warning text-dark d-flex align-items-center justify-content-center shadow-sm flex-shrink-0" style="width:50px;height:50px;font-size:1.3rem;">
+            <i class="fas fa-magic"></i>
+          </div>
+          <div>
+            <h5 class="fw-bold mb-1">Unsure which hairstyle or treatment suits you best?</h5>
+            <div class="text-white-50 small">Consult our Gemini AI Beauty Advisor for tailored recommendations from this salon's menu!</div>
+          </div>
+        </div>
+        <a href="<?= url('user/ai_advisor.php') ?>?salon_id=<?= $salon_id ?>" class="btn btn-warning text-dark fw-bold rounded-pill px-4 shadow-sm">
+          <i class="fas fa-sparkles me-1"></i> Consult AI Stylist
+        </a>
+      </div>
+    </div>
+
     <!-- Services Section with Search/Filter -->
     <div class="section" id="services">
       <div class="section-header">

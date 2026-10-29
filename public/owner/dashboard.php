@@ -192,6 +192,22 @@ $stmt = $pdo->prepare("
 $stmt->execute([$owner_id]);
 $topServices = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Fetch all services & staff for Quick Walk-in modal
+$allOwnerServices = [];
+$allOwnerStaff = [];
+if (!empty($salons)) {
+    $salonIds = array_column($salons, 'salon_id');
+    $placeholders = implode(',', array_fill(0, count($salonIds), '?'));
+
+    $svStmt = $pdo->prepare("SELECT id, salon_id, name, price, duration FROM services WHERE salon_id IN ($placeholders) AND is_active = 1 ORDER BY name ASC");
+    $svStmt->execute($salonIds);
+    $allOwnerServices = $svStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $stStmt = $pdo->prepare("SELECT id, salon_id, name, specialty FROM salon_staff WHERE salon_id IN ($placeholders) AND is_active = 1 ORDER BY name ASC");
+    $stStmt->execute($salonIds);
+    $allOwnerStaff = $stStmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
 $page_title = "Owner Dashboard - Salonora";
 ?>
 
@@ -938,6 +954,12 @@ $page_title = "Owner Dashboard - Salonora";
                 <p>Here's what's happening with your business today</p>
             </div>
             <div class="welcome-actions">
+                <button type="button" class="btn-action shadow-sm" data-bs-toggle="modal" data-bs-target="#quickWalkinModal" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #fff; border: none; font-weight: 600;">
+                    <i class="fas fa-bolt me-1"></i> Quick Walk-in
+                </button>
+                <a href="export_report.php" class="btn-action" title="Download Appointments CSV Spreadsheet">
+                    <i class="fas fa-file-csv me-1"></i> Export Report
+                </a>
                 <button type="button" id="themeToggleBtn" class="btn-action" title="Toggle Theme" style="cursor: pointer; border: none;">
                     <i class="fas fa-moon me-2" id="themeToggleIcon"></i>Theme
                 </button>
@@ -1450,6 +1472,139 @@ if (themeToggleBtn) {
         localStorage.setItem('salonora_theme', isDark ? 'dark' : 'light');
         updateThemeUI();
     });
+}
+</script>
+
+<!-- Quick Walk-in Modal -->
+<div class="modal fade" id="quickWalkinModal" tabindex="-1" aria-labelledby="quickWalkinModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h5 class="modal-title fw-bold" id="quickWalkinModalLabel">
+                        <i class="fas fa-bolt text-warning me-2"></i>Quick Walk-in Booking
+                    </h5>
+                    <p class="text-muted small mb-0">Record a walk-in client instantly to block the slot and avoid double-booking.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="quick_walkin.php" method="POST">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                <div class="modal-body p-4">
+                    <!-- Salon Selection -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Salon</label>
+                        <select name="salon_id" id="walkinSalonSelect" class="form-select rounded-3" required>
+                            <?php foreach ($salons as $s): ?>
+                                <option value="<?= $s['salon_id'] ?>"><?= htmlspecialchars($s['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small">Customer Name *</label>
+                            <input type="text" name="customer_name" class="form-control rounded-3" placeholder="e.g. Kasun Silva" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small">Phone (Optional)</label>
+                            <input type="tel" name="customer_phone" class="form-control rounded-3" placeholder="e.g. 0771234567">
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small">Service *</label>
+                            <select name="service_id" id="walkinServiceSelect" class="form-select rounded-3" required>
+                                <!-- Populated by JS -->
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small">Stylist (Optional)</label>
+                            <select name="staff_id" id="walkinStaffSelect" class="form-select rounded-3">
+                                <option value="">Any Available Stylist</option>
+                                <!-- Populated by JS -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small">Date</label>
+                            <input type="date" name="appointment_date" class="form-control rounded-3" value="<?= date('Y-m-d') ?>" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small">Time</label>
+                            <input type="time" name="appointment_time" class="form-control rounded-3" value="<?= date('H:i') ?>" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Status</label>
+                        <select name="status" class="form-select rounded-3">
+                            <option value="confirmed" selected>Confirmed (Currently Serving / In-Chair)</option>
+                            <option value="completed">Completed (Service Done & Paid)</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold small">Notes</label>
+                        <input type="text" name="notes" class="form-control rounded-3" placeholder="e.g. Walk-in customer, paid at counter via Cash">
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0 px-4 pb-4">
+                    <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning text-dark fw-bold rounded-pill px-4 shadow-sm">
+                        <i class="fas fa-check-circle me-1"></i> Save Walk-in Booking
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Walk-in modal data mapping
+const ownerServices = <?= json_encode($allOwnerServices) ?>;
+const ownerStaff = <?= json_encode($allOwnerStaff) ?>;
+
+function updateWalkinDropdowns() {
+    const salonSelect = document.getElementById('walkinSalonSelect');
+    const serviceSelect = document.getElementById('walkinServiceSelect');
+    const staffSelect = document.getElementById('walkinStaffSelect');
+    if (!salonSelect || !serviceSelect || !staffSelect) return;
+
+    const currentSalonId = parseInt(salonSelect.value);
+
+    // Filter services
+    const filteredServices = ownerServices.filter(s => parseInt(s.salon_id) === currentSalonId);
+    serviceSelect.innerHTML = '';
+    if (filteredServices.length === 0) {
+        serviceSelect.innerHTML = '<option value="">No services found for this salon</option>';
+    } else {
+        filteredServices.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = `${s.name} (Rs. ${parseFloat(s.price).toLocaleString()} • ${s.duration}m)`;
+            serviceSelect.appendChild(opt);
+        });
+    }
+
+    // Filter staff
+    const filteredStaff = ownerStaff.filter(st => parseInt(st.salon_id) === currentSalonId);
+    staffSelect.innerHTML = '<option value="">Any Available Stylist</option>';
+    filteredStaff.forEach(st => {
+        const opt = document.createElement('option');
+        opt.value = st.id;
+        opt.textContent = `${st.name} ${st.specialty ? '(' + st.specialty + ')' : ''}`;
+        staffSelect.appendChild(opt);
+    });
+}
+
+const walkinSalonEl = document.getElementById('walkinSalonSelect');
+if (walkinSalonEl) {
+    walkinSalonEl.addEventListener('change', updateWalkinDropdowns);
+    updateWalkinDropdowns();
 }
 </script>
 

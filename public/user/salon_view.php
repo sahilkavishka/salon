@@ -900,6 +900,7 @@ $logged_user_role = $_SESSION['role'] ?? '';
         <div class="col-md-3 mb-3 mb-md-0">
           <select id="sortSelect" class="form-select" aria-label="Sort salons">
             <option value="name">Sort by Name</option>
+            <option value="distance">📍 Distance: Nearest First</option>
             <option value="rating">Sort by Rating</option>
             <option value="services">Sort by Services</option>
             <option value="location">Sort by Location</option>
@@ -921,6 +922,9 @@ $logged_user_role = $_SESSION['role'] ?? '';
       <div class="filter-chips">
         <span class="filter-chip" data-filter="all">
           <i class="fas fa-globe"></i> All Salons
+        </span>
+        <span class="filter-chip" id="chipNearMe" data-filter="near-me">
+          <i class="fas fa-location-arrow text-primary"></i> Near Me (GPS)
         </span>
         <span class="filter-chip" data-filter="top-rated">
           <i class="fas fa-star"></i> Top Rated (4+)
@@ -956,7 +960,9 @@ $logged_user_role = $_SESSION['role'] ?? '';
                data-owner="<?= strtolower(htmlspecialchars($salon['owner_name'])) ?>"
                data-services="<?= $salon['service_count'] ?>"
                data-rating="<?= $salon['avg_rating'] ?>"
-               data-reviews="<?= $salon['review_count'] ?>">
+               data-reviews="<?= $salon['review_count'] ?>"
+               data-lat="<?= htmlspecialchars($salon['lat'] ?? '') ?>"
+               data-lng="<?= htmlspecialchars($salon['lng'] ?? '') ?>">
             <div class="salon-card">
               <div class="salon-img-wrapper">
                 <img src="<?= htmlspecialchars($image_path) ?>" class="salon-img" alt="<?= htmlspecialchars($salon['name']) ?>" loading="lazy">
@@ -966,7 +972,10 @@ $logged_user_role = $_SESSION['role'] ?? '';
                 </div>
               </div>
               <div class="salon-card-body">
-                <h5 class="salon-title"><?= htmlspecialchars($salon['name']) ?></h5>
+                <div class="d-flex justify-content-between align-items-start">
+                  <h5 class="salon-title mb-1"><?= htmlspecialchars($salon['name']) ?></h5>
+                  <div class="distance-badge-container"></div>
+                </div>
                 <div class="salon-info">
                   <div class="info-row">
                     <i class="fas fa-map-marker-alt"></i>
@@ -1129,15 +1138,70 @@ $logged_user_role = $_SESSION['role'] ?? '';
       }, 300);
     });
 
-    // Sort functionality
-    const sortSelect = document.getElementById('sortSelect');
-    
-    sortSelect.addEventListener('change', function() {
-      const sortBy = this.value;
+    // Geolocation & Distance Calculation (Haversine Formula)
+    let userLocation = null;
+
+    function getDistanceKm(lat1, lon1, lat2, lon2) {
+      const R = 6371; // km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    function calculateDistances(lat, lng) {
+      userLocation = { lat, lng };
+      salonItems.forEach(item => {
+        const sLat = parseFloat(item.dataset.lat);
+        const sLng = parseFloat(item.dataset.lng);
+        const badgeContainer = item.querySelector('.distance-badge-container');
+        if (!isNaN(sLat) && !isNaN(sLng) && sLat !== 0) {
+          const dist = getDistanceKm(lat, lng, sLat, sLng);
+          item.dataset.distance = dist;
+          if (badgeContainer) {
+            badgeContainer.innerHTML = `<span class="badge bg-primary text-white rounded-pill px-2 py-1 small shadow-sm"><i class="fas fa-location-arrow me-1"></i>${dist < 1 ? (dist * 1000).toFixed(0) + ' m' : dist.toFixed(1) + ' km'}</span>`;
+          }
+        } else {
+          item.dataset.distance = 99999;
+          if (badgeContainer) badgeContainer.innerHTML = '';
+        }
+      });
+    }
+
+    function activateNearMe() {
+      if (!navigator.geolocation) {
+        alert("Geolocation is not supported by your browser.");
+        return;
+      }
+      const chipNearMe = document.getElementById('chipNearMe');
+      if (chipNearMe) chipNearMe.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Locating...';
+
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          if (chipNearMe) chipNearMe.innerHTML = '<i class="fas fa-location-arrow text-primary"></i> Near Me (GPS)';
+          calculateDistances(pos.coords.latitude, pos.coords.longitude);
+          sortSelect.value = 'distance';
+          sortSalons('distance');
+        },
+        err => {
+          if (chipNearMe) chipNearMe.innerHTML = '<i class="fas fa-location-arrow text-primary"></i> Near Me (GPS)';
+          alert("Could not access your location. Please check browser location permissions.");
+        },
+        { timeout: 10000, enableHighAccuracy: true }
+      );
+    }
+
+    function sortSalons(sortBy) {
       const items = Array.from(salonItems);
-      
       items.sort((a, b) => {
-        if (sortBy === 'name') {
+        if (sortBy === 'distance') {
+          const distA = parseFloat(a.dataset.distance || 99999);
+          const distB = parseFloat(b.dataset.distance || 99999);
+          return distA - distB;
+        } else if (sortBy === 'name') {
           return a.dataset.name.localeCompare(b.dataset.name);
         } else if (sortBy === 'services') {
           return parseInt(b.dataset.services) - parseInt(a.dataset.services);
@@ -1147,8 +1211,19 @@ $logged_user_role = $_SESSION['role'] ?? '';
           return parseFloat(b.dataset.rating) - parseFloat(a.dataset.rating);
         }
       });
-      
       items.forEach(item => salonsGrid.appendChild(item));
+    }
+
+    // Sort functionality
+    const sortSelect = document.getElementById('sortSelect');
+    
+    sortSelect.addEventListener('change', function() {
+      const sortBy = this.value;
+      if (sortBy === 'distance' && !userLocation) {
+        activateNearMe();
+      } else {
+        sortSalons(sortBy);
+      }
     });
 
     // View toggle
@@ -1183,6 +1258,10 @@ $logged_user_role = $_SESSION['role'] ?? '';
 
     filterChips.forEach(chip => {
       chip.addEventListener('click', function() {
+        if (this.dataset.filter === 'near-me') {
+          activateNearMe();
+          return;
+        }
         filterChips.forEach(c => c.classList.remove('active'));
         this.classList.add('active');
         activeFilter = this.dataset.filter;

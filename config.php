@@ -14,6 +14,15 @@ define('SMTP_PASS', 'your-app-password');
 define('SMTP_FROM', 'no-reply@salonora.com');
 define('SMTP_FROM_NAME', 'Salonora Platform');
 
+// Gemini AI Settings
+if (file_exists(__DIR__ . '/config.local.php')) {
+    require_once __DIR__ . '/config.local.php';
+}
+if (!defined('GEMINI_API_KEY')) {
+    define('GEMINI_API_KEY', getenv('GEMINI_API_KEY') ?: '');
+}
+define('GEMINI_MODEL', 'gemini-3.5-flash-lite');
+
 // Database connection
 $host = '127.0.0.1';
 $dbname = 'salonora';
@@ -119,6 +128,69 @@ if (!function_exists('sendSystemMail')) {
         }
 
         return ['success' => false, 'mode' => 'error', 'message' => 'Mailer not configured'];
+    }
+}
+
+/**
+ * Call Google Gemini Generative AI API.
+ */
+if (!function_exists('callGeminiAI')) {
+    function callGeminiAI(string $prompt, ?string $systemInstruction = null): ?string {
+        if (!defined('GEMINI_API_KEY') || empty(GEMINI_API_KEY)) {
+            error_log("Gemini API key is not configured.");
+            return null;
+        }
+
+        $model = defined('GEMINI_MODEL') ? GEMINI_MODEL : 'gemini-3.5-flash-lite';
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . GEMINI_API_KEY;
+
+        $payload = [
+            'contents' => [
+                [
+                    'parts' => [
+                        ['text' => $prompt]
+                    ]
+                ]
+            ],
+            'generationConfig' => [
+                'temperature' => 0.7,
+                'maxOutputTokens' => 1200
+            ]
+        ];
+
+        if (!empty($systemInstruction)) {
+            $payload['system_instruction'] = [
+                'parts' => [
+                    ['text' => $systemInstruction]
+                ]
+            ];
+        }
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 25);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError || $httpCode !== 200) {
+            error_log("Gemini API Error (HTTP $httpCode): " . ($curlError ?: $response));
+            return null;
+        }
+
+        $data = json_decode($response, true);
+        if (isset($data['candidates'][0]['content']['parts'][0]['text'])) {
+            return $data['candidates'][0]['content']['parts'][0]['text'];
+        }
+
+        return null;
     }
 }
 ?>

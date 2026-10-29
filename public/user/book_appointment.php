@@ -131,6 +131,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Multi-service addons handling
+    $addon_ids = isset($_POST['addons']) && is_array($_POST['addons']) ? array_map('intval', $_POST['addons']) : [];
+    $addon_ids = array_filter($addon_ids, fn($id) => $id > 0 && $id !== $service_id);
+
+    $addon_names = [];
+    if (!empty($addon_ids) && empty($errors)) {
+        $p = implode(',', array_fill(0, count($addon_ids), '?'));
+        $addStmt = $pdo->prepare("SELECT id, name, price, duration FROM services WHERE id IN ($p) AND salon_id = ? AND is_active = 1");
+        $addStmt->execute(array_merge($addon_ids, [$salon_id]));
+        $selected_addons = $addStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($selected_addons as $ad) {
+            $addon_names[] = "{$ad['name']} (Rs. " . number_format($ad['price'], 2) . ")";
+        }
+        if (!empty($addon_names)) {
+            $addonNotes = "Bundled Add-on Services: " . implode(', ', $addon_names);
+            $notes = !empty($notes) ? ($notes . "\n" . $addonNotes) : $addonNotes;
+        }
+    }
+
     // Validate staff member if selected
     if ($staff_id > 0) {
         $stfChk = $pdo->prepare("SELECT id FROM salon_staff WHERE id = ? AND salon_id = ? AND is_active = 1");
@@ -1779,6 +1799,35 @@ body.dark-mode .coupon-box {
             </div>
         </div>
 
+        <?php if (count($services) > 1): ?>
+        <!-- Combine More Services (Multi-Service Cart) -->
+        <div class="booking-card mt-4">
+            <div class="card-header-custom" style="background: linear-gradient(135deg, #0d9488 0%, #059669 100%);">
+                <h5><i class="fas fa-layer-group me-2"></i>Combine More Services (Multi-Service Cart)</h5>
+                <span class="step-badge">Add-ons</span>
+            </div>
+            <div class="card-body-custom">
+                <p class="text-muted small mb-3">Want to bundle a facial, manicure, or beard trim into the same visit? Check any additional services below:</p>
+                <div class="row g-2">
+                    <?php foreach ($services as $srv): ?>
+                    <div class="col-md-6 addon-item-col" id="addon_col_<?= $srv['id'] ?>">
+                        <label class="d-flex align-items-center justify-content-between p-3 border rounded-3 h-100 cursor-pointer shadow-sm addon-card" style="cursor: pointer;">
+                            <div class="d-flex align-items-center">
+                                <input type="checkbox" name="addons[]" value="<?= $srv['id'] ?>" class="form-check-input addon-check me-3" data-id="<?= $srv['id'] ?>" data-name="<?= htmlspecialchars($srv['name']) ?>" data-price="<?= $srv['price'] ?>" data-duration="<?= $srv['duration'] ?>">
+                                <div>
+                                    <strong class="d-block text-dark"><?= htmlspecialchars($srv['name']) ?></strong>
+                                    <small class="text-muted"><?= htmlspecialchars($srv['category'] ?? 'General') ?> • ~<?= $srv['duration'] ?> mins</small>
+                                </div>
+                            </div>
+                            <span class="badge bg-success-subtle text-success fw-bold px-3 py-2 rounded-pill">+Rs. <?= number_format($srv['price'], 2) ?></span>
+                        </label>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <?php if (!empty($salon_staff_list)): ?>
         <!-- Stylist Selection -->
         <div class="booking-card">
@@ -2037,6 +2086,10 @@ body.dark-mode .coupon-box {
                 <div class="summary-item">
                     <div class="summary-label"><i class="fas fa-hourglass-split"></i> Duration</div>
                     <div class="summary-value" id="summaryDuration">-</div>
+                </div>
+                <div class="summary-item" id="summaryAddonsRow" style="display: none;">
+                    <div class="summary-label text-primary"><i class="fas fa-layer-group"></i> Add-on Services</div>
+                    <div class="summary-value text-primary fw-bold" id="summaryAddons">+ Rs 0.00</div>
                 </div>
                 <div class="summary-item" id="summaryDiscountRow" style="display: none;">
                     <div class="summary-label text-success"><i class="fas fa-tag"></i> Promo Discount</div>
@@ -2391,6 +2444,7 @@ document.querySelectorAll('.service-card').forEach(card => {
             price: radio.dataset.price,
             duration: radio.dataset.duration
         };
+        syncAddonVisibility(selectedService.id);
         updateProgress();
         updateSummary();
     });
@@ -2407,6 +2461,7 @@ if (preselectedRadio) {
         price: preselectedRadio.dataset.price,
         duration: preselectedRadio.dataset.duration
     };
+    syncAddonVisibility(selectedService.id);
     if (typeof updateProgress === 'function') updateProgress();
     if (typeof updateSummary === 'function') updateSummary();
 }
@@ -2552,17 +2607,39 @@ function updateSummary() {
         const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
         document.getElementById('summaryDate').textContent = dateObj.toLocaleDateString('en-US', options);
         document.getElementById('summaryTime').textContent = formatTime12h(selectedTime);
-        document.getElementById('summaryDuration').textContent = selectedService.duration + ' minutes';
         
+        // Calculate Addons
+        let addonPrice = 0;
+        let addonDuration = 0;
+        const addonChecks = document.querySelectorAll('.addon-check:checked');
+        addonChecks.forEach(ch => {
+            addonPrice += parseFloat(ch.dataset.price || 0);
+            addonDuration += parseInt(ch.dataset.duration || 0);
+        });
+
+        const totalDuration = parseInt(selectedService.duration) + addonDuration;
+        document.getElementById('summaryDuration').textContent = totalDuration + ' minutes' + (addonDuration > 0 ? ` (+${addonDuration}m add-ons)` : '');
+
+        const addonsRow = document.getElementById('summaryAddonsRow');
+        if (addonsRow) {
+            if (addonPrice > 0) {
+                addonsRow.style.display = 'flex';
+                document.getElementById('summaryAddons').textContent = '+ Rs ' + addonPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            } else {
+                addonsRow.style.display = 'none';
+            }
+        }
+
         const basePrice = parseFloat(selectedService.price);
+        const subtotal = basePrice + addonPrice;
         let discount = 0;
         const discountRow = document.getElementById('summaryDiscountRow');
         
         if (appliedPromo) {
             if (appliedPromo.discount_percent > 0) {
-                discount = (basePrice * appliedPromo.discount_percent) / 100;
+                discount = (subtotal * appliedPromo.discount_percent) / 100;
             } else if (appliedPromo.discount_amount > 0) {
-                discount = Math.min(basePrice, parseFloat(appliedPromo.discount_amount));
+                discount = Math.min(subtotal, parseFloat(appliedPromo.discount_amount));
             }
         }
         
@@ -2573,13 +2650,34 @@ function updateSummary() {
             discountRow.style.display = 'none';
         }
         
-        const finalPrice = Math.max(0, basePrice - discount);
+        const finalPrice = Math.max(0, subtotal - discount);
         document.getElementById('summaryPrice').textContent = 'Rs ' + finalPrice.toLocaleString('en-US', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
         });
     } else {
         summary.classList.remove('show');
+    }
+}
+
+// Addon checkboxes change listener
+document.querySelectorAll('.addon-check').forEach(ch => {
+    ch.addEventListener('change', function() {
+        updateSummary();
+    });
+});
+
+function syncAddonVisibility(chosenServiceId) {
+    document.querySelectorAll('.addon-item-col').forEach(col => {
+        col.style.display = 'block';
+    });
+    const ownAddonCol = document.getElementById('addon_col_' + chosenServiceId);
+    if (ownAddonCol) {
+        ownAddonCol.style.display = 'none';
+        const ownCheck = ownAddonCol.querySelector('.addon-check');
+        if (ownCheck && ownCheck.checked) {
+            ownCheck.checked = false;
+        }
     }
 }
 

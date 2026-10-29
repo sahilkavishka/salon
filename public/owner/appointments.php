@@ -752,6 +752,15 @@ function renderAppointments(status, appointments) {
     container.innerHTML = appointments.map(apt => {
         let buttons = '';
         
+        // Prepare WhatsApp link
+        let waPhone = '';
+        if (apt.user_phone) {
+            let clean = apt.user_phone.replace(/[^0-9]/g, '');
+            waPhone = clean.startsWith('0') ? ('94' + clean.substring(1)) : clean;
+        }
+        let waMsg = encodeURIComponent(`Hello ${apt.user_name || 'Customer'}! Greetings from ${apt.salon_name}. Your appointment for "${apt.service_name}" on ${apt.appointment_date} at ${apt.appointment_time} is ${status.toUpperCase()} (Booking #${apt.id}). Let us know if you have any questions!`);
+        let waBtn = `<a href="https://wa.me/${waPhone}?text=${waMsg}" target="_blank" class="btn btn-sm btn-outline-success rounded-pill" title="Notify client on WhatsApp"><i class="fab fa-whatsapp me-1"></i>WhatsApp</a>`;
+
         if (status === 'pending') {
             buttons = `
                 <div class="action-buttons">
@@ -764,6 +773,7 @@ function renderAppointments(status, appointments) {
                     <button class="btn btn-reject btn-sm" data-action="reject" data-id="${apt.id}" title="Reject appointment">
                         <i class="fas fa-times me-1"></i>Reject
                     </button>
+                    ${waBtn}
                 </div>
             `;
         } else if (status === 'confirmed') {
@@ -772,6 +782,13 @@ function renderAppointments(status, appointments) {
                     <button class="btn btn-complete btn-sm" data-action="complete" data-id="${apt.id}" title="Mark as completed">
                         <i class="fas fa-check-double me-1"></i>Mark Complete
                     </button>
+                    ${waBtn}
+                </div>
+            `;
+        } else {
+            buttons = `
+                <div class="action-buttons">
+                    ${waBtn}
                 </div>
             `;
         }
@@ -801,6 +818,11 @@ function renderAppointments(status, appointments) {
                             <div class="mb-2">
                                 <i class="fas fa-calendar-alt"></i>${formatDateTime(apt.appointment_date, apt.appointment_time)}
                             </div>
+                            ${apt.user_phone ? `
+                            <div class="mb-2 text-success">
+                                <i class="fas fa-phone-alt"></i><strong>${escapeHtml(apt.user_phone)}</strong>
+                            </div>
+                            ` : ''}
                             ${apt.user_email ? `
                             <div>
                                 <i class="fas fa-envelope"></i>${escapeHtml(apt.user_email)}

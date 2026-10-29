@@ -605,6 +605,7 @@ body.dark-mode .btn-nav-back {
               <?php else: ?>
                 <li class="nav-item"><a href="<?= url('index.php') ?>" class="nav-link"><i class="fas fa-home me-1"></i> Home</a></li>
                 <li class="nav-item"><a href="<?= url('user/salon_view.php') ?>" class="nav-link"><i class="fas fa-cut me-1"></i> Salons</a></li>
+                <li class="nav-item"><a href="<?= url('user/ai_advisor.php') ?>" class="nav-link"><i class="fas fa-magic text-warning me-1"></i> AI Advisor</a></li>
                 <li class="nav-item"><a href="<?= url('user/my_appointments.php') ?>" class="nav-link"><i class="far fa-calendar-check me-1"></i> Appointments</a></li>
               <?php endif; ?>
               
@@ -623,6 +624,7 @@ body.dark-mode .btn-nav-back {
             <?php else: ?>
               <li class="nav-item"><a href="<?= url('index.php') ?>" class="nav-link"><i class="fas fa-home me-1"></i> Home</a></li>
               <li class="nav-item"><a href="<?= url('user/salon_view.php') ?>" class="nav-link"><i class="fas fa-cut me-1"></i> Salons</a></li>
+              <li class="nav-item"><a href="<?= url('user/ai_advisor.php') ?>" class="nav-link"><i class="fas fa-magic text-warning me-1"></i> AI Advisor</a></li>
               <li class="nav-item"><a href="<?= url('index.php#contact') ?>" class="nav-link"><i class="far fa-envelope me-1"></i> Contact</a></li>
               <li class="nav-item ms-2">
                 <button type="button" id="themeToggleBtn" class="btn btn-outline-light btn-sm rounded-circle d-flex align-items-center justify-content-center" style="width:34px;height:34px;" title="Toggle Theme">

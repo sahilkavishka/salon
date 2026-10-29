@@ -1,6 +1,10 @@
 # Vendor dependencies
 /vendor/
 
+# Local configuration & environment
+config.local.php
+.env
+
 # Temporary and OS files
 .DS_Store
 Thumbs.db
