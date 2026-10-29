@@ -448,7 +448,7 @@
   -webkit-text-fill-color: white;
 }
 
-.nav-link {
+.navbar .nav-link {
   font-weight: 500;
   padding: 0.5rem 1rem !important;
   margin: 0 0.25rem;
@@ -457,8 +457,8 @@
   color: white !important;
 }
 
-.nav-link:hover,
-.nav-link.active {
+.navbar .nav-link:hover,
+.navbar .nav-link.active {
   background: rgba(255, 255, 255, 0.1);
   transform: translateY(-2px);
 }

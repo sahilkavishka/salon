@@ -179,6 +179,21 @@ include __DIR__ . '/../header.php';
   pointer-events: none;
 }
 
+.appts-portal-badge {
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #ffffff !important;
+  font-weight: 700;
+  font-size: 0.84rem;
+  padding: 0.45rem 1.1rem;
+  border-radius: 50px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
 /* Quick Summary Stat Badges */
 .summary-stat-chip {
   background: rgba(255, 255, 255, 0.12);
@@ -219,9 +234,9 @@ include __DIR__ . '/../header.php';
 }
 
 .nav-pills-appts .nav-link {
-  background: #ffffff;
-  color: #475569;
-  border: 1.5px solid #e2e8f0;
+  background: #ffffff !important;
+  color: #1e293b !important;
+  border: 1.5px solid #cbd5e1 !important;
   border-radius: 50px;
   padding: 0.55rem 1.25rem;
   font-weight: 600;
@@ -229,16 +244,16 @@ include __DIR__ . '/../header.php';
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.55rem;
   transition: all 0.25s ease;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
 
 .nav-pills-appts .nav-link:hover {
-  background: #fdf2f8;
-  color: #db2777;
-  border-color: #fbcfe8;
+  background: #fdf2f8 !important;
+  color: #db2777 !important;
+  border-color: #fbcfe8 !important;
   transform: translateY(-1px);
 }
 
@@ -250,17 +265,19 @@ include __DIR__ . '/../header.php';
 }
 
 .nav-pills-appts .nav-link .badge-count {
-  background: rgba(0, 0, 0, 0.06);
-  color: #475569;
-  font-size: 0.75rem;
-  padding: 0.2rem 0.6rem;
+  background: #e2e8f0;
+  color: #1e293b;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.65rem;
   border-radius: 50px;
   font-weight: 700;
+  border: 1px solid #cbd5e1;
 }
 
 .nav-pills-appts .nav-link.active .badge-count {
   background: rgba(255, 255, 255, 0.28);
   color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
 /* Appointment Cards */
@@ -449,13 +466,14 @@ body.dark-mode .appts-hero {
 
 body.dark-mode .nav-pills-appts .nav-link {
   background: #1e1e38 !important;
-  color: #cbd5e1 !important;
-  border-color: #2d2d48 !important;
+  color: #f8fafc !important;
+  border-color: #3b3b5e !important;
 }
 
 body.dark-mode .nav-pills-appts .nav-link:hover {
   background: #2a2a4c !important;
   color: #f472b6 !important;
+  border-color: #ec4899 !important;
 }
 
 body.dark-mode .nav-pills-appts .nav-link.active {
@@ -465,8 +483,14 @@ body.dark-mode .nav-pills-appts .nav-link.active {
 }
 
 body.dark-mode .nav-pills-appts .nav-link .badge-count {
-  background: rgba(255, 255, 255, 0.08) !important;
-  color: #cbd5e1 !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #f1f5f9 !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+body.dark-mode .nav-pills-appts .nav-link.active .badge-count {
+  background: rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
 }
 
 body.dark-mode .appt-card {
@@ -555,9 +579,11 @@ body.dark-mode .badge-status-rejected {
   <div class="appts-hero">
     <div class="row align-items-center">
       <div class="col-lg-7">
-        <span class="badge bg-white bg-opacity-20 text-white px-3 py-2 rounded-pill fw-bold mb-3 shadow-sm">
-          <i class="fas fa-calendar-check me-1 text-warning"></i> Customer Booking Portal
-        </span>
+        <div class="mb-3">
+          <span class="appts-portal-badge">
+            <i class="fas fa-calendar-check me-1 text-warning"></i> Customer Booking Portal
+          </span>
+        </div>
         <h1 class="display-6 fw-bold mb-2">My Salon Appointments</h1>
         <p class="lead mb-3 text-white-50" style="font-size: 1.05rem;">
           Track your upcoming salon visits, access digital QR passes, review invoices, and manage your beauty schedule with ease.
